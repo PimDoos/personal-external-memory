@@ -1,0 +1,1 @@
+"""Social circles domain."""

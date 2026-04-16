@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal External Memory</title>
+    <link rel="stylesheet" href="/assets/css/styles.css">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">Personal External Memory</p>
+                <h1>Relationship memory, with structure.</h1>
+            </div>
+            <div class="topbar-actions">
+                <div class="api-status" id="api-status">Checking API</div>
+                <button class="ghost-button hidden" id="logout-button" type="button">Log out</button>
+            </div>
+        </header>
+
+        <main class="layout">
+            <aside class="sidebar">
+                <section class="auth-panel panel" id="auth-panel">
+                    <div class="tabs auth-tabs">
+                        <button class="tab-button active" data-auth-tab="login" type="button">Login</button>
+                        <button class="tab-button" data-auth-tab="register" type="button">Register</button>
+                    </div>
+
+                    <form id="login-form" class="stack form-grid">
+                        <label>
+                            <span>Email</span>
+                            <input name="email" type="email" required placeholder="you@example.com">
+                        </label>
+                        <label>
+                            <span>Password</span>
+                            <input name="password" type="password" required placeholder="Minimum 8 characters">
+                        </label>
+                        <button class="primary-button" type="submit">Sign in</button>
+                    </form>
+
+                    <form id="register-form" class="stack form-grid hidden">
+                        <label>
+                            <span>Email</span>
+                            <input name="email" type="email" required placeholder="you@example.com">
+                        </label>
+                        <label>
+                            <span>Password</span>
+                            <input name="password" type="password" required placeholder="Minimum 8 characters">
+                        </label>
+                        <button class="primary-button" type="submit">Create account</button>
+                    </form>
+                    <p class="muted" id="auth-message">Use the backend auth endpoints through this UI.</p>
+                </section>
+
+                <section class="panel hidden" id="navigation-panel">
+                    <div class="user-chip">
+                        <div class="user-chip__label">Signed in</div>
+                        <strong id="user-email">-</strong>
+                    </div>
+
+                    <label class="search-field">
+                        <span>Quick filter</span>
+                        <input id="global-filter" type="search" placeholder="Search visible records">
+                    </label>
+
+                    <nav class="nav-tabs" id="nav-tabs">
+                        <button class="nav-button active" data-section="dashboard" type="button">Dashboard</button>
+                        <button class="nav-button" data-section="people" type="button">People</button>
+                        <button class="nav-button" data-section="circles" type="button">Circles</button>
+                        <button class="nav-button" data-section="brands" type="button">Brands</button>
+                        <button class="nav-button" data-section="events" type="button">Events</button>
+                        <button class="nav-button" data-section="interactions" type="button">Interactions</button>
+                        <button class="nav-button" data-section="tags" type="button">Tags</button>
+                    </nav>
+                </section>
+            </aside>
+
+            <section class="content hidden" id="content-panel">
+                <section class="view-section active" id="section-dashboard">
+                    <div class="hero panel">
+                        <div>
+                            <p class="eyebrow">Overview</p>
+                            <h2>Your memory at a glance</h2>
+                            <p class="muted">Birthdays, upcoming events, recent interactions, and the people graph live here.</p>
+                        </div>
+                    </div>
+                    <div class="metric-grid" id="metric-grid"></div>
+                    <div class="split-grid">
+                        <article class="panel">
+                            <div class="panel-heading">
+                                <h3>Upcoming Events</h3>
+                            </div>
+                            <div id="dashboard-events"></div>
+                        </article>
+                        <article class="panel">
+                            <div class="panel-heading">
+                                <h3>Recent Interactions</h3>
+                            </div>
+                            <div id="dashboard-interactions"></div>
+                        </article>
+                    </div>
+                    <article class="panel">
+                        <div class="panel-heading">
+                            <h3>Upcoming Birthdays</h3>
+                        </div>
+                        <div id="dashboard-birthdays"></div>
+                    </article>
+                </section>
+
+                <section class="view-section" id="section-people">
+                    <div class="workspace-grid">
+                        <article class="panel">
+                            <div class="panel-heading"><h2>People</h2></div>
+                            <form id="person-form" class="form-grid stack compact-form">
+                                <label><span>First name</span><input name="first_name" required></label>
+                                <label><span>Last name</span><input name="last_name"></label>
+                                <label><span>Birthday</span><input name="birth_date" type="date"></label>
+                                <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+                                <button class="primary-button" type="submit">Add person</button>
+                            </form>
+                            <div class="list" id="people-list"></div>
+                        </article>
+                        <article class="panel detail-panel">
+                            <div class="panel-heading"><h2>Person Detail</h2></div>
+                            <div id="person-detail" class="empty-state">Select a person to manage contacts, tags, and relationships.</div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="view-section" id="section-circles">
+                    <div class="workspace-grid">
+                        <article class="panel">
+                            <div class="panel-heading"><h2>Social Circles</h2></div>
+                            <form id="circle-form" class="form-grid stack compact-form">
+                                <label><span>Name</span><input name="name" required></label>
+                                <label><span>Description</span><input name="description"></label>
+                                <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+                                <button class="primary-button" type="submit">Create circle</button>
+                            </form>
+                            <div class="list" id="circles-list"></div>
+                        </article>
+                        <article class="panel detail-panel">
+                            <div class="panel-heading"><h2>Circle Members</h2></div>
+                            <div id="circle-detail" class="empty-state">Select a circle to add or remove members.</div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="view-section" id="section-brands">
+                    <div class="workspace-grid single-detail">
+                        <article class="panel">
+                            <div class="panel-heading"><h2>Brands</h2></div>
+                            <form id="brand-form" class="form-grid stack compact-form">
+                                <label><span>Name</span><input name="name" required></label>
+                                <label><span>Description</span><input name="description"></label>
+                                <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+                                <button class="primary-button" type="submit">Create brand</button>
+                            </form>
+                            <div class="list" id="brands-list"></div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="view-section" id="section-events">
+                    <div class="workspace-grid">
+                        <article class="panel">
+                            <div class="panel-heading"><h2>Events</h2></div>
+                            <form id="event-form" class="form-grid stack compact-form">
+                                <label><span>Date</span><input name="date" type="datetime-local" required></label>
+                                <label><span>Start</span><input name="start_time" type="datetime-local"></label>
+                                <label><span>End</span><input name="end_time" type="datetime-local"></label>
+                                <label><span>Location</span><input name="location"></label>
+                                <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+                                <button class="primary-button" type="submit">Create event</button>
+                            </form>
+                            <div class="list" id="events-list"></div>
+                        </article>
+                        <article class="panel detail-panel">
+                            <div class="panel-heading"><h2>Participants</h2></div>
+                            <div id="event-detail" class="empty-state">Select an event to manage participants and roles.</div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="view-section" id="section-interactions">
+                    <div class="workspace-grid">
+                        <article class="panel">
+                            <div class="panel-heading"><h2>Interactions</h2></div>
+                            <form id="interaction-form" class="form-grid stack compact-form">
+                                <label><span>Date</span><input name="date" type="datetime-local" required></label>
+                                <label><span>Start</span><input name="start_time" type="datetime-local"></label>
+                                <label><span>End</span><input name="end_time" type="datetime-local"></label>
+                                <label><span>Medium</span><input name="medium" placeholder="Zoom, call, cafe"></label>
+                                <label><span>Location</span><input name="location"></label>
+                                <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+                                <button class="primary-button" type="submit">Create interaction</button>
+                            </form>
+                            <div class="list" id="interactions-list"></div>
+                        </article>
+                        <article class="panel detail-panel">
+                            <div class="panel-heading"><h2>Participants</h2></div>
+                            <div id="interaction-detail" class="empty-state">Select an interaction to manage participants.</div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="view-section" id="section-tags">
+                    <div class="workspace-grid single-detail">
+                        <article class="panel">
+                            <div class="panel-heading"><h2>Tags</h2></div>
+                            <form id="tag-form" class="form-grid stack compact-form">
+                                <label><span>Name</span><input name="name" required></label>
+                                <label><span>Description</span><input name="description"></label>
+                                <label><span>Color</span><input name="color" type="color" value="#b86a37"></label>
+                                <button class="primary-button" type="submit">Create tag</button>
+                            </form>
+                            <div class="list" id="tags-list"></div>
+                        </article>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script type="module" src="/assets/js/app.js"></script>
+</body>
+</html>

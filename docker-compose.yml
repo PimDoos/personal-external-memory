@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # Backend API service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pem-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - pem-data:/app/data
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/pem.db
+      - SECRET_KEY=dev-secret-key-change-in-production
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pem-data:
+    driver: local

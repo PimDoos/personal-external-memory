@@ -1,0 +1,58 @@
+"""Brands domain - business logic."""
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.domains.brands.schemas import BrandCreateRequest, BrandUpdateRequest
+from app.infrastructure.models import Brand
+from app.infrastructure.exceptions import NotFoundError
+
+
+class BrandService:
+    """Service for managing brands."""
+
+    def __init__(self, session: AsyncSession):
+        """Initialize brand service."""
+        self.session = session
+
+    async def create(self, user_id: int, data: BrandCreateRequest) -> Brand:
+        """Create a new brand."""
+        brand = Brand(
+            user_id=user_id,
+            name=data.name,
+            description=data.description,
+            notes=data.notes,
+        )
+        self.session.add(brand)
+        await self.session.flush()
+        return brand
+
+    async def get(self, brand_id: int, user_id: int) -> Brand:
+        """Get a brand by ID."""
+        stmt = select(Brand).where(
+            (Brand.id == brand_id) & (Brand.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        brand = result.scalar_one_or_none()
+
+        if not brand:
+            raise NotFoundError("Brand not found")
+
+        return brand
+
+    async def update(self, brand_id: int, user_id: int, data: BrandUpdateRequest) -> Brand:
+        """Update a brand."""
+        brand = await self.get(brand_id, user_id)
+
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(brand, key, value)
+
+        await self.session.flush()
+        return brand
+
+    async def delete(self, brand_id: int, user_id: int) -> None:
+        """Delete a brand."""
+        brand = await self.get(brand_id, user_id)
+        await self.session.delete(brand)
+        await self.session.flush()
