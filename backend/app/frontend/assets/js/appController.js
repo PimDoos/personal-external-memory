@@ -65,8 +65,8 @@ export function createAppController() {
     function showToast(message, isError = false) {
         refs.toast.innerText = message;
         refs.toast.style.background = isError
-            ? "rgba(98, 51, 45, 0.94)"
-            : "rgba(27, 36, 34, 0.92)";
+            ? "var(--toast-error-bg)"
+            : "var(--toast-bg)";
         refs.toast.classList.add("visible");
         window.clearTimeout(showToast.timeoutId);
         showToast.timeoutId = window.setTimeout(() => {
@@ -77,8 +77,8 @@ export function createAppController() {
     function setApiStatus(message, healthy = true) {
         refs.apiStatus.innerText = message;
         refs.apiStatus.style.borderColor = healthy
-            ? "rgba(127, 150, 127, 0.25)"
-            : "rgba(98, 51, 45, 0.35)";
+            ? "var(--status-ok-line)"
+            : "var(--status-error-line)";
     }
 
     async function withAction(action, options = { render: true }) {
