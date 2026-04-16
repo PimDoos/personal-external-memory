@@ -111,19 +111,19 @@
                 <section class="view-section" id="section-people">
                     <div class="workspace-grid">
                         <article class="panel">
-                            <div class="panel-heading"><h2>People</h2></div>
-                            <form id="person-form" class="form-grid stack compact-form">
+                            <div class="panel-heading"><h2>People</h2><button class="primary-button" data-new-section="people" type="button">New</button></div>
+                            <div class="list" id="people-list"></div>
+                        </article>
+                        <article class="panel detail-panel hidden" id="person-detail-panel">
+                            <div class="panel-heading"><h2>Person Detail</h2></div>
+                            <form id="person-form" class="form-grid stack compact-form hidden">
                                 <label><span>First name</span><input name="first_name" required></label>
                                 <label><span>Last name</span><input name="last_name"></label>
                                 <label><span>Birthday</span><input name="birth_date" type="date"></label>
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Add person</button>
                             </form>
-                            <div class="list" id="people-list"></div>
-                        </article>
-                        <article class="panel detail-panel">
-                            <div class="panel-heading"><h2>Person Detail</h2></div>
-                            <div id="person-detail" class="empty-state">Select a person to manage contacts, tags, and relationships.</div>
+                            <div id="person-detail" class="empty-state hidden">Select a person to manage contacts, tags, and relationships.</div>
                         </article>
                     </div>
                 </section>
@@ -131,33 +131,37 @@
                 <section class="view-section" id="section-circles">
                     <div class="workspace-grid">
                         <article class="panel">
-                            <div class="panel-heading"><h2>Social Circles</h2></div>
-                            <form id="circle-form" class="form-grid stack compact-form">
+                            <div class="panel-heading"><h2>Social Circles</h2><button class="primary-button" data-new-section="circles" type="button">New</button></div>
+                            <div class="list" id="circles-list"></div>
+                        </article>
+                        <article class="panel detail-panel hidden" id="circle-detail-panel">
+                            <div class="panel-heading"><h2>Circle Members</h2></div>
+                            <form id="circle-form" class="form-grid stack compact-form hidden">
                                 <label><span>Name</span><input name="name" required></label>
                                 <label><span>Description</span><input name="description"></label>
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Create circle</button>
                             </form>
-                            <div class="list" id="circles-list"></div>
-                        </article>
-                        <article class="panel detail-panel">
-                            <div class="panel-heading"><h2>Circle Members</h2></div>
-                            <div id="circle-detail" class="empty-state">Select a circle to add or remove members.</div>
+                            <div id="circle-detail" class="empty-state hidden">Select a circle to add or remove members.</div>
                         </article>
                     </div>
                 </section>
 
                 <section class="view-section" id="section-brands">
-                    <div class="workspace-grid single-detail">
+                    <div class="workspace-grid">
                         <article class="panel">
-                            <div class="panel-heading"><h2>Brands</h2></div>
-                            <form id="brand-form" class="form-grid stack compact-form">
+                            <div class="panel-heading"><h2>Brands</h2><button class="primary-button" data-new-section="brands" type="button">New</button></div>
+                            <div class="list" id="brands-list"></div>
+                        </article>
+                        <article class="panel detail-panel hidden" id="brand-detail-panel">
+                            <div class="panel-heading"><h2>Brand Detail</h2></div>
+                            <form id="brand-form" class="form-grid stack compact-form hidden">
                                 <label><span>Name</span><input name="name" required></label>
                                 <label><span>Description</span><input name="description"></label>
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Create brand</button>
                             </form>
-                            <div class="list" id="brands-list"></div>
+                            <div id="brand-detail" class="empty-state hidden">Select a brand to view details.</div>
                         </article>
                     </div>
                 </section>
@@ -165,20 +169,19 @@
                 <section class="view-section" id="section-events">
                     <div class="workspace-grid">
                         <article class="panel">
-                            <div class="panel-heading"><h2>Events</h2></div>
-                            <form id="event-form" class="form-grid stack compact-form">
-                                <label><span>Date</span><input name="date" type="datetime-local" required></label>
+                            <div class="panel-heading"><h2>Events</h2><button class="primary-button" data-new-section="events" type="button">New</button></div>
+                            <div class="list" id="events-list"></div>
+                        </article>
+                        <article class="panel detail-panel hidden" id="event-detail-panel">
+                            <div class="panel-heading"><h2>Participants</h2></div>
+                            <form id="event-form" class="form-grid stack compact-form hidden">
                                 <label><span>Start</span><input name="start_time" type="datetime-local"></label>
                                 <label><span>End</span><input name="end_time" type="datetime-local"></label>
                                 <label><span>Location</span><input name="location"></label>
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Create event</button>
                             </form>
-                            <div class="list" id="events-list"></div>
-                        </article>
-                        <article class="panel detail-panel">
-                            <div class="panel-heading"><h2>Participants</h2></div>
-                            <div id="event-detail" class="empty-state">Select an event to manage participants and roles.</div>
+                            <div id="event-detail" class="empty-state hidden">Select an event to manage participants and roles.</div>
                         </article>
                     </div>
                 </section>
@@ -186,9 +189,12 @@
                 <section class="view-section" id="section-interactions">
                     <div class="workspace-grid">
                         <article class="panel">
-                            <div class="panel-heading"><h2>Interactions</h2></div>
-                            <form id="interaction-form" class="form-grid stack compact-form">
-                                <label><span>Date</span><input name="date" type="datetime-local" required></label>
+                            <div class="panel-heading"><h2>Interactions</h2><button class="primary-button" data-new-section="interactions" type="button">New</button></div>
+                            <div class="list" id="interactions-list"></div>
+                        </article>
+                        <article class="panel detail-panel hidden" id="interaction-detail-panel">
+                            <div class="panel-heading"><h2>Participants</h2></div>
+                            <form id="interaction-form" class="form-grid stack compact-form hidden">
                                 <label><span>Start</span><input name="start_time" type="datetime-local"></label>
                                 <label><span>End</span><input name="end_time" type="datetime-local"></label>
                                 <label><span>Medium</span><input name="medium" placeholder="Zoom, call, cafe"></label>
@@ -196,26 +202,26 @@
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Create interaction</button>
                             </form>
-                            <div class="list" id="interactions-list"></div>
-                        </article>
-                        <article class="panel detail-panel">
-                            <div class="panel-heading"><h2>Participants</h2></div>
-                            <div id="interaction-detail" class="empty-state">Select an interaction to manage participants.</div>
+                            <div id="interaction-detail" class="empty-state hidden">Select an interaction to manage participants.</div>
                         </article>
                     </div>
                 </section>
 
                 <section class="view-section" id="section-tags">
-                    <div class="workspace-grid single-detail">
+                    <div class="workspace-grid">
                         <article class="panel">
-                            <div class="panel-heading"><h2>Tags</h2></div>
-                            <form id="tag-form" class="form-grid stack compact-form">
+                            <div class="panel-heading"><h2>Tags</h2><button class="primary-button" data-new-section="tags" type="button">New</button></div>
+                            <div class="list" id="tags-list"></div>
+                        </article>
+                        <article class="panel detail-panel hidden" id="tag-detail-panel">
+                            <div class="panel-heading"><h2>Tag Detail</h2></div>
+                            <form id="tag-form" class="form-grid stack compact-form hidden">
                                 <label><span>Name</span><input name="name" required></label>
                                 <label><span>Description</span><input name="description"></label>
                                 <label><span>Color</span><input name="color" type="color" value="#b86a37"></label>
                                 <button class="primary-button" type="submit">Create tag</button>
                             </form>
-                            <div class="list" id="tags-list"></div>
+                            <div id="tag-detail" class="empty-state hidden">Select a tag to view details.</div>
                         </article>
                     </div>
                 </section>

@@ -77,7 +77,10 @@ export function createButtonNode(text, className, onClick, options = {}) {
     });
 
     if (onClick) {
-        node.addEventListener("click", onClick);
+        node.addEventListener("click", (event) => {
+            event.stopPropagation();
+            onClick(event);
+        });
     }
 
     if (options.disabled) {

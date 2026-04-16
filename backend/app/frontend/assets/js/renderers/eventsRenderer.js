@@ -5,16 +5,35 @@ export function createEventsRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedEvent, createListItem, renderSimpleList } = common;
 
     function renderEventDetail() {
+        const panel = document.getElementById("event-detail-panel");
+        const sidebarForm = document.getElementById("event-form");
         const container = document.getElementById("event-detail");
         const event = selectedEvent();
+        const mode = state.sidebar.events;
 
-        clearNodeChildren(container);
-        if (!event) {
-            container.className = "empty-state";
-            container.innerText = "Select an event to manage participants and roles.";
+        if (mode === "hidden") {
+            panel.classList.add("hidden");
+            sidebarForm.classList.add("hidden");
+            container.classList.add("hidden");
             return;
         }
 
+        panel.classList.remove("hidden");
+        if (mode === "create") {
+            sidebarForm.classList.remove("hidden");
+            container.classList.add("hidden");
+            return;
+        }
+
+        sidebarForm.classList.add("hidden");
+        container.classList.remove("hidden");
+
+        if (!event) {
+            panel.classList.add("hidden");
+            return;
+        }
+
+        clearNodeChildren(container);
         container.className = "detail-grid";
 
         const participants = caches.eventParticipants.get(event.id) || [];
@@ -99,9 +118,6 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             events,
             (event) => {
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
-                    await actions.selectEvent(event.id);
-                }));
                 actionsNode.appendChild(createButtonNode("Delete", "danger-button", async () => {
                     await actions.deleteEvent(event.id);
                 }));
@@ -110,6 +126,9 @@ export function createEventsRenderer({ state, caches, actions, common }) {
                 if (state.selected.eventId === event.id) {
                     item.classList.add("active");
                 }
+                item.addEventListener("click", async () => {
+                    await actions.selectEvent(event.id);
+                });
                 return item;
             },
             "No events yet."

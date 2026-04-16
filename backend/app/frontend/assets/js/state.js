@@ -6,8 +6,18 @@ export const state = {
     selected: {
         personId: null,
         circleId: null,
+        brandId: null,
         eventId: null,
         interactionId: null,
+        tagId: null,
+    },
+    sidebar: {
+        people: "hidden",
+        circles: "hidden",
+        brands: "hidden",
+        events: "hidden",
+        interactions: "hidden",
+        tags: "hidden",
     },
     data: {
         people: [],
@@ -31,8 +41,13 @@ export function clearSession() {
     state.email = "";
     state.selected.personId = null;
     state.selected.circleId = null;
+    state.selected.brandId = null;
     state.selected.eventId = null;
     state.selected.interactionId = null;
+    state.selected.tagId = null;
+    Object.keys(state.sidebar).forEach((section) => {
+        state.sidebar[section] = "hidden";
+    });
     window.localStorage.removeItem("pem.accessToken");
     window.localStorage.removeItem("pem.userEmail");
 }

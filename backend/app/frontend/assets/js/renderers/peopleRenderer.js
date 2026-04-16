@@ -1,5 +1,5 @@
 import { createButtonNode, clearNodeChildren, createNode, createEmptyStateNode, createSelectNode, createFormDataObject } from "../dom.js";
-import { formatDateTime } from "../ui.js";
+import { formatBirthday } from "../ui.js";
 
 export function createPeopleRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedPerson, createListItem, renderSimpleList } = common;
@@ -123,16 +123,35 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
     }
 
     function renderPersonDetail() {
+        const panel = document.getElementById("person-detail-panel");
+        const form = document.getElementById("person-form");
         const container = document.getElementById("person-detail");
         const person = selectedPerson();
+        const mode = state.sidebar.people;
 
-        clearNodeChildren(container);
-        if (!person) {
-            container.className = "empty-state";
-            container.innerText = "Select a person to manage contacts, tags, and relationships.";
+        if (mode === "hidden") {
+            panel.classList.add("hidden");
+            form.classList.add("hidden");
+            container.classList.add("hidden");
             return;
         }
 
+        panel.classList.remove("hidden");
+        if (mode === "create") {
+            form.classList.remove("hidden");
+            container.classList.add("hidden");
+            return;
+        }
+
+        form.classList.add("hidden");
+        container.classList.remove("hidden");
+
+        if (!person) {
+            panel.classList.add("hidden");
+            return;
+        }
+
+        clearNodeChildren(container);
         container.className = "detail-grid";
 
         const contacts = caches.personContacts.get(person.id) || [];
@@ -142,7 +161,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         const overview = createNode("article", {
             children: [
                 createNode("h3", { text: `${person.first_name} ${person.last_name || ""}`.trim() }),
-                createNode("p", { className: "muted", text: `Birthday: ${person.birth_date ? formatDateTime(person.birth_date) : "Unknown"}` }),
+                createNode("p", { className: "muted", text: `Birthday: ${person.birth_date ? formatBirthday(person.birth_date) : "Unknown"}` }),
                 createNode("p", { text: person.notes || "No notes recorded." }),
             ],
         });
@@ -236,10 +255,6 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             people.forEach((person) => {
                 const actionGroup = createNode("div", { className: "list-actions" });
 
-                actionGroup.appendChild(createButtonNode("Open", "secondary-button", async () => {
-                    await actions.selectPerson(person.id);
-                }));
-
                 actionGroup.appendChild(createButtonNode("Delete", "danger-button", async () => {
                     await actions.deletePerson(person.id);
                 }));
@@ -253,6 +268,10 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 if (state.selected.personId === person.id) {
                     item.classList.add("active");
                 }
+
+                item.addEventListener("click", async () => {
+                    await actions.selectPerson(person.id);
+                });
 
                 listNode.appendChild(item);
             });

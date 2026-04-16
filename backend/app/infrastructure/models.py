@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Boolean
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -45,7 +45,7 @@ class Person(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     first_name = Column(String(255), nullable=False)
     last_name = Column(String(255), nullable=True)
-    birth_date = Column(DateTime, nullable=True)
+    birth_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(

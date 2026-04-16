@@ -4,16 +4,35 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
     const { filtered, selectedCircle, createListItem, renderSimpleList } = common;
 
     function renderCircleDetail() {
+        const panel = document.getElementById("circle-detail-panel");
+        const formNode = document.getElementById("circle-form");
         const container = document.getElementById("circle-detail");
         const circle = selectedCircle();
+        const mode = state.sidebar.circles;
 
-        clearNodeChildren(container);
-        if (!circle) {
-            container.className = "empty-state";
-            container.innerText = "Select a circle to add or remove members.";
+        if (mode === "hidden") {
+            panel.classList.add("hidden");
+            formNode.classList.add("hidden");
+            container.classList.add("hidden");
             return;
         }
 
+        panel.classList.remove("hidden");
+        if (mode === "create") {
+            formNode.classList.remove("hidden");
+            container.classList.add("hidden");
+            return;
+        }
+
+        formNode.classList.add("hidden");
+        container.classList.remove("hidden");
+
+        if (!circle) {
+            panel.classList.add("hidden");
+            return;
+        }
+
+        clearNodeChildren(container);
         container.className = "detail-grid";
 
         const memberIds = caches.circleMembers.get(circle.id) || [];
@@ -90,9 +109,6 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
         } else {
             circles.forEach((circle) => {
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
-                    await actions.selectCircle(circle.id);
-                }));
                 actionsNode.appendChild(createButtonNode("Delete", "danger-button", async () => {
                     await actions.deleteCircle(circle.id);
                 }));
@@ -106,6 +122,10 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                 if (state.selected.circleId === circle.id) {
                     item.classList.add("active");
                 }
+
+                item.addEventListener("click", async () => {
+                    await actions.selectCircle(circle.id);
+                });
 
                 listNode.appendChild(item);
             });

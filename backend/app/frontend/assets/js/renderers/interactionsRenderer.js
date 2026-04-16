@@ -5,16 +5,35 @@ export function createInteractionsRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedInteraction, createListItem, renderSimpleList } = common;
 
     function renderInteractionDetail() {
+        const panel = document.getElementById("interaction-detail-panel");
+        const sidebarForm = document.getElementById("interaction-form");
         const container = document.getElementById("interaction-detail");
         const interaction = selectedInteraction();
+        const mode = state.sidebar.interactions;
 
-        clearNodeChildren(container);
-        if (!interaction) {
-            container.className = "empty-state";
-            container.innerText = "Select an interaction to manage participants.";
+        if (mode === "hidden") {
+            panel.classList.add("hidden");
+            sidebarForm.classList.add("hidden");
+            container.classList.add("hidden");
             return;
         }
 
+        panel.classList.remove("hidden");
+        if (mode === "create") {
+            sidebarForm.classList.remove("hidden");
+            container.classList.add("hidden");
+            return;
+        }
+
+        sidebarForm.classList.add("hidden");
+        container.classList.remove("hidden");
+
+        if (!interaction) {
+            panel.classList.add("hidden");
+            return;
+        }
+
+        clearNodeChildren(container);
         container.className = "detail-grid";
 
         const participantIds = caches.interactionParticipants.get(interaction.id) || [];
@@ -91,9 +110,6 @@ export function createInteractionsRenderer({ state, caches, actions, common }) {
             interactions,
             (interaction) => {
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
-                    await actions.selectInteraction(interaction.id);
-                }));
                 actionsNode.appendChild(createButtonNode("Delete", "danger-button", async () => {
                     await actions.deleteInteraction(interaction.id);
                 }));
@@ -102,6 +118,9 @@ export function createInteractionsRenderer({ state, caches, actions, common }) {
                 if (state.selected.interactionId === interaction.id) {
                     item.classList.add("active");
                 }
+                item.addEventListener("click", async () => {
+                    await actions.selectInteraction(interaction.id);
+                });
                 return item;
             },
             "No interactions yet."
