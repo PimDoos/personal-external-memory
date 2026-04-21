@@ -2,7 +2,15 @@ export const state = {
     token: window.localStorage.getItem("pem.accessToken") || "",
     email: window.localStorage.getItem("pem.userEmail") || "",
     activeSection: "dashboard",
-    filter: "",
+    filters: {
+        people: "",
+        circles: "",
+        brands: "",
+        events: "",
+        interactions: "",
+        tags: "",
+        types: "",
+    },
     selected: {
         personId: null,
         circleId: null,
@@ -26,6 +34,14 @@ export const state = {
         events: [],
         interactions: [],
         tags: [],
+        typeLists: {
+            contactInfoTypes: [],
+            relationshipTypes: [],
+            socialCircleTypes: [],
+            eventTypes: [],
+            interactionTypes: [],
+            interactionMediums: [],
+        },
     },
 };
 

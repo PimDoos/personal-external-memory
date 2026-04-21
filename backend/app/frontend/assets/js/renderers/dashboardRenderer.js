@@ -1,17 +1,9 @@
-import { clearNodeChildren } from "../dom.js";
 import { formatBirthday, formatDateTime } from "../ui.js";
 
-export function createDashboardRenderer({ state, common }) {
-    const { createMetricCard, createListItem, renderSimpleList } = common;
+export function createDashboardRenderer({ state, actions, common }) {
+    const { createListItem, renderSimpleList } = common;
 
     function renderDashboard() {
-        const metricGrid = document.getElementById("metric-grid");
-        clearNodeChildren(metricGrid);
-        metricGrid.appendChild(createMetricCard("People", state.data.people.length));
-        metricGrid.appendChild(createMetricCard("Circles", state.data.circles.length));
-        metricGrid.appendChild(createMetricCard("Events", state.data.events.length));
-        metricGrid.appendChild(createMetricCard("Interactions", state.data.interactions.length));
-
         const upcomingEvents = [...state.data.events]
             .sort((a, b) => new Date(a.date) - new Date(b.date))
             .slice(0, 5);
@@ -28,21 +20,41 @@ export function createDashboardRenderer({ state, common }) {
         renderSimpleList(
             document.getElementById("dashboard-events"),
             upcomingEvents,
-            (item) => createListItem(item.location || "Untitled event", formatDateTime(item.date)),
+            (item) => {
+                const row = createListItem(item.title || item.location || "Untitled event", formatDateTime(item.date));
+                row.addEventListener("click", async () => {
+                    state.activeSection = "events";
+                    await actions.selectEvent(item.id);
+                });
+                return row;
+            },
             "No upcoming events yet."
         );
 
         renderSimpleList(
             document.getElementById("dashboard-interactions"),
             recentInteractions,
-            (item) => createListItem(item.medium || "Interaction", formatDateTime(item.date)),
+            (item) => {
+                const row = createListItem(item.title || item.medium || "Interaction", formatDateTime(item.date));
+                row.addEventListener("click", async () => {
+                    state.activeSection = "interactions";
+                    await actions.selectInteraction(item.id);
+                });
+                return row;
+            },
             "No interactions recorded yet."
         );
 
         renderSimpleList(
             document.getElementById("dashboard-birthdays"),
             birthdays,
-            (item) => createListItem(`${item.first_name} ${item.last_name || ""}`.trim(), formatBirthday(item.birth_date)),
+            (item) => {
+                const row = createListItem(`${item.first_name} ${item.last_name || ""}`.trim(), formatBirthday(item.birth_date));
+                row.addEventListener("click", async () => {
+                    await actions.openPersonFromContext(item.id);
+                });
+                return row;
+            },
             "No birthdays available."
         );
     }

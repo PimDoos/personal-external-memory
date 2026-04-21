@@ -1,7 +1,52 @@
-import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject } from "../dom.js";
+import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
 
 export function createCirclesRenderer({ state, caches, actions, common }) {
     const { filtered, selectedCircle, createListItem, renderSimpleList } = common;
+
+    function buildCircleEditForm(circle) {
+        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const nameInput = createNode("input", {
+            value: circle.name || "",
+            attrs: { name: "name", required: true },
+        });
+        const circleTypes = state.data.typeLists.socialCircleTypes || [];
+        const circleTypeSelect = createSelectNode(
+            [{ value: "", label: "No type" }, ...circleTypes.map((entry) => ({ value: entry.name, label: entry.name }))],
+            circle.circle_type || "",
+            { name: "circle_type" }
+        );
+        const descriptionInput = createNode("input", {
+            value: circle.description || "",
+            attrs: { name: "description" },
+        });
+        const notesInput = createNode("textarea", {
+            value: circle.notes || "",
+            attrs: { name: "notes", rows: "3" },
+        });
+
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Name" }), nameInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Type" }), circleTypeSelect] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Description" }), descriptionInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Notes" }), notesInput] }));
+        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            if (payload.circle_type === "") {
+                delete payload.circle_type;
+            }
+            if (payload.description === "") {
+                delete payload.description;
+            }
+            if (payload.notes === "") {
+                delete payload.notes;
+            }
+            await actions.updateCircle(circle.id, payload);
+        });
+
+        return form;
+    }
 
     function renderCircleDetail() {
         const panel = document.getElementById("circle-detail-panel");
@@ -18,6 +63,17 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
         }
 
         panel.classList.remove("hidden");
+        const createTypeSelect = formNode.querySelector("select[name='circle_type']");
+        if (createTypeSelect) {
+            const selectedValue = createTypeSelect.value;
+            clearNodeChildren(createTypeSelect);
+            createTypeSelect.appendChild(createNode("option", { text: "No type", attrs: { value: "" } }));
+            (state.data.typeLists.socialCircleTypes || []).forEach((entry) => {
+                createTypeSelect.appendChild(createNode("option", { text: entry.name, attrs: { value: entry.name } }));
+            });
+            createTypeSelect.value = selectedValue;
+        }
+
         if (mode === "create") {
             formNode.classList.remove("hidden");
             container.classList.add("hidden");
@@ -40,9 +96,18 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
         const availablePeople = state.data.people.filter((person) => !memberIds.includes(person.id));
 
         container.appendChild(createNode("article", {
+            className: "subpanel",
             children: [
-                createNode("h3", { text: circle.name }),
-                createNode("p", { text: circle.description || circle.notes || "No notes yet." }),
+                createNode("div", {
+                    className: "panel-heading",
+                    children: [
+                        createNode("h3", { text: "Circle Details" }),
+                        createButtonNode("Delete", "danger-button", async () => {
+                            await actions.deleteCircle(circle.id);
+                        }),
+                    ],
+                }),
+                buildCircleEditForm(circle),
             ],
         }));
 
@@ -73,7 +138,9 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
             await actions.addCircleMember(circle.id, Number(values.person_id));
         });
 
-        section.appendChild(form);
+        const { wrapper: formWrapper, trigger: formTrigger } = wrapCollapsible("+ Add", form);
+        section.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Members" }), formTrigger] }));
+        section.appendChild(formWrapper);
 
         const list = createNode("div", { className: "list" });
         renderSimpleList(
@@ -84,7 +151,11 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeCircleMember(circle.id, member.id);
                 }));
-                return createListItem(`${member.first_name} ${member.last_name || ""}`.trim(), "", actionsNode);
+                const item = createListItem(`${member.first_name} ${member.last_name || ""}`.trim(), "", actionsNode);
+                item.addEventListener("click", async () => {
+                    await actions.openPersonFromContext(member.id);
+                });
+                return item;
             },
             "No members in this circle yet."
         );
@@ -95,8 +166,10 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
 
     function renderCircles() {
         const circles = filtered(
+            "circles",
             state.data.circles,
             (circle) => circle.name,
+            (circle) => circle.circle_type,
             (circle) => circle.description,
             (circle) => circle.notes
         );
@@ -108,15 +181,9 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
             listNode.appendChild(createNode("div", { className: "empty-state", text: "No circles created yet." }));
         } else {
             circles.forEach((circle) => {
-                const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Delete", "danger-button", async () => {
-                    await actions.deleteCircle(circle.id);
-                }));
-
                 const item = createListItem(
                     circle.name,
-                    circle.description || circle.notes || "No description",
-                    actionsNode
+                    circle.circle_type || circle.description || circle.notes || "No description"
                 );
 
                 if (state.selected.circleId === circle.id) {

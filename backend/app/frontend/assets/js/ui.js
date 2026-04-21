@@ -48,6 +48,42 @@ export function formatBirthday(value) {
     }).format(date);
 }
 
+export function calculateAge(value) {
+    if (!value) {
+        return null;
+    }
+
+    const parsed = typeof value === "string"
+        ? new Date(`${String(value).slice(0, 10)}T00:00:00Z`)
+        : new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return null;
+    }
+
+    const today = new Date();
+    let age = today.getUTCFullYear() - parsed.getUTCFullYear();
+    const monthDelta = today.getUTCMonth() - parsed.getUTCMonth();
+    const dayDelta = today.getUTCDate() - parsed.getUTCDate();
+    if (monthDelta < 0 || (monthDelta === 0 && dayDelta < 0)) {
+        age -= 1;
+    }
+    return age;
+}
+
 export function toIsoDateTime(localValue) {
     return localValue ? new Date(localValue).toISOString() : null;
+}
+
+export function toLocalDateTimeInputValue(value) {
+    if (!value) {
+        return "";
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return "";
+    }
+
+    const pad = (part) => String(part).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

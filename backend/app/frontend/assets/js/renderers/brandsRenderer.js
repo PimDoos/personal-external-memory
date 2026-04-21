@@ -1,7 +1,42 @@
-import { clearNodeChildren, createButtonNode, createNode } from "../dom.js";
+import { clearNodeChildren, createButtonNode, createFormDataObject, createNode } from "../dom.js";
 
 export function createBrandsRenderer({ state, actions, common }) {
     const { filtered, createListItem, renderSimpleList } = common;
+
+    function buildBrandEditForm(brand) {
+        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const nameInput = createNode("input", {
+            value: brand.name || "",
+            attrs: { name: "name", required: true },
+        });
+        const descriptionInput = createNode("input", {
+            value: brand.description || "",
+            attrs: { name: "description" },
+        });
+        const notesInput = createNode("textarea", {
+            value: brand.notes || "",
+            attrs: { name: "notes", rows: "3" },
+        });
+
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Name" }), nameInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Description" }), descriptionInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Notes" }), notesInput] }));
+        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            if (payload.description === "") {
+                delete payload.description;
+            }
+            if (payload.notes === "") {
+                delete payload.notes;
+            }
+            await actions.updateBrand(brand.id, payload);
+        });
+
+        return form;
+    }
 
     function renderBrandDetail() {
         const panel = document.getElementById("brand-detail-panel");
@@ -35,16 +70,25 @@ export function createBrandsRenderer({ state, actions, common }) {
         clearNodeChildren(container);
         container.className = "detail-grid";
         container.appendChild(createNode("article", {
+            className: "subpanel",
             children: [
-                createNode("h3", { text: brand.name }),
-                createNode("p", { className: "muted", text: brand.description || "No description" }),
-                createNode("p", { text: brand.notes || "No notes" }),
+                createNode("div", {
+                    className: "panel-heading",
+                    children: [
+                        createNode("h3", { text: "Brand Details" }),
+                        createButtonNode("Delete", "danger-button", async () => {
+                            await actions.deleteBrand(brand.id);
+                        }),
+                    ],
+                }),
+                buildBrandEditForm(brand),
             ],
         }));
     }
 
     function renderBrands() {
         const brands = filtered(
+            "brands",
             state.data.brands,
             (brand) => brand.name,
             (brand) => brand.description,
@@ -58,14 +102,9 @@ export function createBrandsRenderer({ state, actions, common }) {
             listNode,
             brands,
             (brand) => {
-                const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Delete", "danger-button", async () => {
-                    await actions.deleteBrand(brand.id);
-                }));
                 const item = createListItem(
                     brand.name,
-                    brand.description || brand.notes || "No description",
-                    actionsNode
+                    brand.description || brand.notes || "No description"
                 );
                 if (state.selected.brandId === brand.id) {
                     item.classList.add("active");

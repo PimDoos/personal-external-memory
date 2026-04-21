@@ -122,12 +122,14 @@ def create_app() -> FastAPI:
     from app.domains.tags.router import router as tags_router
     from app.domains.relationships.router import router as relationships_router
     from app.domains.associations.router import router as associations_router
+    from app.domains.types.router import router as types_router
 
     app.include_router(resources_router, prefix="/api/resources", tags=["resources"])
     app.include_router(contact_info_router, prefix="/api/contact-info", tags=["contact_info"])
     app.include_router(tags_router, prefix="/api/tags", tags=["tags"])
     app.include_router(relationships_router, prefix="/api/relationships", tags=["relationships"])
     app.include_router(associations_router, prefix="/api/associations", tags=["associations"])
+    app.include_router(types_router, prefix="/api/types", tags=["types"])
 
     return app
 

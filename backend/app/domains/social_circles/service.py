@@ -23,6 +23,7 @@ class SocialCircleService:
         circle = SocialCircle(
             user_id=user_id,
             name=data.name,
+            circle_type=data.circle_type,
             description=data.description,
             notes=data.notes,
         )

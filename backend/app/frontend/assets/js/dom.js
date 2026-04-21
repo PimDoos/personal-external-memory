@@ -126,3 +126,17 @@ export function createEmptyStateNode(message) {
 export function createFormDataObject(formElement) {
     return Object.fromEntries(new FormData(formElement).entries());
 }
+
+export function wrapCollapsible(triggerLabel, formNode) {
+    const wrapper = createNode("div", { className: "collapsible-form" });
+    wrapper.style.display = "none";
+    wrapper.appendChild(formNode);
+
+    const trigger = createButtonNode(triggerLabel, "ghost-button", () => {
+        const isHidden = wrapper.style.display === "none";
+        wrapper.style.display = isHidden ? "" : "none";
+        trigger.textContent = isHidden ? "Cancel" : triggerLabel;
+    });
+
+    return { wrapper, trigger };
+}

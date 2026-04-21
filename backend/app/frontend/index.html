@@ -11,23 +11,41 @@
         <header class="topbar">
             <div>
                 <p class="eyebrow">Personal External Memory</p>
-                <h1>Relationship memory, with structure.</h1>
+                <h1>PEM</h1>
             </div>
             <div class="topbar-actions">
                 <div class="api-status" id="api-status">Checking API</div>
-                <button class="ghost-button hidden" id="logout-button" type="button">Log out</button>
             </div>
         </header>
 
+        <section class="panel nav-panel hidden" id="navigation-panel">
+            <div class="nav-session">
+                <div class="user-chip">
+                    <div class="user-chip__label">Signed in</div>
+                    <strong id="user-email">-</strong>
+                </div>
+                <button class="ghost-button hidden" id="logout-button" type="button">Log out</button>
+            </div>
+            <nav class="nav-tabs" id="nav-tabs">
+                <button class="nav-button active" data-section="dashboard" data-label="Dashboard" type="button">Dashboard</button>
+                <button class="nav-button" data-section="people" data-label="People" type="button">People</button>
+                <button class="nav-button" data-section="circles" data-label="Circles" type="button">Circles</button>
+                <button class="nav-button" data-section="brands" data-label="Brands" type="button">Brands</button>
+                <button class="nav-button" data-section="events" data-label="Events" type="button">Events</button>
+                <button class="nav-button" data-section="interactions" data-label="Interactions" type="button">Interactions</button>
+                <button class="nav-button" data-section="tags" data-label="Tags" type="button">Tags</button>
+                <button class="nav-button" data-section="types" data-label="Types" type="button">Types</button>
+            </nav>
+        </section>
+
         <main class="layout">
-            <aside class="sidebar">
-                <section class="auth-panel panel" id="auth-panel">
+            <section class="auth-panel panel" id="auth-panel">
                     <div class="tabs auth-tabs">
                         <button class="tab-button active" data-auth-tab="login" type="button">Login</button>
                         <button class="tab-button" data-auth-tab="register" type="button">Register</button>
                     </div>
 
-                    <form id="login-form" class="stack form-grid">
+                    <form id="login-form" class="stack form-grid" method="post">
                         <label>
                             <span>Email</span>
                             <input name="email" type="email" required placeholder="you@example.com">
@@ -39,7 +57,7 @@
                         <button class="primary-button" type="submit">Sign in</button>
                     </form>
 
-                    <form id="register-form" class="stack form-grid hidden">
+                    <form id="register-form" class="stack form-grid hidden" method="post">
                         <label>
                             <span>Email</span>
                             <input name="email" type="email" required placeholder="you@example.com">
@@ -51,41 +69,10 @@
                         <button class="primary-button" type="submit">Create account</button>
                     </form>
                     <p class="muted" id="auth-message">Use the backend auth endpoints through this UI.</p>
-                </section>
-
-                <section class="panel hidden" id="navigation-panel">
-                    <div class="user-chip">
-                        <div class="user-chip__label">Signed in</div>
-                        <strong id="user-email">-</strong>
-                    </div>
-
-                    <label class="search-field">
-                        <span>Quick filter</span>
-                        <input id="global-filter" type="search" placeholder="Search visible records">
-                    </label>
-
-                    <nav class="nav-tabs" id="nav-tabs">
-                        <button class="nav-button active" data-section="dashboard" type="button">Dashboard</button>
-                        <button class="nav-button" data-section="people" type="button">People</button>
-                        <button class="nav-button" data-section="circles" type="button">Circles</button>
-                        <button class="nav-button" data-section="brands" type="button">Brands</button>
-                        <button class="nav-button" data-section="events" type="button">Events</button>
-                        <button class="nav-button" data-section="interactions" type="button">Interactions</button>
-                        <button class="nav-button" data-section="tags" type="button">Tags</button>
-                    </nav>
-                </section>
-            </aside>
+            </section>
 
             <section class="content hidden" id="content-panel">
                 <section class="view-section active" id="section-dashboard">
-                    <div class="hero panel">
-                        <div>
-                            <p class="eyebrow">Overview</p>
-                            <h2>Your memory at a glance</h2>
-                            <p class="muted">Birthdays, upcoming events, recent interactions, and the people graph live here.</p>
-                        </div>
-                    </div>
-                    <div class="metric-grid" id="metric-grid"></div>
                     <div class="split-grid">
                         <article class="panel">
                             <div class="panel-heading">
@@ -112,6 +99,7 @@
                     <div class="workspace-grid">
                         <article class="panel">
                             <div class="panel-heading"><h2>People</h2><button class="primary-button" data-new-section="people" type="button">New</button></div>
+                            <label class="search-field compact-search"><span>Filter</span><input id="filter-people" data-filter-section="people" type="search" placeholder="Filter people"></label>
                             <div class="list" id="people-list"></div>
                         </article>
                         <article class="panel detail-panel hidden" id="person-detail-panel">
@@ -132,12 +120,14 @@
                     <div class="workspace-grid">
                         <article class="panel">
                             <div class="panel-heading"><h2>Social Circles</h2><button class="primary-button" data-new-section="circles" type="button">New</button></div>
+                            <label class="search-field compact-search"><span>Filter</span><input id="filter-circles" data-filter-section="circles" type="search" placeholder="Filter circles"></label>
                             <div class="list" id="circles-list"></div>
                         </article>
                         <article class="panel detail-panel hidden" id="circle-detail-panel">
                             <div class="panel-heading"><h2>Circle Members</h2></div>
                             <form id="circle-form" class="form-grid stack compact-form hidden">
                                 <label><span>Name</span><input name="name" required></label>
+                                <label><span>Type</span><select name="circle_type"></select></label>
                                 <label><span>Description</span><input name="description"></label>
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Create circle</button>
@@ -151,6 +141,7 @@
                     <div class="workspace-grid">
                         <article class="panel">
                             <div class="panel-heading"><h2>Brands</h2><button class="primary-button" data-new-section="brands" type="button">New</button></div>
+                            <label class="search-field compact-search"><span>Filter</span><input id="filter-brands" data-filter-section="brands" type="search" placeholder="Filter brands"></label>
                             <div class="list" id="brands-list"></div>
                         </article>
                         <article class="panel detail-panel hidden" id="brand-detail-panel">
@@ -170,11 +161,14 @@
                     <div class="workspace-grid">
                         <article class="panel">
                             <div class="panel-heading"><h2>Events</h2><button class="primary-button" data-new-section="events" type="button">New</button></div>
+                            <label class="search-field compact-search"><span>Filter</span><input id="filter-events" data-filter-section="events" type="search" placeholder="Filter events"></label>
                             <div class="list" id="events-list"></div>
                         </article>
                         <article class="panel detail-panel hidden" id="event-detail-panel">
                             <div class="panel-heading"><h2>Participants</h2></div>
                             <form id="event-form" class="form-grid stack compact-form hidden">
+                                <label><span>Title</span><input name="title" placeholder="Birthday dinner, launch party"></label>
+                                <label><span>Type</span><select name="event_type"></select></label>
                                 <label><span>Start</span><input name="start_time" type="datetime-local"></label>
                                 <label><span>End</span><input name="end_time" type="datetime-local"></label>
                                 <label><span>Location</span><input name="location"></label>
@@ -190,14 +184,17 @@
                     <div class="workspace-grid">
                         <article class="panel">
                             <div class="panel-heading"><h2>Interactions</h2><button class="primary-button" data-new-section="interactions" type="button">New</button></div>
+                            <label class="search-field compact-search"><span>Filter</span><input id="filter-interactions" data-filter-section="interactions" type="search" placeholder="Filter interactions"></label>
                             <div class="list" id="interactions-list"></div>
                         </article>
                         <article class="panel detail-panel hidden" id="interaction-detail-panel">
                             <div class="panel-heading"><h2>Participants</h2></div>
                             <form id="interaction-form" class="form-grid stack compact-form hidden">
+                                <label><span>Title</span><input name="title" placeholder="Weekly check-in, coffee chat"></label>
+                                <label><span>Type</span><select name="interaction_type"></select></label>
                                 <label><span>Start</span><input name="start_time" type="datetime-local"></label>
                                 <label><span>End</span><input name="end_time" type="datetime-local"></label>
-                                <label><span>Medium</span><input name="medium" placeholder="Zoom, call, cafe"></label>
+                                <label><span>Medium</span><select name="medium"></select></label>
                                 <label><span>Location</span><input name="location"></label>
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Create interaction</button>
@@ -211,6 +208,7 @@
                     <div class="workspace-grid">
                         <article class="panel">
                             <div class="panel-heading"><h2>Tags</h2><button class="primary-button" data-new-section="tags" type="button">New</button></div>
+                            <label class="search-field compact-search"><span>Filter</span><input id="filter-tags" data-filter-section="tags" type="search" placeholder="Filter tags"></label>
                             <div class="list" id="tags-list"></div>
                         </article>
                         <article class="panel detail-panel hidden" id="tag-detail-panel">
@@ -223,6 +221,21 @@
                             </form>
                             <div id="tag-detail" class="empty-state hidden">Select a tag to view details.</div>
                         </article>
+                    </div>
+                </section>
+
+                <section class="view-section" id="section-types">
+                    <div class="types-header">
+                        <h2>Type Management</h2>
+                        <label class="search-field compact-search"><span>Filter</span><input id="filter-types" data-filter-section="types" type="search" placeholder="Filter type entries"></label>
+                    </div>
+                    <div class="types-grid">
+                        <article class="panel" id="types-panel-contact-info"></article>
+                        <article class="panel" id="types-panel-relationship"></article>
+                        <article class="panel" id="types-panel-social-circle"></article>
+                        <article class="panel" id="types-panel-event"></article>
+                        <article class="panel" id="types-panel-interaction"></article>
+                        <article class="panel" id="types-panel-interaction-medium"></article>
                     </div>
                 </section>
             </section>

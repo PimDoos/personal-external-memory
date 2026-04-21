@@ -14,13 +14,14 @@ export function createAppController() {
         logoutButton: getNodeById("logout-button"),
         toast: getNodeById("toast"),
         apiStatus: getNodeById("api-status"),
-        globalFilter: getNodeById("global-filter"),
     };
 
     const caches = {
         personContacts: new Map(),
         personTags: new Map(),
+        peopleTagSummaries: new Map(),
         personRelationships: new Map(),
+        personAssociations: new Map(),
         circleMembers: new Map(),
         eventParticipants: new Map(),
         interactionParticipants: new Map(),
@@ -101,6 +102,21 @@ export function createAppController() {
         return payload;
     }
 
+    async function refreshSelectedEntityCaches() {
+        if (state.selected.personId) {
+            await loadPersonCaches(state.selected.personId);
+        }
+        if (state.selected.circleId) {
+            await loadCircleMembers(state.selected.circleId);
+        }
+        if (state.selected.eventId) {
+            await loadEventParticipants(state.selected.eventId);
+        }
+        if (state.selected.interactionId) {
+            await loadInteractionParticipants(state.selected.interactionId);
+        }
+    }
+
     async function checkApi() {
         try {
             await api.health();
@@ -111,13 +127,19 @@ export function createAppController() {
     }
 
     async function refreshBaseData() {
-        const [people, circles, brands, events, interactions, tags] = await Promise.all([
+        const [people, circles, brands, events, interactions, tags, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, interactionTypes, interactionMediums] = await Promise.all([
             api.people.list(),
             api.circles.list(),
             api.brands.list(),
             api.events.list(),
             api.interactions.list(),
             api.tags.list(),
+            api.types.list("contact-info"),
+            api.types.list("relationship"),
+            api.types.list("social-circle"),
+            api.types.list("event"),
+            api.types.list("interaction"),
+            api.types.list("interaction-medium"),
         ]);
 
         state.data.people = people;
@@ -126,6 +148,83 @@ export function createAppController() {
         state.data.events = events;
         state.data.interactions = interactions;
         state.data.tags = tags;
+        state.data.typeLists = {
+            contactInfoTypes,
+            relationshipTypes,
+            socialCircleTypes,
+            eventTypes,
+            interactionTypes,
+            interactionMediums,
+        };
+    }
+
+    async function loadPeopleTagSummaries() {
+        const peopleTagSummaries = new Map(state.data.people.map((person) => [person.id, []]));
+        const peopleIdsByTag = await Promise.all(
+            state.data.tags.map((tag) => api.tags.listPeopleWithTag(tag.id))
+        );
+
+        state.data.tags.forEach((tag, index) => {
+            const personIds = peopleIdsByTag[index] || [];
+            personIds.forEach((personId) => {
+                if (!peopleTagSummaries.has(personId)) {
+                    peopleTagSummaries.set(personId, []);
+                }
+                peopleTagSummaries.get(personId).push(tag);
+            });
+        });
+
+        caches.peopleTagSummaries = peopleTagSummaries;
+    }
+
+    function resolveCreatedEntity(items, previousIds, createdId, matcher) {
+        if (createdId !== null && createdId !== undefined) {
+            return items.find((item) => item.id === createdId) || null;
+        }
+
+        const newItems = items.filter((item) => !previousIds.has(item.id));
+        if (newItems.length === 1) {
+            return newItems[0];
+        }
+        if (newItems.length > 1) {
+            return newItems.find((item) => matcher(item))
+                || [...newItems].sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))[0]
+                || null;
+        }
+
+        return items.find((item) => matcher(item)) || null;
+    }
+
+    async function createAndSelect({ section, selectedKey, collectionKey, createRequest, payload, matcher }) {
+        const previousIds = new Set(state.data[collectionKey].map((item) => item.id));
+        let created = null;
+        let createError = null;
+
+        try {
+            created = await createRequest(payload);
+        } catch (error) {
+            createError = error;
+        }
+
+        await refreshBaseData();
+
+        const resolved = resolveCreatedEntity(
+            state.data[collectionKey],
+            previousIds,
+            created?.id,
+            matcher
+        );
+
+        if (!resolved) {
+            if (createError) {
+                throw createError;
+            }
+            throw new Error("Created item could not be loaded.");
+        }
+
+        state.selected[selectedKey] = resolved.id;
+        state.sidebar[section] = "detail";
+        return resolved;
     }
 
     async function loadPersonCaches(personId) {
@@ -138,6 +237,45 @@ export function createAppController() {
         caches.personContacts.set(personId, contacts);
         caches.personTags.set(personId, tags);
         caches.personRelationships.set(personId, relationships);
+
+        const [circleMembersLists, eventParticipantLists, interactionParticipantLists] = await Promise.all([
+            Promise.all(state.data.circles.map((circle) => api.circles.members(circle.id))),
+            Promise.all(state.data.events.map((event) => api.events.participants(event.id))),
+            Promise.all(state.data.interactions.map((interaction) => api.interactions.participants(interaction.id))),
+        ]);
+
+        const circleIds = state.data.circles
+            .filter((circle, index) => circleMembersLists[index].includes(personId))
+            .map((circle) => circle.id);
+
+        const eventIds = state.data.events
+            .filter((event, index) => eventParticipantLists[index].some((participant) => participant.person_id === personId))
+            .map((event) => event.id);
+
+        const interactionIds = state.data.interactions
+            .filter((interaction, index) => interactionParticipantLists[index].includes(personId))
+            .map((interaction) => interaction.id);
+
+        const associatedEvents = state.data.events.filter((event) => eventIds.includes(event.id));
+        const associatedInteractions = state.data.interactions.filter((interaction) => interactionIds.includes(interaction.id));
+        const brandIds = state.data.brands
+            .filter((brand) => {
+                const needle = brand.name.toLowerCase();
+                return associatedEvents.some((event) => String(event.location || "").toLowerCase().includes(needle))
+                    || associatedInteractions.some((interaction) => {
+                        return String(interaction.location || "").toLowerCase().includes(needle)
+                            || String(interaction.medium || "").toLowerCase().includes(needle)
+                            || String(interaction.notes || "").toLowerCase().includes(needle);
+                    });
+            })
+            .map((brand) => brand.id);
+
+        caches.personAssociations.set(personId, {
+            circleIds,
+            eventIds,
+            interactionIds,
+            brandIds,
+        });
     }
 
     async function loadCircleMembers(circleId) {
@@ -157,6 +295,7 @@ export function createAppController() {
 
     async function bootstrapAuthenticated() {
         await refreshBaseData();
+        await loadPeopleTagSummaries();
 
         if (state.selected.personId) {
             await loadPersonCaches(state.selected.personId);
@@ -239,6 +378,7 @@ export function createAppController() {
             caches.personContacts.clear();
             caches.personTags.clear();
             caches.personRelationships.clear();
+            caches.personAssociations.clear();
             caches.circleMembers.clear();
             caches.eventParticipants.clear();
             caches.interactionParticipants.clear();
@@ -246,9 +386,15 @@ export function createAppController() {
             showToast("Logged out.");
         });
 
-        refs.globalFilter.addEventListener("input", (event) => {
-            state.filter = event.target.value;
-            renderer.renderAll();
+        document.querySelectorAll("[data-filter-section]").forEach((inputNode) => {
+            inputNode.addEventListener("input", (event) => {
+                const section = inputNode.dataset.filterSection;
+                if (!section) {
+                    return;
+                }
+                state.filters[section] = event.target.value;
+                renderer.renderAll();
+            });
         });
 
         document.querySelectorAll(".nav-button").forEach((button) => {
@@ -273,8 +419,9 @@ export function createAppController() {
 
         getNodeById("person-form").addEventListener("submit", async (event) => {
             event.preventDefault();
+            const formNode = event.currentTarget;
             await withAction(async () => {
-                const payload = createFormDataObject(event.currentTarget);
+                const payload = createFormDataObject(formNode);
                 optionalFields(payload, ["last_name", "notes"]);
                 if (payload.birth_date) {
                     payload.birth_date = payload.birth_date;
@@ -282,45 +429,68 @@ export function createAppController() {
                     delete payload.birth_date;
                 }
 
-                const created = await api.people.create(payload);
-                state.selected.personId = created.id;
-                state.sidebar.people = "detail";
-                event.currentTarget.reset();
-                await bootstrapAuthenticated();
+                await createAndSelect({
+                    section: "people",
+                    selectedKey: "personId",
+                    collectionKey: "people",
+                    createRequest: (data) => api.people.create(data),
+                    payload,
+                    matcher: (person) => person.first_name === payload.first_name
+                        && (person.last_name || "") === (payload.last_name || "")
+                        && (person.birth_date || null) === (payload.birth_date || null)
+                        && (person.notes || "") === (payload.notes || ""),
+                });
+                formNode.reset();
                 showToast("Person created.");
             });
         });
 
         getNodeById("circle-form").addEventListener("submit", async (event) => {
             event.preventDefault();
+            const formNode = event.currentTarget;
             await withAction(async () => {
-                const payload = optionalFields(createFormDataObject(event.currentTarget), ["description", "notes"]);
-                const created = await api.circles.create(payload);
-                state.selected.circleId = created.id;
-                state.sidebar.circles = "detail";
-                event.currentTarget.reset();
-                await bootstrapAuthenticated();
+                const payload = optionalFields(createFormDataObject(formNode), ["circle_type", "description", "notes"]);
+                await createAndSelect({
+                    section: "circles",
+                    selectedKey: "circleId",
+                    collectionKey: "circles",
+                    createRequest: (data) => api.circles.create(data),
+                    payload,
+                    matcher: (circle) => circle.name === payload.name
+                        && (circle.circle_type || "") === (payload.circle_type || "")
+                        && (circle.description || "") === (payload.description || "")
+                        && (circle.notes || "") === (payload.notes || ""),
+                });
+                formNode.reset();
                 showToast("Circle created.");
             });
         });
 
         getNodeById("brand-form").addEventListener("submit", async (event) => {
             event.preventDefault();
+            const formNode = event.currentTarget;
             await withAction(async () => {
-                const payload = optionalFields(createFormDataObject(event.currentTarget), ["description", "notes"]);
-                const created = await api.brands.create(payload);
-                state.selected.brandId = created.id;
-                state.sidebar.brands = "detail";
-                event.currentTarget.reset();
-                await refreshBaseData();
+                const payload = optionalFields(createFormDataObject(formNode), ["description", "notes"]);
+                await createAndSelect({
+                    section: "brands",
+                    selectedKey: "brandId",
+                    collectionKey: "brands",
+                    createRequest: (data) => api.brands.create(data),
+                    payload,
+                    matcher: (brand) => brand.name === payload.name
+                        && (brand.description || "") === (payload.description || "")
+                        && (brand.notes || "") === (payload.notes || ""),
+                });
+                formNode.reset();
                 showToast("Brand created.");
             });
         });
 
         getNodeById("event-form").addEventListener("submit", async (event) => {
             event.preventDefault();
+            const formNode = event.currentTarget;
             await withAction(async () => {
-                const payload = optionalFields(createFormDataObject(event.currentTarget), ["start_time", "end_time", "location", "notes"]);
+                const payload = optionalFields(createFormDataObject(formNode), ["title", "event_type", "start_time", "end_time", "location", "notes"]);
                 if (payload.start_time) {
                     payload.start_time = toIsoDateTime(payload.start_time);
                 }
@@ -328,19 +498,30 @@ export function createAppController() {
                     payload.end_time = toIsoDateTime(payload.end_time);
                 }
                 payload.date = payload.start_time || payload.end_time || new Date().toISOString();
-                const created = await api.events.create(payload);
-                state.selected.eventId = created.id;
-                state.sidebar.events = "detail";
-                event.currentTarget.reset();
-                await bootstrapAuthenticated();
+                await createAndSelect({
+                    section: "events",
+                    selectedKey: "eventId",
+                    collectionKey: "events",
+                    createRequest: (data) => api.events.create(data),
+                    payload,
+                    matcher: (entry) => (entry.title || "") === (payload.title || "")
+                        && (entry.event_type || "") === (payload.event_type || "")
+                        && entry.date === payload.date
+                        && (entry.start_time || null) === (payload.start_time || null)
+                        && (entry.end_time || null) === (payload.end_time || null)
+                        && (entry.location || "") === (payload.location || "")
+                        && (entry.notes || "") === (payload.notes || ""),
+                });
+                formNode.reset();
                 showToast("Event created.");
             });
         });
 
         getNodeById("interaction-form").addEventListener("submit", async (event) => {
             event.preventDefault();
+            const formNode = event.currentTarget;
             await withAction(async () => {
-                const payload = optionalFields(createFormDataObject(event.currentTarget), ["start_time", "end_time", "medium", "location", "notes"]);
+                const payload = optionalFields(createFormDataObject(formNode), ["title", "interaction_type", "start_time", "end_time", "medium", "location", "notes"]);
                 if (payload.start_time) {
                     payload.start_time = toIsoDateTime(payload.start_time);
                 }
@@ -348,24 +529,41 @@ export function createAppController() {
                     payload.end_time = toIsoDateTime(payload.end_time);
                 }
                 payload.date = payload.start_time || payload.end_time || new Date().toISOString();
-                const created = await api.interactions.create(payload);
-                state.selected.interactionId = created.id;
-                state.sidebar.interactions = "detail";
-                event.currentTarget.reset();
-                await bootstrapAuthenticated();
+                await createAndSelect({
+                    section: "interactions",
+                    selectedKey: "interactionId",
+                    collectionKey: "interactions",
+                    createRequest: (data) => api.interactions.create(data),
+                    payload,
+                    matcher: (entry) => (entry.title || "") === (payload.title || "")
+                        && (entry.interaction_type || "") === (payload.interaction_type || "")
+                        && entry.date === payload.date
+                        && (entry.start_time || null) === (payload.start_time || null)
+                        && (entry.end_time || null) === (payload.end_time || null)
+                        && (entry.medium || "") === (payload.medium || "")
+                        && (entry.location || "") === (payload.location || "")
+                        && (entry.notes || "") === (payload.notes || ""),
+                });
+                formNode.reset();
                 showToast("Interaction created.");
             });
         });
 
         getNodeById("tag-form").addEventListener("submit", async (event) => {
             event.preventDefault();
+            const formNode = event.currentTarget;
             await withAction(async () => {
-                const payload = optionalFields(createFormDataObject(event.currentTarget), ["description"]);
-                const created = await api.tags.create(payload);
-                state.selected.tagId = created.id;
-                state.sidebar.tags = "detail";
-                event.currentTarget.reset();
-                await refreshBaseData();
+                const payload = optionalFields(createFormDataObject(formNode), ["description"]);
+                await createAndSelect({
+                    section: "tags",
+                    selectedKey: "tagId",
+                    collectionKey: "tags",
+                    createRequest: (data) => api.tags.create(data),
+                    payload,
+                    matcher: (tag) => tag.name === payload.name
+                        && (tag.description || "") === (payload.description || ""),
+                });
+                formNode.reset();
                 showToast("Tag created.");
             });
         });
@@ -398,12 +596,21 @@ export function createAppController() {
         assignTagToPerson: async (tagId, personId) => withAction(async () => {
             await api.tags.attachToPerson(tagId, personId);
             await loadPersonCaches(personId);
+            await loadPeopleTagSummaries();
             showToast("Tag assigned.");
         }),
         removeTagFromPerson: async (tagId, personId) => withAction(async () => {
             await api.tags.detachFromPerson(tagId, personId);
             await loadPersonCaches(personId);
+            await loadPeopleTagSummaries();
             showToast("Tag removed.");
+        }),
+        updatePerson: async (personId, payload) => withAction(async () => {
+            await api.people.update(personId, payload);
+            await refreshBaseData();
+            await loadPeopleTagSummaries();
+            await loadPersonCaches(personId);
+            showToast("Person updated.");
         }),
         addRelationship: async (payload) => withAction(async () => {
             await api.relationships.create(payload);
@@ -431,16 +638,41 @@ export function createAppController() {
         addCircleMember: async (circleId, personId) => withAction(async () => {
             await api.circles.addMember({ social_circle_id: circleId, person_id: personId });
             await loadCircleMembers(circleId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
             showToast("Member added.");
         }),
         removeCircleMember: async (circleId, personId) => withAction(async () => {
             await api.circles.removeMember(circleId, personId);
             await loadCircleMembers(circleId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
             showToast("Member removed.");
+        }),
+        updateCircle: async (circleId, payload) => withAction(async () => {
+            await api.circles.update(circleId, payload);
+            await refreshBaseData();
+            await loadPeopleTagSummaries();
+            await loadCircleMembers(circleId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
+            showToast("Circle updated.");
         }),
         selectBrand: async (brandId) => withAction(async () => {
             state.selected.brandId = brandId;
             state.sidebar.brands = "detail";
+        }),
+        updateBrand: async (brandId, payload) => withAction(async () => {
+            await api.brands.update(brandId, payload);
+            await refreshBaseData();
+            await loadPeopleTagSummaries();
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
+            showToast("Brand updated.");
         }),
         deleteBrand: async (brandId) => withAction(async () => {
             await api.brands.remove(brandId);
@@ -466,6 +698,9 @@ export function createAppController() {
         addEventParticipant: async (eventId, personId, role) => withAction(async () => {
             await api.events.addParticipant({ event_id: eventId, person_id: personId, role });
             await loadEventParticipants(eventId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
             showToast("Participant added.");
         }),
         changeEventRole: async (eventId, personId, role) => withAction(async () => {
@@ -476,7 +711,20 @@ export function createAppController() {
         removeEventParticipant: async (eventId, personId) => withAction(async () => {
             await api.events.removeParticipant(eventId, personId);
             await loadEventParticipants(eventId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
             showToast("Participant removed.");
+        }),
+        updateEvent: async (eventId, payload) => withAction(async () => {
+            await api.events.update(eventId, payload);
+            await refreshBaseData();
+            await loadPeopleTagSummaries();
+            await loadEventParticipants(eventId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
+            showToast("Event updated.");
         }),
         selectInteraction: async (interactionId) => withAction(async () => {
             state.selected.interactionId = interactionId;
@@ -494,14 +742,48 @@ export function createAppController() {
         addInteractionParticipant: async (interactionId, personId) => withAction(async () => {
             await api.interactions.addParticipant({ interaction_id: interactionId, person_id: personId });
             await loadInteractionParticipants(interactionId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
             showToast("Participant added.");
         }),
         removeInteractionParticipant: async (interactionId, personId) => withAction(async () => {
             await api.interactions.removeParticipant(interactionId, personId);
             await loadInteractionParticipants(interactionId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
             showToast("Participant removed.");
         }),
+        updateInteraction: async (interactionId, payload) => withAction(async () => {
+            await api.interactions.update(interactionId, payload);
+            await refreshBaseData();
+            await loadPeopleTagSummaries();
+            await loadInteractionParticipants(interactionId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
+            showToast("Interaction updated.");
+        }),
         selectTag: async (tagId) => withAction(async () => {
+            state.selected.tagId = tagId;
+            state.sidebar.tags = "detail";
+        }),
+        updateTag: async (tagId, payload) => withAction(async () => {
+            await api.tags.update(tagId, payload);
+            await refreshBaseData();
+            await loadPeopleTagSummaries();
+            await refreshSelectedEntityCaches();
+            showToast("Tag updated.");
+        }),
+        openPersonFromContext: async (personId) => withAction(async () => {
+            state.activeSection = "people";
+            state.selected.personId = personId;
+            state.sidebar.people = "detail";
+            await loadPersonCaches(personId);
+        }),
+        openTagFromContext: async (tagId) => withAction(async () => {
+            state.activeSection = "tags";
             state.selected.tagId = tagId;
             state.sidebar.tags = "detail";
         }),
@@ -511,10 +793,26 @@ export function createAppController() {
                 resetSidebar("tags");
             }
             await refreshBaseData();
+            await loadPeopleTagSummaries();
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
             showToast("Tag removed.");
+        }),
+        createType: async (category, payload) => withAction(async () => {
+            await api.types.create(category, payload);
+            await refreshBaseData();
+            showToast("Type created.");
+        }),
+        updateType: async (category, typeId, payload) => withAction(async () => {
+            await api.types.update(category, typeId, payload);
+            await refreshBaseData();
+            showToast("Type updated.");
+        }),
+        deleteType: async (category, typeId) => withAction(async () => {
+            await api.types.remove(category, typeId);
+            await refreshBaseData();
+            showToast("Type removed.");
         }),
     };
 

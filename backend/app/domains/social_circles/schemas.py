@@ -10,6 +10,7 @@ class SocialCircleCreateRequest(BaseModel):
     """Create social circle request."""
 
     name: str
+    circle_type: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
@@ -18,6 +19,7 @@ class SocialCircleUpdateRequest(BaseModel):
     """Update social circle request."""
 
     name: Optional[str] = None
+    circle_type: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
@@ -27,6 +29,7 @@ class SocialCircleResponse(BaseModel):
 
     id: int
     name: str
+    circle_type: Optional[str]
     description: Optional[str]
     notes: Optional[str]
     created_at: datetime

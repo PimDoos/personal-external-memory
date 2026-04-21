@@ -9,6 +9,8 @@ from pydantic import BaseModel
 class EventCreateRequest(BaseModel):
     """Create event request."""
 
+    title: Optional[str] = None
+    event_type: Optional[str] = None
     date: datetime
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
@@ -19,6 +21,8 @@ class EventCreateRequest(BaseModel):
 class EventUpdateRequest(BaseModel):
     """Update event request."""
 
+    title: Optional[str] = None
+    event_type: Optional[str] = None
     date: Optional[datetime] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
@@ -30,6 +34,8 @@ class EventResponse(BaseModel):
     """Event response."""
 
     id: int
+    title: Optional[str]
+    event_type: Optional[str]
     date: datetime
     start_time: Optional[datetime]
     end_time: Optional[datetime]

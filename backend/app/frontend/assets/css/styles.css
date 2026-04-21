@@ -152,9 +152,10 @@ select {
 
 .layout {
     display: grid;
-    grid-template-columns: 320px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 20px;
     align-items: start;
+    margin-top: 20px;
 }
 
 .sidebar,
@@ -193,9 +194,9 @@ select {
 .stack,
 .list-item__row,
 .metric-grid,
-.split-grid,
-.workspace-grid {
-    display: grid;
+.split-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
 }
 
 .panel-heading {
@@ -284,6 +285,9 @@ select {
 
 .nav-tabs {
     margin-top: 18px;
+    margin-top: 0;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 10px;
 }
 
 .primary-button,
@@ -347,17 +351,43 @@ select {
 }
 
 .split-grid {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 18px;
 }
 
 .workspace-grid {
+    display: grid;
     grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
     gap: 18px;
 }
 
 .workspace-grid.single-detail {
     grid-template-columns: minmax(0, 720px);
+}
+
+.types-header {
+    display: flex;
+    align-items: flex-end;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.types-header h2 {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.types-header .search-field {
+    flex: 0 0 260px;
+    margin-left: auto;
+}
+
+.types-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
 }
 
 .form-grid label,
@@ -375,6 +405,22 @@ select {
     background: var(--input-bg);
     color: var(--ink);
     padding: 12px 14px;
+}
+
+input[type="color"] {
+    padding: 4px;
+    min-height: 48px;
+    background: transparent;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch,
+input[type="color"]::-moz-color-swatch {
+    border: 0;
+    border-radius: 10px;
 }
 
 input::placeholder,
@@ -424,6 +470,13 @@ textarea {
     margin: 0;
 }
 
+.age-hint {
+    color: var(--ink-soft);
+    font-weight: 400;
+    font-size: 0.88rem;
+    margin-left: 6px;
+}
+
 .list-actions,
 .inline-form,
 .tag-cloud,
@@ -468,6 +521,7 @@ textarea {
     position: fixed;
     right: 24px;
     bottom: 24px;
+    z-index: 10000;
     min-width: 240px;
     max-width: 420px;
     padding: 14px 16px;
@@ -500,8 +554,13 @@ textarea {
     .layout,
     .workspace-grid,
     .split-grid,
-    .metric-grid {
+    .metric-grid,
+    .nav-tabs {
         grid-template-columns: 1fr;
+    }
+
+    .types-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .topbar {
@@ -520,5 +579,9 @@ textarea {
 
     .topbar h1 {
         max-width: none;
+    }
+
+    .types-grid {
+        grid-template-columns: 1fr;
     }
 }

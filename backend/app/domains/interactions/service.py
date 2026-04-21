@@ -22,6 +22,8 @@ class InteractionService:
         """Create a new interaction."""
         interaction = Interaction(
             user_id=user_id,
+            title=data.title,
+            interaction_type=data.interaction_type,
             date=data.date,
             start_time=data.start_time,
             end_time=data.end_time,
@@ -31,6 +33,7 @@ class InteractionService:
         )
         self.session.add(interaction)
         await self.session.flush()
+        await self.session.refresh(interaction)
         return interaction
 
     async def get(self, interaction_id: int, user_id: int) -> Interaction:
@@ -57,6 +60,7 @@ class InteractionService:
             setattr(interaction, key, value)
 
         await self.session.flush()
+        await self.session.refresh(interaction)
         return interaction
 
     async def delete(self, interaction_id: int, user_id: int) -> None:

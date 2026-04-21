@@ -9,6 +9,8 @@ from pydantic import BaseModel
 class InteractionCreateRequest(BaseModel):
     """Create interaction request."""
 
+    title: Optional[str] = None
+    interaction_type: Optional[str] = None
     date: datetime
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
@@ -20,6 +22,8 @@ class InteractionCreateRequest(BaseModel):
 class InteractionUpdateRequest(BaseModel):
     """Update interaction request."""
 
+    title: Optional[str] = None
+    interaction_type: Optional[str] = None
     date: Optional[datetime] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
@@ -32,6 +36,8 @@ class InteractionResponse(BaseModel):
     """Interaction response."""
 
     id: int
+    title: Optional[str]
+    interaction_type: Optional[str]
     date: datetime
     start_time: Optional[datetime]
     end_time: Optional[datetime]

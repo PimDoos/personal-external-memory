@@ -19,6 +19,8 @@ class EventService:
         """Create a new event."""
         event = Event(
             user_id=user_id,
+            title=data.title,
+            event_type=data.event_type,
             date=data.date,
             start_time=data.start_time,
             end_time=data.end_time,
@@ -27,6 +29,7 @@ class EventService:
         )
         self.session.add(event)
         await self.session.flush()
+        await self.session.refresh(event)
         return event
 
     async def get(self, event_id: int, user_id: int) -> Event:
@@ -51,6 +54,7 @@ class EventService:
             setattr(event, key, value)
 
         await self.session.flush()
+        await self.session.refresh(event)
         return event
 
     async def delete(self, event_id: int, user_id: int) -> None:

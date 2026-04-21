@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -52,6 +53,26 @@ async def init_db() -> None:
 
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        await _apply_sqlite_migrations(connection)
+
+
+async def _apply_sqlite_migrations(connection) -> None:
+    """Apply lightweight schema updates for SQLite deployments."""
+    database_url = settings.DATABASE_URL
+    if not database_url.startswith("sqlite"):
+        return
+
+    async def add_column_if_missing(table_name: str, column_name: str, column_def: str) -> None:
+        result = await connection.execute(text(f"PRAGMA table_info({table_name})"))
+        columns = {row[1] for row in result.fetchall()}
+        if column_name not in columns:
+            await connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"))
+
+    await add_column_if_missing("events", "title", "VARCHAR(255)")
+    await add_column_if_missing("events", "event_type", "VARCHAR(100)")
+    await add_column_if_missing("interactions", "title", "VARCHAR(255)")
+    await add_column_if_missing("interactions", "interaction_type", "VARCHAR(100)")
+    await add_column_if_missing("social_circles", "circle_type", "VARCHAR(100)")
 
 
 async def close_db() -> None:

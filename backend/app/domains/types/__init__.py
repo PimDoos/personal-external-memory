@@ -1,0 +1,1 @@
+"""Managed type list domain."""

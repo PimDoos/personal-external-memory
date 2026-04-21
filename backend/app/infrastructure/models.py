@@ -130,6 +130,22 @@ class ContactInfo(Base):
     person = relationship("Person", back_populates="contact_infos")
 
 
+# ===== ManagedType =====
+class ManagedType(Base):
+    """User-managed type list entries for configurable taxonomies."""
+
+    __tablename__ = "managed_types"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    category = Column(String(64), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    uri_handler = Column(String(255), nullable=True)
+    left_label = Column(String(255), nullable=True)
+    right_label = Column(String(255), nullable=True)
+    emoji = Column(String(32), nullable=True)
+
+
 # ===== SocialCircle =====
 class SocialCircle(Base):
     """Collection of people (family, friends, work team, etc.)."""
@@ -139,6 +155,7 @@ class SocialCircle(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
+    circle_type = Column(String(100), nullable=True)
     description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
@@ -209,6 +226,8 @@ class Interaction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=True)
+    interaction_type = Column(String(100), nullable=True)
     date = Column(DateTime, nullable=False)
     start_time = Column(DateTime, nullable=True)
     end_time = Column(DateTime, nullable=True)
@@ -245,6 +264,8 @@ class Event(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=True)
+    event_type = Column(String(100), nullable=True)
     date = Column(DateTime, nullable=False)
     start_time = Column(DateTime, nullable=True)
     end_time = Column(DateTime, nullable=True)

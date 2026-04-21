@@ -1,8 +1,8 @@
 import { clearNodeChildren, createEmptyStateNode, createNode } from "../dom.js";
 
 export function createRenderCommon({ state, refs }) {
-    function filtered(items, ...extractors) {
-        const needle = state.filter.trim().toLowerCase();
+    function filtered(section, items, ...extractors) {
+        const needle = (state.filters[section] || "").trim().toLowerCase();
         if (!needle) {
             return items;
         }
@@ -47,12 +47,36 @@ export function createRenderCommon({ state, refs }) {
         refs.logoutButton.classList.toggle("hidden", !isAuthenticated);
         refs.userEmail.innerText = state.email || "-";
 
+        const countBySection = {
+            people: state.data.people.length,
+            circles: state.data.circles.length,
+            brands: state.data.brands.length,
+            events: state.data.events.length,
+            interactions: state.data.interactions.length,
+            tags: state.data.tags.length,
+            types: Object.values(state.data.typeLists || {}).reduce((total, items) => total + items.length, 0),
+        };
+
         document.querySelectorAll(".nav-button").forEach((node) => {
             node.classList.toggle("active", node.dataset.section === state.activeSection);
+            const section = node.dataset.section;
+            if (countBySection[section] !== undefined) {
+                node.innerText = `${node.dataset.label || node.innerText.split(" (")[0]} (${countBySection[section]})`;
+            }
         });
 
         document.querySelectorAll(".view-section").forEach((node) => {
             node.classList.toggle("active", node.id === `section-${state.activeSection}`);
+        });
+
+        document.querySelectorAll("[data-filter-section]").forEach((inputNode) => {
+            const section = inputNode.dataset.filterSection;
+            if (!section) {
+                return;
+            }
+            if (inputNode.value !== (state.filters[section] || "")) {
+                inputNode.value = state.filters[section] || "";
+            }
         });
     }
 

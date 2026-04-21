@@ -1,20 +1,40 @@
-import { createButtonNode, clearNodeChildren, createNode, createEmptyStateNode, createSelectNode, createFormDataObject } from "../dom.js";
-import { formatBirthday } from "../ui.js";
+import { createButtonNode, clearNodeChildren, createNode, createEmptyStateNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
+import { calculateAge } from "../ui.js";
 
 export function createPeopleRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedPerson, createListItem, renderSimpleList } = common;
 
+    function findTypeByName(list, name) {
+        return list.find((entry) => String(entry.name || "").toLowerCase() === String(name || "").toLowerCase()) || null;
+    }
+
+    function buildUriLink(typeEntry, value) {
+        if (!typeEntry?.uri_handler || !value) {
+            return null;
+        }
+
+        const trimmedValue = String(value).trim();
+        if (!trimmedValue) {
+            return null;
+        }
+
+        if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmedValue)) {
+            return trimmedValue;
+        }
+
+        const handler = String(typeEntry.uri_handler || "");
+        return `${handler}${trimmedValue}`;
+    }
+
     function buildContactForm(personId) {
         const form = createNode("form", { className: "inline-form" });
+        const contactTypeOptions = state.data.typeLists.contactInfoTypes || [];
         const typeSelect = createSelectNode(
-            [
-                { value: "phone", label: "Phone" },
-                { value: "email", label: "Email" },
-                { value: "address", label: "Address" },
-                { value: "social_media", label: "Social Media" },
-            ],
-            "phone",
-            { name: "contact_type", required: true }
+            contactTypeOptions.length
+                ? contactTypeOptions.map((entry) => ({ value: entry.name, label: entry.name }))
+                : [{ value: "", label: "No contact types" }],
+            contactTypeOptions[0]?.name || "",
+            { name: "contact_type", required: true, disabled: !contactTypeOptions.length }
         );
         const valueInput = createNode("input", { attrs: { name: "value", required: true, placeholder: "Value" } });
 
@@ -79,13 +99,18 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             disabled: people.length ? undefined : true,
         });
 
-        const relationInput = createNode("input", {
-            attrs: {
+        const relationshipTypes = state.data.typeLists.relationshipTypes || [];
+        const relationInput = createSelectNode(
+            relationshipTypes.length
+                ? relationshipTypes.map((entry) => ({ value: entry.name, label: `${entry.emoji || ""} ${entry.name}`.trim() }))
+                : [{ value: "", label: "No relationship types" }],
+            relationshipTypes[0]?.name || "",
+            {
                 name: "relationship_type",
                 required: true,
-                placeholder: "friend, sibling, colleague",
-            },
-        });
+                disabled: !relationshipTypes.length,
+            }
+        );
 
         const notesInput = createNode("input", {
             attrs: {
@@ -96,7 +121,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
         const submitButton = createButtonNode("Add", "primary-button", null, {
             type: "submit",
-            disabled: !people.length,
+            disabled: !people.length || !relationshipTypes.length,
         });
 
         form.appendChild(personSelect);
@@ -117,6 +142,49 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 notes: payload.notes || undefined,
             });
             form.reset();
+        });
+
+        return form;
+    }
+
+    function buildPersonEditForm(person) {
+        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const firstNameInput = createNode("input", {
+            value: person.first_name || "",
+            attrs: { name: "first_name", required: true },
+        });
+        const lastNameInput = createNode("input", {
+            value: person.last_name || "",
+            attrs: { name: "last_name" },
+        });
+        const birthDateInput = createNode("input", {
+            value: person.birth_date ? String(person.birth_date).slice(0, 10) : "",
+            attrs: { name: "birth_date", type: "date" },
+        });
+        const notesInput = createNode("textarea", {
+            value: person.notes || "",
+            attrs: { name: "notes", rows: "3" },
+        });
+
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "First name" }), firstNameInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Last name" }), lastNameInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Birthday" }), birthDateInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Notes" }), notesInput] }));
+        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            if (!payload.birth_date) {
+                delete payload.birth_date;
+            }
+            if (payload.last_name === "") {
+                delete payload.last_name;
+            }
+            if (payload.notes === "") {
+                delete payload.notes;
+            }
+            await actions.updatePerson(person.id, payload);
         });
 
         return form;
@@ -157,19 +225,35 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         const contacts = caches.personContacts.get(person.id) || [];
         const tags = caches.personTags.get(person.id) || [];
         const relationships = caches.personRelationships.get(person.id) || [];
+        const associations = caches.personAssociations.get(person.id) || {
+            circleIds: [],
+            eventIds: [],
+            interactionIds: [],
+            brandIds: [],
+        };
 
         const overview = createNode("article", {
+            className: "subpanel",
             children: [
-                createNode("h3", { text: `${person.first_name} ${person.last_name || ""}`.trim() }),
-                createNode("p", { className: "muted", text: `Birthday: ${person.birth_date ? formatBirthday(person.birth_date) : "Unknown"}` }),
-                createNode("p", { text: person.notes || "No notes recorded." }),
+                createNode("div", {
+                    className: "panel-heading",
+                    children: [
+                        createNode("h3", { text: "Person Details" }),
+                        createButtonNode("Delete", "danger-button", async () => {
+                            await actions.deletePerson(person.id);
+                        }),
+                    ],
+                }),
+                buildPersonEditForm(person),
+                createNode("p", { className: "muted", text: `Age: ${calculateAge(person.birth_date) ?? "Unknown"}` }),
             ],
         });
         container.appendChild(overview);
 
         const contactsSection = createNode("section", { className: "subpanel" });
-        contactsSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Contact Info" })] }));
-        contactsSection.appendChild(buildContactForm(person.id));
+        const { wrapper: contactFormWrapper, trigger: contactFormTrigger } = wrapCollapsible("+ Add", buildContactForm(person.id));
+        contactsSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Contact Info" }), contactFormTrigger] }));
+        contactsSection.appendChild(contactFormWrapper);
 
         const contactsList = createNode("div", { className: "list" });
         renderSimpleList(
@@ -177,6 +261,13 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             contacts,
             (contact) => {
                 const actionsNode = createNode("div", { className: "list-actions" });
+                const typeEntry = findTypeByName(state.data.typeLists.contactInfoTypes || [], contact.contact_type);
+                const href = buildUriLink(typeEntry, contact.value);
+                if (href) {
+                    actionsNode.appendChild(createButtonNode("Open", "secondary-button", () => {
+                        window.open(href, "_blank", "noopener,noreferrer");
+                    }));
+                }
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeContact(contact.id, person.id);
                 }));
@@ -188,8 +279,9 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         container.appendChild(contactsSection);
 
         const tagsSection = createNode("section", { className: "subpanel" });
-        tagsSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Tags" })] }));
-        tagsSection.appendChild(buildTagsAssignmentForm(person.id, tags));
+        const { wrapper: tagFormWrapper, trigger: tagFormTrigger } = wrapCollapsible("+ Assign", buildTagsAssignmentForm(person.id, tags));
+        tagsSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Tags" }), tagFormTrigger] }));
+        tagsSection.appendChild(tagFormWrapper);
 
         const tagCloud = createNode("div", { className: "tag-cloud" });
         if (!tags.length) {
@@ -201,7 +293,13 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                     pill.style.borderColor = tag.color;
                 }
 
-                pill.appendChild(createNode("span", { text: tag.name }));
+                const nameSpan = createNode("span", { text: tag.name, className: "pill__name" });
+                nameSpan.style.cursor = "pointer";
+                nameSpan.addEventListener("click", async (event) => {
+                    event.stopPropagation();
+                    await actions.openTagFromContext(tag.id);
+                });
+                pill.appendChild(nameSpan);
                 pill.appendChild(createButtonNode("x", "ghost-button", async () => {
                     await actions.removeTagFromPerson(tag.id, person.id);
                 }));
@@ -212,8 +310,9 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         container.appendChild(tagsSection);
 
         const relSection = createNode("section", { className: "subpanel" });
-        relSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Relationships" })] }));
-        relSection.appendChild(buildRelationshipsForm(person.id));
+        const { wrapper: relFormWrapper, trigger: relFormTrigger } = wrapCollapsible("+ Add", buildRelationshipsForm(person.id));
+        relSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Relationships" }), relFormTrigger] }));
+        relSection.appendChild(relFormWrapper);
 
         const relList = createNode("div", { className: "list" });
         renderSimpleList(
@@ -223,23 +322,162 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 const counterpartId = relationship.person_id_1 === person.id
                     ? relationship.person_id_2
                     : relationship.person_id_1;
-                const subtitle = relationship.notes
-                    ? `${relationship.relationship_type} · ${relationship.notes}`
-                    : relationship.relationship_type;
+                const typeEntry = findTypeByName(state.data.typeLists.relationshipTypes || [], relationship.relationship_type);
+                const perspectiveLabel = relationship.person_id_1 === person.id
+                    ? (typeEntry?.left_label || relationship.relationship_type)
+                    : (typeEntry?.right_label || relationship.relationship_type);
+                const subtitleParts = [
+                    typeEntry?.emoji ? `${typeEntry.emoji} ${perspectiveLabel}` : perspectiveLabel,
+                    relationship.notes || "",
+                ].filter(Boolean);
+                const subtitle = subtitleParts.join(" · ");
                 const actionsNode = createNode("div", { className: "list-actions" });
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.deleteRelationship(relationship.id, person.id);
                 }));
-                return createListItem(nameOfPerson(counterpartId), subtitle, actionsNode);
+                const item = createListItem(nameOfPerson(counterpartId), subtitle, actionsNode);
+                item.classList.add("clickable");
+                item.addEventListener("click", async () => {
+                    await actions.openPersonFromContext(counterpartId);
+                });
+                return item;
             },
             "No relationships defined."
         );
         relSection.appendChild(relList);
         container.appendChild(relSection);
+
+        const assocSection = createNode("section", { className: "subpanel" });
+        assocSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Associated Entities" })] }));
+
+        const circlesNode = createNode("div", { className: "list" });
+        const associatedCircles = state.data.circles.filter((circle) => associations.circleIds.includes(circle.id));
+        renderSimpleList(
+            circlesNode,
+            associatedCircles,
+            (circle) => {
+                const item = createListItem(circle.name, "Social circle");
+                item.addEventListener("click", async () => {
+                    state.activeSection = "circles";
+                    await actions.selectCircle(circle.id);
+                });
+                return item;
+            },
+            "No associated circles."
+        );
+        const availableCircles = state.data.circles.filter((circle) => !associations.circleIds.includes(circle.id));
+        const circleForm = createNode("form", { className: "inline-form" });
+        const circleOptions = availableCircles.length
+            ? availableCircles.map((circle) => ({ value: circle.id, label: circle.name }))
+            : [{ value: "", label: "No available circles" }];
+        circleForm.appendChild(createSelectNode(circleOptions, "", { name: "circle_id", disabled: availableCircles.length ? undefined : true }));
+        circleForm.appendChild(createButtonNode("Add", "primary-button", null, { type: "submit", disabled: !availableCircles.length }));
+        circleForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const values = createFormDataObject(circleForm);
+            if (!values.circle_id) {
+                return;
+            }
+            await actions.addCircleMember(Number(values.circle_id), person.id);
+        });
+        const { wrapper: circleFormWrapper, trigger: circleFormTrigger } = wrapCollapsible("+ Add", circleForm);
+        assocSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h4", { text: "Circles" }), circleFormTrigger] }));
+        assocSection.appendChild(circleFormWrapper);
+        assocSection.appendChild(circlesNode);
+
+        const eventsNode = createNode("div", { className: "list" });
+        const associatedEvents = state.data.events.filter((event) => associations.eventIds.includes(event.id));
+        renderSimpleList(
+            eventsNode,
+            associatedEvents,
+            (event) => {
+                const item = createListItem(event.title || event.location || "Event", "Event");
+                item.addEventListener("click", async () => {
+                    state.activeSection = "events";
+                    await actions.selectEvent(event.id);
+                });
+                return item;
+            },
+            "No associated events."
+        );
+
+        const availableEvents = state.data.events.filter((event) => !associations.eventIds.includes(event.id));
+        const eventForm = createNode("form", { className: "inline-form" });
+        const eventOptions = availableEvents.length
+            ? availableEvents.map((event) => ({ value: event.id, label: event.title || event.location || `Event #${event.id}` }))
+            : [{ value: "", label: "No available events" }];
+        eventForm.appendChild(createSelectNode(eventOptions, "", { name: "event_id", disabled: availableEvents.length ? undefined : true }));
+        eventForm.appendChild(createNode("input", { attrs: { name: "role", placeholder: "role (optional)" } }));
+        eventForm.appendChild(createButtonNode("Add", "primary-button", null, { type: "submit", disabled: !availableEvents.length }));
+        eventForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const vals = createFormDataObject(eventForm);
+            if (!vals.event_id) return;
+            await actions.addEventParticipant(Number(vals.event_id), person.id, vals.role || undefined);
+        });
+        const { wrapper: eventFormWrapper, trigger: eventFormTrigger } = wrapCollapsible("+ Add", eventForm);
+        assocSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h4", { text: "Events" }), eventFormTrigger] }));
+        assocSection.appendChild(eventFormWrapper);
+        assocSection.appendChild(eventsNode);
+
+        const interactionsNode = createNode("div", { className: "list" });
+        const associatedInteractions = state.data.interactions.filter((interaction) => associations.interactionIds.includes(interaction.id));
+        renderSimpleList(
+            interactionsNode,
+            associatedInteractions,
+            (interaction) => {
+                const item = createListItem(interaction.title || interaction.medium || "Interaction", "Interaction");
+                item.addEventListener("click", async () => {
+                    state.activeSection = "interactions";
+                    await actions.selectInteraction(interaction.id);
+                });
+                return item;
+            },
+            "No associated interactions."
+        );
+
+        const availableInteractions = state.data.interactions.filter((interaction) => !associations.interactionIds.includes(interaction.id));
+        const interactionForm = createNode("form", { className: "inline-form" });
+        const interactionOptions = availableInteractions.length
+            ? availableInteractions.map((interaction) => ({ value: interaction.id, label: interaction.title || interaction.medium || `Interaction #${interaction.id}` }))
+            : [{ value: "", label: "No available interactions" }];
+        interactionForm.appendChild(createSelectNode(interactionOptions, "", { name: "interaction_id", disabled: availableInteractions.length ? undefined : true }));
+        interactionForm.appendChild(createButtonNode("Add", "primary-button", null, { type: "submit", disabled: !availableInteractions.length }));
+        interactionForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const vals = createFormDataObject(interactionForm);
+            if (!vals.interaction_id) return;
+            await actions.addInteractionParticipant(Number(vals.interaction_id), person.id);
+        });
+        const { wrapper: interactionFormWrapper, trigger: interactionFormTrigger } = wrapCollapsible("+ Add", interactionForm);
+        assocSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h4", { text: "Interactions" }), interactionFormTrigger] }));
+        assocSection.appendChild(interactionFormWrapper);
+        assocSection.appendChild(interactionsNode);
+
+        const brandsNode = createNode("div", { className: "list" });
+        const associatedBrands = state.data.brands.filter((brand) => associations.brandIds.includes(brand.id));
+        renderSimpleList(
+            brandsNode,
+            associatedBrands,
+            (brand) => {
+                const item = createListItem(brand.name, "Brand");
+                item.addEventListener("click", async () => {
+                    state.activeSection = "brands";
+                    await actions.selectBrand(brand.id);
+                });
+                return item;
+            },
+            "No associated brands yet."
+        );
+        assocSection.appendChild(createNode("h4", { text: "Brands" }));
+        assocSection.appendChild(brandsNode);
+
+        container.appendChild(assocSection);
     }
 
     function renderPeople() {
         const people = filtered(
+            "people",
             state.data.people,
             (person) => person.first_name,
             (person) => person.last_name,
@@ -253,17 +491,44 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             listNode.appendChild(createEmptyStateNode("No people yet. Add someone to start building your memory graph."));
         } else {
             people.forEach((person) => {
-                const actionGroup = createNode("div", { className: "list-actions" });
+                const assignedTags = caches.peopleTagSummaries.get(person.id) || [];
+                const age = calculateAge(person.birth_date);
+                const tagsNode = createNode("div", { className: "tag-cloud" });
 
-                actionGroup.appendChild(createButtonNode("Delete", "danger-button", async () => {
-                    await actions.deletePerson(person.id);
-                }));
+                if (!assignedTags.length) {
+                    tagsNode.appendChild(createNode("span", { className: "muted", text: "No tags" }));
+                } else {
+                    assignedTags.forEach((tag) => {
+                        const pill = createNode("span", { className: "pill" });
+                        if (tag.color) {
+                            pill.style.borderColor = tag.color;
+                            pill.style.backgroundColor = `${tag.color}20`;
+                        }
+                        pill.appendChild(createNode("span", { text: tag.name }));
+                        tagsNode.appendChild(pill);
+                    });
+                }
 
-                const item = createListItem(
-                    `${person.first_name} ${person.last_name || ""}`.trim(),
-                    person.notes || "No notes yet",
-                    actionGroup
-                );
+                const titleNode = createNode("h4", {
+                    children: [
+                        createNode("span", { text: `${person.first_name} ${person.last_name || ""}`.trim() }),
+                        createNode("span", { className: "age-hint", text: age === null ? "" : ` age ${age}` }),
+                    ],
+                });
+
+                const item = createNode("div", {
+                    className: "list-item",
+                    children: [
+                        createNode("div", {
+                            className: "list-item__row",
+                            children: [
+                                createNode("div", {
+                                    children: [titleNode, tagsNode],
+                                }),
+                            ],
+                        }),
+                    ],
+                });
 
                 if (state.selected.personId === person.id) {
                     item.classList.add("active");

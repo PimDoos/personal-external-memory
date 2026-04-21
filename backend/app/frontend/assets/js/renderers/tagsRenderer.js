@@ -1,7 +1,39 @@
-import { clearNodeChildren, createButtonNode, createNode } from "../dom.js";
+import { clearNodeChildren, createButtonNode, createFormDataObject, createNode } from "../dom.js";
 
 export function createTagsRenderer({ state, actions, common }) {
     const { filtered, createListItem, renderSimpleList } = common;
+
+    function buildTagEditForm(tag) {
+        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const nameInput = createNode("input", {
+            value: tag.name || "",
+            attrs: { name: "name", required: true },
+        });
+        const descriptionInput = createNode("input", {
+            value: tag.description || "",
+            attrs: { name: "description" },
+        });
+        const colorInput = createNode("input", {
+            value: tag.color || "#b86a37",
+            attrs: { name: "color", type: "color" },
+        });
+
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Name" }), nameInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Description" }), descriptionInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Color" }), colorInput] }));
+        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            if (payload.description === "") {
+                delete payload.description;
+            }
+            await actions.updateTag(tag.id, payload);
+        });
+
+        return form;
+    }
 
     function renderTagDetail() {
         const panel = document.getElementById("tag-detail-panel");
@@ -35,15 +67,25 @@ export function createTagsRenderer({ state, actions, common }) {
         clearNodeChildren(container);
         container.className = "detail-grid";
         container.appendChild(createNode("article", {
+            className: "subpanel",
             children: [
-                createNode("h3", { text: tag.name }),
-                createNode("p", { className: "muted", text: tag.description || "No description" }),
+                createNode("div", {
+                    className: "panel-heading",
+                    children: [
+                        createNode("h3", { text: "Tag Details" }),
+                        createButtonNode("Delete", "danger-button", async () => {
+                            await actions.deleteTag(tag.id);
+                        }),
+                    ],
+                }),
+                buildTagEditForm(tag),
             ],
         }));
     }
 
     function renderTags() {
         const tags = filtered(
+            "tags",
             state.data.tags,
             (tag) => tag.name,
             (tag) => tag.description
@@ -56,11 +98,7 @@ export function createTagsRenderer({ state, actions, common }) {
             listNode,
             tags,
             (tag) => {
-                const actionGroup = createNode("div", { className: "list-actions" });
-                actionGroup.appendChild(createButtonNode("Delete", "danger-button", async () => {
-                    await actions.deleteTag(tag.id);
-                }));
-                const item = createListItem(tag.name, tag.description || "No description", actionGroup);
+                const item = createListItem(tag.name, tag.description || "No description");
                 if (state.selected.tagId === tag.id) {
                     item.classList.add("active");
                 }

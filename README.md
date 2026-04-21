@@ -28,6 +28,7 @@ PEM is a people relationship management system. It allows you to keep track of p
     - Notes
 
 - Interactions: Meetings, calls, messages, etc.
+    - Has a title
     - Can be associated with one or more people, social circles, or brands
     - Date and optionally start/end time
     - Resources related to the interaction, like a meeting agenda or a call recording
@@ -35,6 +36,7 @@ PEM is a people relationship management system. It allows you to keep track of p
     - Notes
 
 - Events: Special occasions, like birthdays, anniversaries, or other important dates
+    - Has a title
     - Can be associated with people, social circles, or brands, and they can have roles within the event, like "host", "guest", "organizer", etc. (customizable)
     - Date and optionally start/end time
     - Resources related to the event, like the event website, ticket store
@@ -91,3 +93,32 @@ The native frontend is now implemented and served directly by FastAPI.
 
 **Status**: Ready for backend integration testing and UI iteration.
 
+### Todo
+
+- Add sign-in with OpenID
+- Add user preferences
+    - Dark mode
+- Add type management (manage lists)
+    - Contact info types
+        - Phone
+        - Email
+        - URL
+        - Custom
+        - Contact info types can have an URI handler associated with them. If set, this value is prepended to the contact info value to create a link. This will make the contact info clickable and open the associated application. 
+
+    - Relationship types
+        - Relationship has two sides
+        - Some relationships have different titles for each side
+            - Parent-child
+        - Some relationships have equal titles for each side
+            - Friend
+            - Sibling
+            - Colleague
+            - Partner
+            - Date
+        - Relationship types can have an emoji associated with them. This will be displayed next to the relationship in the UI.
+        
+    - Social circle type
+    - Event type
+    - Interaction type
+    - Interaction medium
