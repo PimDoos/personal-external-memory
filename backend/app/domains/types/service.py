@@ -14,6 +14,7 @@ VALID_CATEGORIES = {
     "event",
     "interaction",
     "interaction-medium",
+    "brand-membership",
 }
 
 DEFAULT_TYPES = {
@@ -40,6 +41,11 @@ DEFAULT_TYPES = {
         {"name": "Email"},
         {"name": "Chat"},
         {"name": "Video"},
+    ],
+    "brand-membership": [
+        {"name": "Employee"},
+        {"name": "Owner"},
+        {"name": "Customer"},
     ],
 }
 

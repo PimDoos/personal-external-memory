@@ -19,6 +19,11 @@ export const state = {
         interactionId: null,
         tagId: null,
     },
+    topologyFilters: {
+        relationshipType: "",
+        socialCircleId: "",
+        brandId: "",
+    },
     sidebar: {
         people: "hidden",
         circles: "hidden",

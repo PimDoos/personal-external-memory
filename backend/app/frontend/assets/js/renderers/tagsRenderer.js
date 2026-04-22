@@ -99,6 +99,10 @@ export function createTagsRenderer({ state, actions, common }) {
             tags,
             (tag) => {
                 const item = createListItem(tag.name, tag.description || "No description");
+                if (tag.color) {
+                    item.style.borderColor = tag.color;
+                    item.style.backgroundColor = `${tag.color}1f`;
+                }
                 if (state.selected.tagId === tag.id) {
                     item.classList.add("active");
                 }

@@ -62,6 +62,7 @@ export const api = {
         detachFromPerson: (tagId, personId) => request(`/api/tags/${tagId}/people/${personId}`, { method: "DELETE" }),
     },
     relationships: {
+        list: () => request("/api/relationships"),
         listForPerson: (personId) => request(`/api/relationships/people/${personId}`),
         create: (data) => request("/api/relationships", { method: "POST", ...jsonBody(data) }),
         remove: (id) => request(`/api/relationships/${id}`, { method: "DELETE" }),
@@ -80,6 +81,10 @@ export const api = {
         create: (data) => request("/api/brands", { method: "POST", ...jsonBody(data) }),
         update: (id, data) => request(`/api/brands/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (id) => request(`/api/brands/${id}`, { method: "DELETE" }),
+        members: (brandId) => request(`/api/associations/brand-members/${brandId}`),
+        addMember: (data) => request("/api/associations/brand-members", { method: "POST", ...jsonBody(data) }),
+        updateMemberType: (brandId, personId, type) => request(`/api/associations/brand-members/${brandId}/${personId}/type?type=${encodeURIComponent(type)}`, { method: "PUT" }),
+        removeMember: (brandId, personId) => request(`/api/associations/brand-members/${brandId}/${personId}`, { method: "DELETE" }),
     },
     events: {
         list: () => request("/api/events"),

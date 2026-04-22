@@ -23,8 +23,17 @@ export function createAppController() {
         personRelationships: new Map(),
         personAssociations: new Map(),
         circleMembers: new Map(),
+        brandMembers: new Map(),
         eventParticipants: new Map(),
         interactionParticipants: new Map(),
+        topology: {
+            relationships: [],
+            circleMembersByCircleId: new Map(),
+            brandMembersByBrandId: new Map(),
+            eventParticipantsByEventId: new Map(),
+            interactionParticipantsByInteractionId: new Map(),
+            personBrandAffiliations: new Map(),
+        },
     };
 
     function resetSidebar(section) {
@@ -109,6 +118,9 @@ export function createAppController() {
         if (state.selected.circleId) {
             await loadCircleMembers(state.selected.circleId);
         }
+        if (state.selected.brandId) {
+            await loadBrandMembers(state.selected.brandId);
+        }
         if (state.selected.eventId) {
             await loadEventParticipants(state.selected.eventId);
         }
@@ -127,7 +139,7 @@ export function createAppController() {
     }
 
     async function refreshBaseData() {
-        const [people, circles, brands, events, interactions, tags, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, interactionTypes, interactionMediums] = await Promise.all([
+        const [people, circles, brands, events, interactions, tags, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, interactionTypes, interactionMediums, brandMembershipTypes] = await Promise.all([
             api.people.list(),
             api.circles.list(),
             api.brands.list(),
@@ -140,6 +152,7 @@ export function createAppController() {
             api.types.list("event"),
             api.types.list("interaction"),
             api.types.list("interaction-medium"),
+            api.types.list("brand-membership"),
         ]);
 
         state.data.people = people;
@@ -155,6 +168,94 @@ export function createAppController() {
             eventTypes,
             interactionTypes,
             interactionMediums,
+            brandMembershipTypes,
+        };
+
+        await refreshTopologyData();
+    }
+
+    async function refreshTopologyData() {
+        const [relationships, circleMembersLists, brandMembersLists, eventParticipantsLists, interactionParticipantsLists] = await Promise.all([
+            api.relationships.list(),
+            Promise.all(state.data.circles.map((circle) => api.circles.members(circle.id))),
+            Promise.all(state.data.brands.map((brand) => api.brands.members(brand.id))),
+            Promise.all(state.data.events.map((event) => api.events.participants(event.id))),
+            Promise.all(state.data.interactions.map((interaction) => api.interactions.participants(interaction.id))),
+        ]);
+
+        const circleMembersByCircleId = new Map(
+            state.data.circles.map((circle, index) => [circle.id, circleMembersLists[index] || []])
+        );
+        const brandMembersByBrandId = new Map(
+            state.data.brands.map((brand, index) => [brand.id, brandMembersLists[index] || []])
+        );
+        const eventParticipantsByEventId = new Map(
+            state.data.events.map((event, index) => [event.id, eventParticipantsLists[index] || []])
+        );
+        const interactionParticipantsByInteractionId = new Map(
+            state.data.interactions.map((interaction, index) => [interaction.id, interactionParticipantsLists[index] || []])
+        );
+
+        const personBrandAffiliations = new Map(
+            state.data.people.map((person) => [person.id, new Set()])
+        );
+
+        // Add explicit brand associations
+        brandMembersByBrandId.forEach((memberObjects, brandId) => {
+            (memberObjects || []).forEach((member) => {
+                const personId = member.person_id || member;
+                const personSet = personBrandAffiliations.get(personId);
+                if (personSet) {
+                    personSet.add(brandId);
+                }
+            });
+        });
+
+        // Add heuristic brand affiliations from events/interactions
+        state.data.brands.forEach((brand) => {
+            const needle = String(brand.name || "").toLowerCase().trim();
+            if (!needle) {
+                return;
+            }
+
+            state.data.events.forEach((event) => {
+                const matchesBrand = [event.title, event.location, event.notes]
+                    .some((value) => String(value || "").toLowerCase().includes(needle));
+                if (!matchesBrand) {
+                    return;
+                }
+
+                (eventParticipantsByEventId.get(event.id) || []).forEach((participant) => {
+                    const personSet = personBrandAffiliations.get(participant.person_id);
+                    if (personSet) {
+                        personSet.add(brand.id);
+                    }
+                });
+            });
+
+            state.data.interactions.forEach((interaction) => {
+                const matchesBrand = [interaction.title, interaction.location, interaction.medium, interaction.notes]
+                    .some((value) => String(value || "").toLowerCase().includes(needle));
+                if (!matchesBrand) {
+                    return;
+                }
+
+                (interactionParticipantsByInteractionId.get(interaction.id) || []).forEach((personId) => {
+                    const personSet = personBrandAffiliations.get(personId);
+                    if (personSet) {
+                        personSet.add(brand.id);
+                    }
+                });
+            });
+        });
+
+        caches.topology = {
+            relationships,
+            circleMembersByCircleId,
+            brandMembersByBrandId,
+            eventParticipantsByEventId,
+            interactionParticipantsByInteractionId,
+            personBrandAffiliations,
         };
     }
 
@@ -282,6 +383,10 @@ export function createAppController() {
         caches.circleMembers.set(circleId, await api.circles.members(circleId));
     }
 
+    async function loadBrandMembers(brandId) {
+        caches.brandMembers.set(brandId, await api.brands.members(brandId));
+    }
+
     async function loadEventParticipants(eventId) {
         caches.eventParticipants.set(eventId, await api.events.participants(eventId));
     }
@@ -302,6 +407,9 @@ export function createAppController() {
         }
         if (state.selected.circleId) {
             await loadCircleMembers(state.selected.circleId);
+        }
+        if (state.selected.brandId) {
+            await loadBrandMembers(state.selected.brandId);
         }
         if (state.selected.eventId) {
             await loadEventParticipants(state.selected.eventId);
@@ -664,6 +772,7 @@ export function createAppController() {
         selectBrand: async (brandId) => withAction(async () => {
             state.selected.brandId = brandId;
             state.sidebar.brands = "detail";
+            await loadBrandMembers(brandId);
         }),
         updateBrand: async (brandId, payload) => withAction(async () => {
             await api.brands.update(brandId, payload);
@@ -681,6 +790,29 @@ export function createAppController() {
             }
             await refreshBaseData();
             showToast("Brand removed.");
+        }),
+        addBrandMember: async (brandId, personId, type) => withAction(async () => {
+            await api.brands.addMember({ brand_id: brandId, person_id: personId, type });
+            await loadBrandMembers(brandId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
+            await refreshTopologyData();
+            showToast("Member added.");
+        }),
+        changeBrandMemberType: async (brandId, personId, type) => withAction(async () => {
+            await api.brands.updateMemberType(brandId, personId, type);
+            await loadBrandMembers(brandId);
+            showToast("Member type updated.");
+        }),
+        removeBrandMember: async (brandId, personId) => withAction(async () => {
+            await api.brands.removeMember(brandId, personId);
+            await loadBrandMembers(brandId);
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
+            await refreshTopologyData();
+            showToast("Member removed.");
         }),
         selectEvent: async (eventId) => withAction(async () => {
             state.selected.eventId = eventId;
@@ -781,6 +913,11 @@ export function createAppController() {
             state.selected.personId = personId;
             state.sidebar.people = "detail";
             await loadPersonCaches(personId);
+        }),
+        openBrandFromContext: async (brandId) => withAction(async () => {
+            state.activeSection = "brands";
+            state.selected.brandId = brandId;
+            state.sidebar.brands = "detail";
         }),
         openTagFromContext: async (tagId) => withAction(async () => {
             state.activeSection = "tags";

@@ -7,9 +7,11 @@ from app.infrastructure.models import (
     CircleMember,
     EventParticipant,
     InteractionParticipant,
+    BrandAssociation,
     SocialCircle,
     Event,
     Interaction,
+    Brand,
     Person,
 )
 from app.infrastructure.exceptions import NotFoundError, ConflictError
@@ -245,3 +247,100 @@ class InteractionParticipantService:
 
         await self.session.delete(participant)
         await self.session.flush()
+
+
+class BrandAssociationService:
+    """Service for managing brand associations with people."""
+
+    def __init__(self, session: AsyncSession):
+        """Initialize brand association service."""
+        self.session = session
+
+    async def add_member_to_brand(
+        self, brand_id: int, person_id: int, user_id: int, type: str | None = None
+    ) -> BrandAssociation:
+        """Add a person to a brand."""
+        # Verify brand ownership
+        stmt = select(Brand).where(
+            (Brand.id == brand_id) & (Brand.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Brand not found")
+
+        # Verify person ownership
+        stmt = select(Person).where(
+            (Person.id == person_id) & (Person.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Person not found")
+
+        # Check if already associated
+        stmt = select(BrandAssociation).where(
+            (BrandAssociation.brand_id == brand_id)
+            & (BrandAssociation.person_id == person_id)
+        )
+        result = await self.session.execute(stmt)
+        if result.scalar_one_or_none():
+            raise ConflictError("Person is already associated with this brand")
+
+        # Add association
+        association = BrandAssociation(brand_id=brand_id, person_id=person_id, type=type)
+        self.session.add(association)
+        await self.session.flush()
+        return association
+
+    async def remove_member_from_brand(
+        self, brand_id: int, person_id: int, user_id: int
+    ) -> None:
+        """Remove a person from a brand."""
+        # Verify brand ownership
+        stmt = select(Brand).where(
+            (Brand.id == brand_id) & (Brand.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Brand not found")
+
+        # Find and delete association
+        stmt = select(BrandAssociation).where(
+            (BrandAssociation.brand_id == brand_id)
+            & (BrandAssociation.person_id == person_id)
+        )
+        result = await self.session.execute(stmt)
+        association = result.scalar_one_or_none()
+
+        if not association:
+            raise NotFoundError("Person is not associated with this brand")
+
+        await self.session.delete(association)
+        await self.session.flush()
+
+    async def update_member_type(
+        self, brand_id: int, person_id: int, user_id: int, type: str
+    ) -> BrandAssociation:
+        """Update a member's type in a brand."""
+        # Verify brand ownership
+        stmt = select(Brand).where(
+            (Brand.id == brand_id) & (Brand.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Brand not found")
+
+        # Find association
+        stmt = select(BrandAssociation).where(
+            (BrandAssociation.brand_id == brand_id)
+            & (BrandAssociation.person_id == person_id)
+        )
+        result = await self.session.execute(stmt)
+        association = result.scalar_one_or_none()
+
+        if not association:
+            raise NotFoundError("Person is not associated with this brand")
+
+        association.type = type
+        await self.session.flush()
+        return association
+

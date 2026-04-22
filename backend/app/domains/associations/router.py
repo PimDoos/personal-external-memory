@@ -11,15 +11,18 @@ from app.domains.associations.schemas import (
     EventParticipantResponse,
     InteractionParticipantRequest,
     InteractionParticipantResponse,
+    BrandAssociationRequest,
+    BrandAssociationResponse,
 )
 from app.domains.associations.service import (
     CircleMemberService,
     EventParticipantService,
     InteractionParticipantService,
+    BrandAssociationService,
 )
 from app.infrastructure.database import get_db
 from app.infrastructure.dependencies import CurrentUser
-from app.infrastructure.models import SocialCircle, Event, Interaction, CircleMember, EventParticipant, InteractionParticipant, Person
+from app.infrastructure.models import SocialCircle, Event, Interaction, Brand, CircleMember, EventParticipant, InteractionParticipant, BrandAssociation, Person
 from app.infrastructure.exceptions import NotFoundError
 
 router = APIRouter()
@@ -219,6 +222,83 @@ async def list_interaction_participants(
         select(Person.id)
         .join(InteractionParticipant, InteractionParticipant.person_id == Person.id)
         .where(InteractionParticipant.interaction_id == interaction_id)
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+# ===== Brand Associations =====
+
+
+@router.post("/brand-members", response_model=BrandAssociationResponse)
+async def add_member_to_brand(
+    request: BrandAssociationRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> BrandAssociationResponse:
+    """Add a person to a brand."""
+    service = BrandAssociationService(db)
+    association = await service.add_member_to_brand(
+        request.brand_id, request.person_id, current_user.id, request.type
+    )
+    await db.commit()
+    return association
+
+
+@router.delete("/brand-members/{brand_id}/{person_id}")
+async def remove_member_from_brand(
+    brand_id: int,
+    person_id: int,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove a person from a brand."""
+    service = BrandAssociationService(db)
+    await service.remove_member_from_brand(brand_id, person_id, current_user.id)
+    await db.commit()
+    return {"message": "Person removed from brand successfully"}
+
+
+@router.put("/brand-members/{brand_id}/{person_id}/type")
+async def update_brand_member_type(
+    brand_id: int,
+    person_id: int,
+    type: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> BrandAssociationResponse:
+    """Update a member's type in a brand."""
+    service = BrandAssociationService(db)
+    association = await service.update_member_type(
+        brand_id, person_id, current_user.id, type
+    )
+    await db.commit()
+    return association
+
+
+@router.get("/brand-members/{brand_id}", response_model=list[BrandAssociationResponse])
+async def list_brand_members(
+    brand_id: int,
+    current_user: CurrentUser,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db),
+) -> list[BrandAssociationResponse]:
+    """List all members associated with a brand."""
+    # Verify brand ownership
+    stmt = select(Brand).where(
+        (Brand.id == brand_id) & (Brand.user_id == current_user.id)
+    )
+    result = await db.execute(stmt)
+    if not result.scalar_one_or_none():
+        raise NotFoundError("Brand not found")
+
+    # Get all members
+    stmt = (
+        select(BrandAssociation)
+        .where(BrandAssociation.brand_id == brand_id)
         .offset(skip)
         .limit(limit)
     )

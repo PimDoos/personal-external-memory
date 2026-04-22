@@ -69,6 +69,9 @@ class Person(Base):
     events = relationship(
         "Event", secondary="event_participants", back_populates="people"
     )
+    brands = relationship(
+        "Brand", secondary="brand_associations", back_populates="members"
+    )
 
 
 # ===== Tag =====
@@ -201,6 +204,20 @@ class Brand(Base):
     contact_infos = relationship(
         "BrandContact", back_populates="brand", cascade="all, delete-orphan"
     )
+    members = relationship(
+        "Person", secondary="brand_associations", back_populates="brands"
+    )
+
+
+# ===== BrandAssociation (association) =====
+class BrandAssociation(Base):
+    """Association between Brand and Person."""
+
+    __tablename__ = "brand_associations"
+
+    brand_id = Column(Integer, ForeignKey("brands.id"), primary_key=True)
+    person_id = Column(Integer, ForeignKey("people.id"), primary_key=True)
+    type = Column(String(100), nullable=True)  # employee, owner, customer, etc.
 
 
 # ===== BrandContact =====

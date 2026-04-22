@@ -1,6 +1,6 @@
 import { clearNodeChildren, createEmptyStateNode, createNode } from "../dom.js";
 
-export function createRenderCommon({ state, refs }) {
+export function createRenderCommon({ state, refs, caches }) {
     function filtered(section, items, ...extractors) {
         const needle = (state.filters[section] || "").trim().toLowerCase();
         if (!needle) {
@@ -128,6 +128,7 @@ export function createRenderCommon({ state, refs }) {
     }
 
     return {
+        caches,
         filtered,
         nameOfPerson,
         selectedPerson,

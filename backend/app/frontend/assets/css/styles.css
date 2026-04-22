@@ -226,6 +226,26 @@ select {
     background: var(--surface-soft);
     border: 1px solid var(--line);
     padding: 10px 12px;
+    display: flex;
+}
+
+.user-chip {
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    grid-column: 1 / -1;
+    min-height: 48px;
+}
+
+.user-chip strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-chip .ghost-button {
+    margin-left: auto;
 }
 
 .user-chip__label,
@@ -286,7 +306,7 @@ select {
 .nav-tabs {
     margin-top: 18px;
     margin-top: 0;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(9, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -388,6 +408,62 @@ select {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 18px;
     align-items: start;
+}
+
+.topology-panel {
+    display: grid;
+    gap: 14px;
+}
+
+.topology-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.topology-filters label {
+    display: grid;
+    gap: 6px;
+}
+
+.topology-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+}
+
+.topology-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-soft);
+    font-size: 0.93rem;
+}
+
+.topology-legend__swatch {
+    width: 16px;
+    height: 4px;
+    border-radius: 999px;
+}
+
+.topology-graph-wrap {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    background: var(--surface-soft);
+    min-height: 540px;
+    overflow: hidden;
+}
+
+.topology-graph {
+    width: 100%;
+    height: 540px;
+    display: block;
+    user-select: none;
+}
+
+.topology-node-label {
+    fill: var(--ink);
+    font-family: var(--font-body);
 }
 
 .form-grid label,
@@ -563,6 +639,10 @@ textarea {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .topology-filters {
+        grid-template-columns: 1fr;
+    }
+
     .topbar {
         flex-direction: column;
     }
@@ -583,5 +663,11 @@ textarea {
 
     .types-grid {
         grid-template-columns: 1fr;
+    }
+
+    .topology-graph-wrap,
+    .topology-graph {
+        min-height: 420px;
+        height: 420px;
     }
 }

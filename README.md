@@ -48,12 +48,47 @@ PEM is a people relationship management system. It allows you to keep track of p
     - Files can be uploaded and will be stored locally on the server
     - Links 
 
+- Type management
+    - Contact info types
+        - Phone
+        - Email
+        - URL
+        - Custom
+        - Contact info types can have an URI handler associated with them. If set, this value is prepended to the contact info value to create a link. This will make the contact info clickable and open the associated application. 
+
+    - Relationship types
+        - Relationship has two sides
+        - Some relationships have different titles for each side
+            - Parent-child
+        - Some relationships have equal titles for each side
+            - Friend
+            - Sibling
+            - Colleague
+            - Partner
+            - Date
+        - Relationship types can have an emoji associated with them. This will be displayed next to the relationship in the UI.
+        
+    - Social circle type
+    - Event type
+    - Interaction type
+    - Interaction medium
+
+
 ### User interface
 - Dashboard: Overview of upcoming events, recent interactions, and important dates (like birthdays)
 - People management: Create, read, update, and delete people, social circles, brands, interactions, events, and resources
 - Search and filter: Search for people, social circles, brands, interactions, events, and resources, and filter them by any attribute
 - Calendar view: View events and interactions in a calendar format, with the ability to filter by people, social circles, or brands
 - Topology view: Visualize relationships between people, social circles, and brands in an interactive graph format
+    - Nodes represent people, social circles, or brands
+    - Nodes are round and contain optionally their profile picture if available
+    - Nodes have a label with the name of the entity below it
+    - Lines represent relationships (red), affiliations (blue) or social circle memberships (green)
+    - Line thickness represents the strength of the relationship, which is calculated based on the number of interactions and events shared between the two entities.
+    - If a relationship has a type with an emoji, the emoji will be displayed next to the line
+    - The graph can be filtered by relationship type, social circle, or brand affiliation to focus on specific connections.
+    - Clicking on a node will show that entity's details
+    - Nodes are displayed in a force-directed layout, where strongly connected nodes are closer together, and weakly connected nodes are further apart. This allows for an intuitive visualization of the strength of relationships and affiliations.
 - Dark mode!
 
 ### Integrations
@@ -97,28 +132,5 @@ The native frontend is now implemented and served directly by FastAPI.
 
 - Add sign-in with OpenID
 - Add user preferences
-    - Dark mode
-- Add type management (manage lists)
-    - Contact info types
-        - Phone
-        - Email
-        - URL
-        - Custom
-        - Contact info types can have an URI handler associated with them. If set, this value is prepended to the contact info value to create a link. This will make the contact info clickable and open the associated application. 
-
-    - Relationship types
-        - Relationship has two sides
-        - Some relationships have different titles for each side
-            - Parent-child
-        - Some relationships have equal titles for each side
-            - Friend
-            - Sibling
-            - Colleague
-            - Partner
-            - Date
-        - Relationship types can have an emoji associated with them. This will be displayed next to the relationship in the UI.
-        
-    - Social circle type
-    - Event type
-    - Interaction type
-    - Interaction medium
+    - Dark mode: Auto, light or dark
+- Add topology view

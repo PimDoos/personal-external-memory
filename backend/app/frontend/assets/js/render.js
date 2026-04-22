@@ -7,6 +7,7 @@ import { createEventsRenderer } from "./renderers/eventsRenderer.js";
 import { createInteractionsRenderer } from "./renderers/interactionsRenderer.js";
 import { createTagsRenderer } from "./renderers/tagsRenderer.js";
 import { createTypesRenderer } from "./renderers/typesRenderer.js";
+import { createTopologyRenderer } from "./renderers/topologyRenderer.js";
 
 export function createRenderer(ctx) {
     const {
@@ -16,16 +17,17 @@ export function createRenderer(ctx) {
         actions,
     } = ctx;
 
-    const common = createRenderCommon({ state, refs });
+    const common = createRenderCommon({ state, refs, caches });
 
     const { renderDashboard } = createDashboardRenderer({ state, actions, common });
     const { renderPeople } = createPeopleRenderer({ state, caches, actions, common });
     const { renderCircles } = createCirclesRenderer({ state, caches, actions, common });
-    const { renderBrands } = createBrandsRenderer({ state, actions, common });
+    const { renderBrands } = createBrandsRenderer({ state, caches, actions, common });
     const { renderEvents } = createEventsRenderer({ state, caches, actions, common });
     const { renderInteractions } = createInteractionsRenderer({ state, caches, actions, common });
     const { renderTags } = createTagsRenderer({ state, actions, common });
     const { renderTypes } = createTypesRenderer({ state, actions });
+    const { renderTopology } = createTopologyRenderer({ state, caches, actions });
 
     function renderAll() {
         common.setAuthShell();
@@ -41,6 +43,7 @@ export function createRenderer(ctx) {
         renderInteractions();
         renderTags();
         renderTypes();
+        renderTopology();
     }
 
     return {

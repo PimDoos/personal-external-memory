@@ -112,6 +112,34 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             }
         );
 
+        // Perspective selector: visible only for asymmetric relationship types
+        const perspectiveSelect = createNode("select", { attrs: { name: "perspective" } });
+        perspectiveSelect.style.display = "none";
+
+        function updatePerspectiveOptions() {
+            const selectedType = relationshipTypes.find((t) => t.name === relationInput.value);
+            const leftLabel = selectedType?.left_label || "";
+            const rightLabel = selectedType?.right_label || "";
+            const isAsymmetric = leftLabel && rightLabel && leftLabel !== rightLabel;
+
+            perspectiveSelect.style.display = isAsymmetric ? "" : "none";
+            perspectiveSelect.innerHTML = "";
+
+            if (isAsymmetric) {
+                const leftOption = document.createElement("option");
+                leftOption.value = "left";
+                leftOption.textContent = leftLabel;
+                const rightOption = document.createElement("option");
+                rightOption.value = "right";
+                rightOption.textContent = rightLabel;
+                perspectiveSelect.appendChild(leftOption);
+                perspectiveSelect.appendChild(rightOption);
+            }
+        }
+
+        relationInput.addEventListener("change", updatePerspectiveOptions);
+        updatePerspectiveOptions();
+
         const notesInput = createNode("input", {
             attrs: {
                 name: "notes",
@@ -126,6 +154,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
         form.appendChild(personSelect);
         form.appendChild(relationInput);
+        form.appendChild(perspectiveSelect);
         form.appendChild(notesInput);
         form.appendChild(submitButton);
 
@@ -135,13 +164,17 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             if (!payload.person_id_2) {
                 return;
             }
+
+            // Determine id_1/id_2 based on perspective for asymmetric types
+            const isRightPerspective = perspectiveSelect.style.display !== "none" && payload.perspective === "right";
             await actions.addRelationship({
-                person_id_1: personId,
-                person_id_2: Number(payload.person_id_2),
+                person_id_1: isRightPerspective ? Number(payload.person_id_2) : personId,
+                person_id_2: isRightPerspective ? personId : Number(payload.person_id_2),
                 relationship_type: payload.relationship_type,
                 notes: payload.notes || undefined,
             });
             form.reset();
+            updatePerspectiveOptions();
         });
 
         return form;

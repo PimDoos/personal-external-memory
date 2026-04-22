@@ -60,3 +60,24 @@ class InteractionParticipantResponse(BaseModel):
         """Pydantic config."""
 
         from_attributes = True
+
+
+class BrandAssociationRequest(BaseModel):
+    """Add/remove member from brand."""
+
+    brand_id: int
+    person_id: int
+    type: str | None = None  # employee, owner, customer, etc.
+
+
+class BrandAssociationResponse(BaseModel):
+    """Brand association response."""
+
+    brand_id: int
+    person_id: int
+    type: str | None
+
+    class Config:
+        """Pydantic config."""
+
+        from_attributes = True

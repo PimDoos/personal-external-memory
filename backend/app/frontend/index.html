@@ -19,13 +19,6 @@
         </header>
 
         <section class="panel nav-panel hidden" id="navigation-panel">
-            <div class="nav-session">
-                <div class="user-chip">
-                    <div class="user-chip__label">Signed in</div>
-                    <strong id="user-email">-</strong>
-                </div>
-                <button class="ghost-button hidden" id="logout-button" type="button">Log out</button>
-            </div>
             <nav class="nav-tabs" id="nav-tabs">
                 <button class="nav-button active" data-section="dashboard" data-label="Dashboard" type="button">Dashboard</button>
                 <button class="nav-button" data-section="people" data-label="People" type="button">People</button>
@@ -35,6 +28,12 @@
                 <button class="nav-button" data-section="interactions" data-label="Interactions" type="button">Interactions</button>
                 <button class="nav-button" data-section="tags" data-label="Tags" type="button">Tags</button>
                 <button class="nav-button" data-section="types" data-label="Types" type="button">Types</button>
+                <button class="nav-button" data-section="topology" data-label="Topology" type="button">Topology</button>
+                <div class="user-chip">
+                    <div class="user-chip__label">Signed in</div>
+                    <strong id="user-email">-</strong>
+                    <button class="ghost-button hidden" id="logout-button" type="button">Log out</button>
+                </div>
             </nav>
         </section>
 
@@ -237,6 +236,24 @@
                         <article class="panel" id="types-panel-interaction"></article>
                         <article class="panel" id="types-panel-interaction-medium"></article>
                     </div>
+                </section>
+
+                <section class="view-section" id="section-topology">
+                    <article class="panel topology-panel">
+                        <div class="panel-heading">
+                            <h2>Topology View</h2>
+                        </div>
+                        <div class="topology-filters">
+                            <label><span>Relationship type</span><select id="topology-filter-relationship-type"></select></label>
+                            <label><span>Social circle</span><select id="topology-filter-circle"></select></label>
+                            <label><span>Brand affiliation</span><select id="topology-filter-brand"></select></label>
+                        </div>
+                        <div class="topology-legend" id="topology-legend"></div>
+                        <div class="topology-graph-wrap">
+                            <svg id="topology-graph" class="topology-graph" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet"></svg>
+                        </div>
+                        <p class="muted">Click a node to open its detail view.</p>
+                    </article>
                 </section>
             </section>
         </main>
