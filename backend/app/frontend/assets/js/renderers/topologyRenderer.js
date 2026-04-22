@@ -15,6 +15,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
     let animationFrameId = null;
     let handlersBound = false;
     let graphHandlersBound = false;
+    let lastLayoutSignature = "";
     let renderFrameRef = null;
 
     function relationEmoji(relationshipType) {
@@ -26,6 +27,161 @@ export function createTopologyRenderer({ state, caches, actions }) {
 
     function keyPair(idA, idB) {
         return idA < idB ? `${idA}__${idB}` : `${idB}__${idA}`;
+    }
+
+    function hashString(value) {
+        let hash = 0;
+        const text = String(value || "");
+        for (let index = 0; index < text.length; index += 1) {
+            hash = ((hash << 5) - hash) + text.charCodeAt(index);
+            hash |= 0;
+        }
+        return Math.abs(hash);
+    }
+
+    function getNodeRadius(node) {
+        if (!node) {
+            return 16;
+        }
+        if (node.entity === "brand") {
+            return 19;
+        }
+        if (node.entity === "circle") {
+            return 22;
+        }
+        return 16;
+    }
+
+    function distancePointToSegment(point, start, end) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const lengthSq = (dx * dx) + (dy * dy);
+        if (!lengthSq) {
+            const distX = point.x - start.x;
+            const distY = point.y - start.y;
+            return Math.sqrt((distX * distX) + (distY * distY));
+        }
+
+        const projection = Math.max(0, Math.min(1, (((point.x - start.x) * dx) + ((point.y - start.y) * dy)) / lengthSq));
+        const closestX = start.x + (projection * dx);
+        const closestY = start.y + (projection * dy);
+        const offsetX = point.x - closestX;
+        const offsetY = point.y - closestY;
+        return Math.sqrt((offsetX * offsetX) + (offsetY * offsetY));
+    }
+
+    function computeEdgeGeometry(edge, positionsById, nodesById, allNodes) {
+        const sourceNode = nodesById.get(edge.source);
+        const targetNode = nodesById.get(edge.target);
+        const source = positionsById.get(edge.source);
+        const target = positionsById.get(edge.target);
+
+        if (!sourceNode || !targetNode || !source || !target) {
+            return null;
+        }
+
+        const dx = target.x - source.x;
+        const dy = target.y - source.y;
+        const distance = Math.max(Math.sqrt((dx * dx) + (dy * dy)), 1);
+        const unitX = dx / distance;
+        const unitY = dy / distance;
+        const normalX = -unitY;
+        const normalY = unitX;
+        const sourceRadius = getNodeRadius(sourceNode);
+        const targetRadius = getNodeRadius(targetNode);
+
+        const start = {
+            x: source.x + (unitX * sourceRadius),
+            y: source.y + (unitY * sourceRadius),
+        };
+        const end = {
+            x: target.x - (unitX * targetRadius),
+            y: target.y - (unitY * targetRadius),
+        };
+
+        const midpoint = {
+            x: (start.x + end.x) / 2,
+            y: (start.y + end.y) / 2,
+        };
+
+        let curvature = 0;
+        if (edge.type === "membership") {
+            curvature = 18;
+        } else if (edge.type === "affiliation") {
+            curvature = 10;
+        }
+
+        const obstruction = allNodes.find((node) => {
+            if (node.id === edge.source || node.id === edge.target) {
+                return false;
+            }
+            const pos = positionsById.get(node.id);
+            if (!pos) {
+                return false;
+            }
+            return distancePointToSegment(pos, start, end) < (getNodeRadius(node) + 8);
+        });
+
+        if (obstruction) {
+            const obstructionPos = positionsById.get(obstruction.id);
+            const direction = ((midpoint.x - obstructionPos.x) * normalX) + ((midpoint.y - obstructionPos.y) * normalY) >= 0 ? 1 : -1;
+            curvature += direction * (getNodeRadius(obstruction) + 18);
+        }
+
+        if (curvature === 0) {
+            return {
+                start,
+                end,
+                path: `M ${start.x} ${start.y} L ${end.x} ${end.y}`,
+                labelPoint: midpoint,
+            };
+        }
+
+        const control = {
+            x: midpoint.x + (normalX * curvature),
+            y: midpoint.y + (normalY * curvature),
+        };
+
+        return {
+            start,
+            end,
+            control,
+            path: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`,
+            labelPoint: {
+                x: 0.25 * start.x + 0.5 * control.x + 0.25 * end.x,
+                y: 0.25 * start.y + 0.5 * control.y + 0.25 * end.y,
+            },
+        };
+    }
+
+    function decorateNodesWithConnectionCounts(nodes, edges) {
+        const counts = new Map(nodes.map((node) => [node.id, 0]));
+        edges.forEach((edge) => {
+            counts.set(edge.source, (counts.get(edge.source) || 0) + 1);
+            counts.set(edge.target, (counts.get(edge.target) || 0) + 1);
+        });
+
+        const values = [...counts.values()];
+        const minConnections = values.length ? Math.min(...values) : 0;
+        const maxConnections = values.length ? Math.max(...values) : 0;
+        const spread = Math.max(1, maxConnections - minConnections);
+
+        return nodes.map((node) => {
+            const connectionCount = counts.get(node.id) || 0;
+            const normalizedConnectionCount = (connectionCount - minConnections) / spread;
+            return {
+                ...node,
+                connectionCount,
+                normalizedConnectionCount,
+            };
+        });
+    }
+
+    function graphLayoutSignature(graph) {
+        return graph.nodes
+            .map((node) => `${node.id}:${node.connectionCount || 0}`)
+            .sort()
+            .join("|");
     }
 
     function buildGraph() {
@@ -124,15 +280,20 @@ export function createTopologyRenderer({ state, caches, actions }) {
             });
         });
 
-        return { nodes, edges };
+        return {
+            nodes: decorateNodesWithConnectionCounts(nodes, edges),
+            edges,
+        };
     }
 
     function applyFilters(graph) {
         const relationshipTypeFilter = state.topologyFilters.relationshipType || "";
         const socialCircleIdFilter = Number(state.topologyFilters.socialCircleId || 0);
         const brandIdFilter = Number(state.topologyFilters.brandId || 0);
+        const edgeVisibility = state.topologyFilters.edgeVisibility || {};
+        const hasEdgeVisibilityFilter = Object.values(edgeVisibility).some((isVisible) => isVisible === false);
 
-        let filteredEdges = [...graph.edges];
+        let filteredEdges = graph.edges.filter((edge) => edgeVisibility[edge.type] !== false);
 
         if (relationshipTypeFilter) {
             filteredEdges = filteredEdges.filter((edge) => {
@@ -159,6 +320,10 @@ export function createTopologyRenderer({ state, caches, actions }) {
             });
         }
 
+        if (!relationshipTypeFilter && !socialCircleIdFilter && !brandIdFilter && !hasEdgeVisibilityFilter) {
+            return graph;
+        }
+
         const nodeIds = new Set();
         filteredEdges.forEach((edge) => {
             nodeIds.add(edge.source);
@@ -167,30 +332,38 @@ export function createTopologyRenderer({ state, caches, actions }) {
 
         const filteredNodes = graph.nodes.filter((node) => nodeIds.has(node.id));
 
-        if (!relationshipTypeFilter && !socialCircleIdFilter && !brandIdFilter) {
-            return graph;
-        }
-
         return {
-            nodes: filteredNodes,
+            nodes: decorateNodesWithConnectionCounts(filteredNodes, filteredEdges),
             edges: filteredEdges,
         };
     }
 
     function ensurePosition(node, width, height) {
         if (!positions.has(node.id)) {
+            const seed = hashString(node.id);
+            const angle = ((seed % 360) / 360) * Math.PI * 2;
+            const outwardBias = 1 - (node.normalizedConnectionCount || 0);
+            const innerRadius = node.entity === "circle"
+                ? Math.min(width, height) * 0.14
+                : Math.min(width, height) * 0.1;
+            const outerRadius = node.entity === "circle"
+                ? Math.min(width, height) * 0.34
+                : Math.min(width, height) * 0.42;
+            const radius = innerRadius + ((outerRadius - innerRadius) * outwardBias);
+            const jitterRadius = Math.max(8, radius * 0.08);
+            const jitterAngle = ((((Math.floor(seed / 360)) % 360) / 360) * Math.PI * 2);
             positions.set(node.id, {
-                x: width * (0.15 + Math.random() * 0.7),
-                y: height * (0.15 + Math.random() * 0.7),
+                x: (width * 0.5) + (Math.cos(angle) * radius) + (Math.cos(jitterAngle) * jitterRadius),
+                y: (height * 0.5) + (Math.sin(angle) * radius) + (Math.sin(jitterAngle) * jitterRadius),
             });
             velocities.set(node.id, { x: 0, y: 0 });
         }
     }
 
     function stepSimulation(nodes, edges, width, height) {
-        const repulsion = 2600;
+        const repulsion = 3200;
         const spring = 0.015;
-        const damping = 0.84;
+        const damping = 0.86;
         const centerPull = 0.004;
 
         nodes.forEach((node) => ensurePosition(node, width, height));
@@ -204,12 +377,15 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 const nodeB = nodes[j];
                 const posB = positions.get(nodeB.id);
                 const velB = velocities.get(nodeB.id);
+                const radiusA = getNodeRadius(nodeA);
+                const radiusB = getNodeRadius(nodeB);
 
                 const dx = posB.x - posA.x;
                 const dy = posB.y - posA.y;
                 const distSq = Math.max(dx * dx + dy * dy, 120);
                 const dist = Math.sqrt(distSq);
-                const force = repulsion / distSq;
+                const repulsionScale = nodeA.entity === "circle" || nodeB.entity === "circle" ? 1.9 : 1;
+                const force = (repulsion * repulsionScale) / distSq;
                 const fx = (dx / dist) * force;
                 const fy = (dy / dist) * force;
 
@@ -217,6 +393,17 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 velA.y -= fy;
                 velB.x += fx;
                 velB.y += fy;
+
+                const minimumGap = radiusA + radiusB + (nodeA.entity === "circle" || nodeB.entity === "circle" ? 44 : 12);
+                if (dist < minimumGap) {
+                    const overlap = (minimumGap - dist) * 0.06;
+                    const pushX = (dx / dist) * overlap;
+                    const pushY = (dy / dist) * overlap;
+                    velA.x -= pushX;
+                    velA.y -= pushY;
+                    velB.x += pushX;
+                    velB.y += pushY;
+                }
             }
         }
 
@@ -233,7 +420,12 @@ export function createTopologyRenderer({ state, caches, actions }) {
             const dx = posB.x - posA.x;
             const dy = posB.y - posA.y;
             const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-            const targetDist = edge.type === "affiliation" ? 160 : 120;
+            let targetDist = 120;
+            if (edge.type === "affiliation") {
+                targetDist = 165;
+            } else if (edge.type === "membership") {
+                targetDist = 175;
+            }
             const force = (dist - targetDist) * spring;
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
@@ -242,15 +434,38 @@ export function createTopologyRenderer({ state, caches, actions }) {
             velA.y += fy;
             velB.x -= fx;
             velB.y -= fy;
+
+            if (edge.type === "membership") {
+                const sourceNode = nodes.find((node) => node.id === edge.source);
+                const targetNode = nodes.find((node) => node.id === edge.target);
+                const circleNode = sourceNode?.entity === "circle" ? sourceNode : targetNode?.entity === "circle" ? targetNode : null;
+                const personNode = sourceNode?.entity === "person" ? sourceNode : targetNode?.entity === "person" ? targetNode : null;
+                if (circleNode && personNode) {
+                    const circlePos = positions.get(circleNode.id);
+                    const personPos = positions.get(personNode.id);
+                    const personVel = velocities.get(personNode.id);
+                    if (circlePos && personPos && personVel) {
+                        const membershipSeed = hashString(`${circleNode.id}:${personNode.id}`);
+                        const orbitAngle = (membershipSeed % 360) * (Math.PI / 180);
+                        const orbitRadius = 110;
+                        const anchorX = circlePos.x + (Math.cos(orbitAngle) * orbitRadius);
+                        const anchorY = circlePos.y + (Math.sin(orbitAngle) * orbitRadius);
+                        personVel.x += (anchorX - personPos.x) * 0.0025;
+                        personVel.y += (anchorY - personPos.y) * 0.0025;
+                    }
+                }
+            }
         });
 
         let kineticEnergy = 0;
         nodes.forEach((node) => {
             const pos = positions.get(node.id);
             const vel = velocities.get(node.id);
+            const connectionBias = node.normalizedConnectionCount || 0;
+            const nodeCenterPull = centerPull * (0.35 + (connectionBias * 1.25));
 
-            vel.x += (width * 0.5 - pos.x) * centerPull;
-            vel.y += (height * 0.5 - pos.y) * centerPull;
+            vel.x += (width * 0.5 - pos.x) * nodeCenterPull;
+            vel.y += (height * 0.5 - pos.y) * nodeCenterPull;
 
             vel.x *= damping;
             vel.y *= damping;
@@ -276,20 +491,28 @@ export function createTopologyRenderer({ state, caches, actions }) {
             { key: "affiliation", label: "Affiliations" },
             { key: "membership", label: "Social Circle Memberships" },
         ].forEach((entry) => {
-            const item = createNode("div", { className: "topology-legend__item" });
+            const isVisible = state.topologyFilters.edgeVisibility?.[entry.key] !== false;
+            const item = createNode("button", {
+                className: `topology-legend__item${isVisible ? "" : " topology-legend__item--disabled"}`,
+                attrs: { type: "button" },
+            });
             const swatch = createNode("span", { className: "topology-legend__swatch" });
+            const label = createNode("span", { className: "topology-legend__label", text: entry.label });
             swatch.style.backgroundColor = EDGE_COLORS[entry.key];
             item.appendChild(swatch);
-            item.appendChild(createNode("span", { text: entry.label }));
+            item.appendChild(label);
+            item.addEventListener("click", () => {
+                state.topologyFilters.edgeVisibility[entry.key] = !isVisible;
+                renderTopology();
+            });
             legend.appendChild(item);
         });
 
-        // Add circle node legend entry
-        const circleItem = createNode("div", { className: "topology-legend__item" });
+        const circleItem = createNode("div", { className: "topology-legend__item topology-legend__item--static" });
         const circleSwatch = createNode("span", { className: "topology-legend__swatch" });
         circleSwatch.style.backgroundColor = "#8b5f9f";
         circleItem.appendChild(circleSwatch);
-        circleItem.appendChild(createNode("span", { text: "Social Circles" }));
+        circleItem.appendChild(createNode("span", { className: "topology-legend__label", text: "Social Circles" }));
         legend.appendChild(circleItem);
     }
 
@@ -308,6 +531,12 @@ export function createTopologyRenderer({ state, caches, actions }) {
         }
 
         const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
+        const nextLayoutSignature = graphLayoutSignature(graph);
+        if (lastLayoutSignature !== nextLayoutSignature) {
+            positions.clear();
+            velocities.clear();
+            lastLayoutSignature = nextLayoutSignature;
+        }
 
         const renderFrame = () => {
             while (svg.firstChild) {
@@ -325,21 +554,24 @@ export function createTopologyRenderer({ state, caches, actions }) {
                     return;
                 }
 
-                const line = document.createElementNS(SVG_NS, "line");
-                line.setAttribute("x1", String(source.x));
-                line.setAttribute("y1", String(source.y));
-                line.setAttribute("x2", String(target.x));
-                line.setAttribute("y2", String(target.y));
-                line.setAttribute("stroke", EDGE_COLORS[edge.type] || "#888");
-                line.setAttribute("stroke-width", String(edge.weight ? Math.min(7, 1 + edge.weight * 0.45) : 2));
-                line.setAttribute("opacity", "0.78");
-                viewportGroup.appendChild(line);
+                const geometry = computeEdgeGeometry(edge, positions, nodesById, graph.nodes);
+                if (!geometry) {
+                    return;
+                }
+
+                const path = document.createElementNS(SVG_NS, "path");
+                path.setAttribute("d", geometry.path);
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke", EDGE_COLORS[edge.type] || "#888");
+                path.setAttribute("stroke-width", String(edge.weight ? Math.min(7, 1 + edge.weight * 0.45) : 2));
+                path.setAttribute("opacity", "0.78");
+                viewportGroup.appendChild(path);
 
                 if (edge.emoji) {
                     const emoji = document.createElementNS(SVG_NS, "text");
                     emoji.textContent = edge.emoji;
-                    emoji.setAttribute("x", String((source.x + target.x) / 2));
-                    emoji.setAttribute("y", String((source.y + target.y) / 2 - 4));
+                    emoji.setAttribute("x", String(geometry.labelPoint.x));
+                    emoji.setAttribute("y", String(geometry.labelPoint.y - 4));
                     emoji.setAttribute("text-anchor", "middle");
                     emoji.setAttribute("font-size", "16");
                     viewportGroup.appendChild(emoji);

@@ -438,6 +438,23 @@ select {
     gap: 8px;
     color: var(--ink-soft);
     font-size: 0.93rem;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font: inherit;
+}
+
+.topology-legend__item:not(.topology-legend__item--static) {
+    cursor: pointer;
+}
+
+.topology-legend__item--disabled .topology-legend__label {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+
+.topology-legend__item--disabled .topology-legend__swatch {
+    opacity: 0.4;
 }
 
 .topology-legend__swatch {

@@ -339,10 +339,11 @@ export function createAppController() {
         caches.personTags.set(personId, tags);
         caches.personRelationships.set(personId, relationships);
 
-        const [circleMembersLists, eventParticipantLists, interactionParticipantLists] = await Promise.all([
+        const [circleMembersLists, eventParticipantLists, interactionParticipantLists, brandMembersLists] = await Promise.all([
             Promise.all(state.data.circles.map((circle) => api.circles.members(circle.id))),
             Promise.all(state.data.events.map((event) => api.events.participants(event.id))),
             Promise.all(state.data.interactions.map((interaction) => api.interactions.participants(interaction.id))),
+            Promise.all(state.data.brands.map((brand) => api.brands.members(brand.id))),
         ]);
 
         const circleIds = state.data.circles
@@ -357,9 +358,15 @@ export function createAppController() {
             .filter((interaction, index) => interactionParticipantLists[index].includes(personId))
             .map((interaction) => interaction.id);
 
+        // Explicit brand associations for this person
+        const explicitBrandIds = state.data.brands
+            .filter((brand, index) => (brandMembersLists[index] || []).some((m) => (m.person_id || m) === personId))
+            .map((brand) => brand.id);
+
+        // Heuristic affiliations from event/interaction context
         const associatedEvents = state.data.events.filter((event) => eventIds.includes(event.id));
         const associatedInteractions = state.data.interactions.filter((interaction) => interactionIds.includes(interaction.id));
-        const brandIds = state.data.brands
+        const heuristicBrandIds = state.data.brands
             .filter((brand) => {
                 const needle = brand.name.toLowerCase();
                 return associatedEvents.some((event) => String(event.location || "").toLowerCase().includes(needle))
@@ -371,11 +378,14 @@ export function createAppController() {
             })
             .map((brand) => brand.id);
 
+        const brandIds = [...new Set([...explicitBrandIds, ...heuristicBrandIds])];
+
         caches.personAssociations.set(personId, {
             circleIds,
             eventIds,
             interactionIds,
             brandIds,
+            explicitBrandIds,
         });
     }
 
@@ -722,12 +732,25 @@ export function createAppController() {
         }),
         addRelationship: async (payload) => withAction(async () => {
             await api.relationships.create(payload);
-            await loadPersonCaches(payload.person_id_1);
+                const personIdsToRefresh = new Set([
+                    payload.person_id_1,
+                    payload.person_id_2,
+                    state.selected.personId,
+                ]);
+                await Promise.all(
+                    [...personIdsToRefresh]
+                        .filter((personId) => Number.isInteger(personId))
+                        .map((personId) => loadPersonCaches(personId))
+                );
+            await refreshTopologyData();
             showToast("Relationship created.");
         }),
         deleteRelationship: async (relationshipId, personId) => withAction(async () => {
             await api.relationships.remove(relationshipId);
-            await loadPersonCaches(personId);
+                if (state.selected.personId) {
+                    await loadPersonCaches(state.selected.personId);
+                }
+            await refreshTopologyData();
             showToast("Relationship removed.");
         }),
         selectCircle: async (circleId) => withAction(async () => {
@@ -749,6 +772,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await refreshTopologyData();
             showToast("Member added.");
         }),
         removeCircleMember: async (circleId, personId) => withAction(async () => {
@@ -757,6 +781,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await refreshTopologyData();
             showToast("Member removed.");
         }),
         updateCircle: async (circleId, payload) => withAction(async () => {
@@ -833,6 +858,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await refreshTopologyData();
             showToast("Participant added.");
         }),
         changeEventRole: async (eventId, personId, role) => withAction(async () => {
@@ -846,6 +872,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await refreshTopologyData();
             showToast("Participant removed.");
         }),
         updateEvent: async (eventId, payload) => withAction(async () => {
@@ -877,6 +904,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await refreshTopologyData();
             showToast("Participant added.");
         }),
         removeInteractionParticipant: async (interactionId, personId) => withAction(async () => {
@@ -885,6 +913,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await refreshTopologyData();
             showToast("Participant removed.");
         }),
         updateInteraction: async (interactionId, payload) => withAction(async () => {

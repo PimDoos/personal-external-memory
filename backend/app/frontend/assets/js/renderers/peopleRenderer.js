@@ -498,11 +498,42 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                     state.activeSection = "brands";
                     await actions.selectBrand(brand.id);
                 });
+                // Add remove button only for explicitly associated brands
+                if ((associations.explicitBrandIds || []).includes(brand.id)) {
+                    const removeBtn = createButtonNode("Remove", "compact-button", async (e) => {
+                        e.stopPropagation();
+                        await actions.removeBrandMember(brand.id, person.id);
+                    });
+                    item.appendChild(removeBtn);
+                }
                 return item;
             },
             "No associated brands yet."
         );
-        assocSection.appendChild(createNode("h4", { text: "Brands" }));
+
+        const availableBrands = state.data.brands.filter((brand) => !(associations.explicitBrandIds || []).includes(brand.id));
+        const brandForm = createNode("form", { className: "inline-form" });
+        const brandOptions = availableBrands.length
+            ? availableBrands.map((brand) => ({ value: brand.id, label: brand.name }))
+            : [{ value: "", label: "No available brands" }];
+        brandForm.appendChild(createSelectNode(brandOptions, "", { name: "brand_id", disabled: availableBrands.length ? undefined : true }));
+
+        const brandTypeSelect = createNode("select", { attrs: { name: "type" } });
+        brandTypeSelect.appendChild(createNode("option", { attrs: { value: "" }, text: "(no type)" }));
+        (state.data.typeLists.brandMembershipTypes || []).forEach((typeEntry) => {
+            brandTypeSelect.appendChild(createNode("option", { attrs: { value: typeEntry.name }, text: typeEntry.name }));
+        });
+        brandForm.appendChild(brandTypeSelect);
+        brandForm.appendChild(createButtonNode("Add", "primary-button", null, { type: "submit", disabled: !availableBrands.length }));
+        brandForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const vals = createFormDataObject(brandForm);
+            if (!vals.brand_id) return;
+            await actions.addBrandMember(Number(vals.brand_id), person.id, vals.type || null);
+        });
+        const { wrapper: brandFormWrapper, trigger: brandFormTrigger } = wrapCollapsible("+ Add", brandForm);
+        assocSection.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h4", { text: "Brands" }), brandFormTrigger] }));
+        assocSection.appendChild(brandFormWrapper);
         assocSection.appendChild(brandsNode);
 
         container.appendChild(assocSection);

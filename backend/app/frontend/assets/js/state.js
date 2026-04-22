@@ -23,6 +23,11 @@ export const state = {
         relationshipType: "",
         socialCircleId: "",
         brandId: "",
+        edgeVisibility: {
+            relationship: true,
+            affiliation: true,
+            membership: true,
+        },
     },
     sidebar: {
         people: "hidden",
