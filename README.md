@@ -27,14 +27,6 @@ PEM is a people relationship management system. It allows you to keep track of p
     - Contact information: Address, phone number(s)
     - Notes
 
-- Interactions: Meetings, calls, messages, etc.
-    - Has a title
-    - Can be associated with one or more people, social circles, or brands
-    - Date and optionally start/end time
-    - Resources related to the interaction, like a meeting agenda or a call recording
-    - Location or medium (like "Zoom", "Phone call", etc.)
-    - Notes
-
 - Events: Special occasions, like birthdays, anniversaries, or other important dates
     - Has a title
     - Can be associated with people, social circles, or brands, and they can have roles within the event, like "host", "guest", "organizer", etc. (customizable)
@@ -70,21 +62,20 @@ PEM is a people relationship management system. It allows you to keep track of p
         
     - Social circle type
     - Event type
-    - Interaction type
-    - Interaction medium
+    - Event participant role type
 
 
 ### User interface
-- Dashboard: Overview of upcoming events, recent interactions, and important dates (like birthdays)
-- People management: Create, read, update, and delete people, social circles, brands, interactions, events, and resources
-- Search and filter: Search for people, social circles, brands, interactions, events, and resources, and filter them by any attribute
-- Calendar view: View events and interactions in a calendar format, with the ability to filter by people, social circles, or brands
+- Dashboard: Overview of upcoming events, recent events, and important dates (like birthdays)
+- People management: Create, read, update, and delete people, social circles, brands, events, and resources
+- Search and filter: Search for people, social circles, brands, events, and resources, and filter them by any attribute
+- Calendar view: View events in a calendar format, with the ability to filter by people, social circles, or brands
 - Topology view: Visualize relationships between people, social circles, and brands in an interactive graph format
     - Nodes represent people, social circles, or brands
     - Nodes are round and contain optionally their profile picture if available
     - Nodes have a label with the name of the entity below it
-    - Lines represent relationships (red), affiliations (blue) or social circle memberships (green)
-    - Line thickness represents the strength of the relationship, which is calculated based on the number of interactions and events shared between the two entities.
+    - Lines represent relationships, affiliations, or social circle memberships
+    - Line thickness represents the strength of the relationship, which is calculated based on the number of shared events between the two entities.
     - If a relationship has a type with an emoji, the emoji will be displayed next to the line
     - The graph can be filtered by relationship type, social circle, or brand affiliation to focus on specific connections.
     - Clicking on a node will show that entity's details
@@ -92,10 +83,10 @@ PEM is a people relationship management system. It allows you to keep track of p
 - Dark mode!
 
 ### Integrations
-- RESTful API to perform all operations on people, social circles, brands, interactions, events, and resources
+- RESTful API to perform all operations on people, social circles, brands, events, and resources
 - Calendar integration: Sync events to and from external calendar applications like Google Calendar or Outlook Calendar
 - Contact integration: Sync people to and from external contact management applications like Google Contacts or Microsoft People
-- Immich integration: Link people in Immich to people in PEM, and link photos and albums in Immich to people, social circles, brands, interactions, or events in PEM
+- Immich integration: Link people in Immich to people in PEM, and link photos and albums in Immich to people, social circles, brands, or events in PEM
 
 ## Technology Stack
 - Backend: Python with FastAPI
@@ -110,7 +101,7 @@ The Python backend groundwork is complete with:
 - **Architecture**: Domain-driven design with clear separation of concerns
 - **Authentication**: JWT-based user authentication with secure password hashing
 - **Database**: SQLAlchemy ORM with Alembic migrations for SQLite (easily switchable to PostgreSQL)
-- **API Structure**: RESTful endpoints for all core entities (People, Events, Interactions, etc.)
+- **API Structure**: RESTful endpoints for all core entities (People, Events, etc.)
 - **Testing**: pytest setup with fixtures for async database testing
 - **Deployment**: Docker and Docker Compose configuration for local development
 
@@ -123,7 +114,7 @@ The native frontend is now implemented and served directly by FastAPI.
 
 - **Technology**: Native HTML5, CSS3, and JavaScript modules
 - **Access**: Open `http://localhost:8000`
-- **Features**: Login/register, dashboard, people, contact info, tags, relationships, social circles, brands, events, interactions, and participant management
+- **Features**: Login/register, dashboard, people, contact info, tags, relationships, social circles, brands, events, and participant management
 - **Design**: Responsive single-page interface with no framework dependency
 
 **Status**: Ready for backend integration testing and UI iteration.
@@ -133,4 +124,16 @@ The native frontend is now implemented and served directly by FastAPI.
 - Add sign-in with OpenID
 - Add user preferences
     - Dark mode: Auto, light or dark
-- Add topology view
+
+- Add profile pictures
+    - People
+    - Brands
+    - Social Circles
+
+- Relationship types should have weight attribute, which represents how close the relationship is.
+    - Determines the attraction force in the topology view, where stronger relationships are displayed closer together.
+    - Partner: 100
+    - Parent-child: 80
+    - Friend: 60
+    - Colleague: 40
+    - Acquaintance: 20

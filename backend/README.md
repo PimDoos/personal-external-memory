@@ -60,7 +60,6 @@ backend/
 │   │   ├── people/          # People management
 │   │   ├── social_circles/  # Groups of people
 │   │   ├── brands/          # Organizations/businesses
-│   │   ├── interactions/    # Meetings, calls, messages
 │   │   ├── events/          # Birthdays, anniversaries
 │   │   └── resources/       # Links and files
 │   ├── infrastructure/      # Database & shared utilities
@@ -90,7 +89,7 @@ backend/
 
 ### Domain-Driven Design
 
-Each domain (people, events, interactions) is organized into:
+Each domain (people, events, brands, circles, etc.) is organized into:
 - **Schemas** (`schemas.py`) — Pydantic models for validation
 - **Service** (`service.py`) — Business logic
 - **Repository** (`repository.py`) — Data access
@@ -119,7 +118,7 @@ Tokens expire after 30 minutes (configurable in `.env`).
 - Native HTML, CSS, and JavaScript served directly by FastAPI
 - Root URL `/` renders the PEM application shell
 - Static assets are mounted at `/assets`
-- The UI supports authentication, dashboard metrics, people, circles, brands, events, interactions, tags, contact info, relationships, and participant management
+- The UI supports authentication, dashboard metrics, people, circles, brands, events, tags, contact info, relationships, and participant management
 
 ## API Documentation
 
@@ -142,7 +141,6 @@ Auto-generated Swagger UI available at `/api/docs` when server is running.
 Similar CRUD endpoints for:
 - `/api/social-circles` — Social circles
 - `/api/brands` — Organizations
-- `/api/interactions` — Meetings/calls/messages
 - `/api/events` — Calendar events
 - `/api/resources` — Links and files
 
@@ -172,7 +170,7 @@ Similar CRUD endpoints for:
 - `PUT /api/relationships/{id}` — Update relationship
 - `DELETE /api/relationships/{id}` — Delete relationship
 
-#### Associations (Circle/Event/Interaction Memberships)
+#### Associations (Circle/Event/Brand Memberships)
 **Circle Members**:
 - `POST /api/associations/circle-members` — Add person to circle
 - `DELETE /api/associations/circle-members/{circle_id}/{person_id}` — Remove person from circle
@@ -181,13 +179,8 @@ Similar CRUD endpoints for:
 **Event Participants**:
 - `POST /api/associations/event-participants` — Add person to event with optional role
 - `DELETE /api/associations/event-participants/{event_id}/{person_id}` — Remove person from event
-- `PUT /api/associations/event-participants/{event_id}/{person_id}/role` — Update participant role (host, guest, organizer, etc.)
+- `PUT /api/associations/event-participants/{event_id}/{person_id}/role` — Update participant role (managed via type category `event-participant-role`)
 - `GET /api/associations/event-participants/{event_id}` — List all participants in an event
-
-**Interaction Participants**:
-- `POST /api/associations/interaction-participants` — Add person to interaction
-- `DELETE /api/associations/interaction-participants/{interaction_id}/{person_id}` — Remove person from interaction
-- `GET /api/associations/interaction-participants/{interaction_id}` — List all participants in an interaction
 
 ## Development
 
