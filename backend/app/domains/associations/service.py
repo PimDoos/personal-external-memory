@@ -6,11 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.models import (
     CircleMember,
     EventParticipant,
-    InteractionParticipant,
     BrandAssociation,
+    ManagedType,
     SocialCircle,
     Event,
-    Interaction,
     Brand,
     Person,
 )
@@ -93,10 +92,33 @@ class EventParticipantService:
         """Initialize event participant service."""
         self.session = session
 
+    async def _validate_event_participant_role(
+        self, role: str | None, user_id: int
+    ) -> str | None:
+        """Validate role against managed type entries for event participants."""
+        if role is None:
+            return None
+
+        normalized = role.strip()
+        if normalized == "":
+            return None
+
+        stmt = select(ManagedType).where(
+            (ManagedType.user_id == user_id)
+            & (ManagedType.category == "event-participant-role")
+            & (ManagedType.name == normalized)
+        )
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Event participant role type not found")
+
+        return normalized
+
     async def add_participant_to_event(
         self, event_id: int, person_id: int, user_id: int, role: str | None = None
     ) -> EventParticipant:
         """Add a person as a participant to an event."""
+        role = await self._validate_event_participant_role(role, user_id)
         # Verify event ownership
         stmt = select(Event).where((Event.id == event_id) & (Event.user_id == user_id))
         result = await self.session.execute(stmt)
@@ -156,6 +178,7 @@ class EventParticipantService:
         self, event_id: int, person_id: int, user_id: int, role: str
     ) -> EventParticipant:
         """Update a participant's role in an event."""
+        role = await self._validate_event_participant_role(role, user_id)
         # Verify event ownership
         stmt = select(Event).where((Event.id == event_id) & (Event.user_id == user_id))
         result = await self.session.execute(stmt)
@@ -176,79 +199,6 @@ class EventParticipantService:
         participant.role = role
         await self.session.flush()
         return participant
-
-
-class InteractionParticipantService:
-    """Service for managing interaction participants."""
-
-    def __init__(self, session: AsyncSession):
-        """Initialize interaction participant service."""
-        self.session = session
-
-    async def add_participant_to_interaction(
-        self, interaction_id: int, person_id: int, user_id: int
-    ) -> InteractionParticipant:
-        """Add a person as a participant to an interaction."""
-        # Verify interaction ownership
-        stmt = select(Interaction).where(
-            (Interaction.id == interaction_id) & (Interaction.user_id == user_id)
-        )
-        result = await self.session.execute(stmt)
-        if not result.scalar_one_or_none():
-            raise NotFoundError("Interaction not found")
-
-        # Verify person ownership
-        stmt = select(Person).where(
-            (Person.id == person_id) & (Person.user_id == user_id)
-        )
-        result = await self.session.execute(stmt)
-        if not result.scalar_one_or_none():
-            raise NotFoundError("Person not found")
-
-        # Check if already a participant
-        stmt = select(InteractionParticipant).where(
-            (InteractionParticipant.interaction_id == interaction_id)
-            & (InteractionParticipant.person_id == person_id)
-        )
-        result = await self.session.execute(stmt)
-        if result.scalar_one_or_none():
-            raise ConflictError("Person is already a participant in this interaction")
-
-        # Add participant
-        participant = InteractionParticipant(
-            interaction_id=interaction_id, person_id=person_id
-        )
-        self.session.add(participant)
-        await self.session.flush()
-        return participant
-
-    async def remove_participant_from_interaction(
-        self, interaction_id: int, person_id: int, user_id: int
-    ) -> None:
-        """Remove a person from an interaction."""
-        # Verify interaction ownership
-        stmt = select(Interaction).where(
-            (Interaction.id == interaction_id) & (Interaction.user_id == user_id)
-        )
-        result = await self.session.execute(stmt)
-        if not result.scalar_one_or_none():
-            raise NotFoundError("Interaction not found")
-
-        # Find and delete participation
-        stmt = select(InteractionParticipant).where(
-            (InteractionParticipant.interaction_id == interaction_id)
-            & (InteractionParticipant.person_id == person_id)
-        )
-        result = await self.session.execute(stmt)
-        participant = result.scalar_one_or_none()
-
-        if not participant:
-            raise NotFoundError("Person is not a participant in this interaction")
-
-        await self.session.delete(participant)
-        await self.session.flush()
-
-
 class BrandAssociationService:
     """Service for managing brand associations with people."""
 

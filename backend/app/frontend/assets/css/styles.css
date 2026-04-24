@@ -552,6 +552,12 @@ textarea {
     border-color: var(--list-item-hover-border);
 }
 
+.person-card--deceased {
+    border-style: dashed;
+    opacity: 0.76;
+    background: color-mix(in srgb, var(--list-item-bg) 78%, #7f8a90 22%);
+}
+
 .list-item__row {
     grid-template-columns: 1fr auto;
     align-items: center;

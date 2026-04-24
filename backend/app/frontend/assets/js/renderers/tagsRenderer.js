@@ -3,6 +3,25 @@ import { clearNodeChildren, createButtonNode, createFormDataObject, createNode }
 export function createTagsRenderer({ state, actions, common }) {
     const { filtered, createListItem, renderSimpleList } = common;
 
+    function bindEntityNavigation(item, section, entityId, onPrimaryOpen) {
+        item.addEventListener("click", async (event) => {
+            if (event.metaKey || event.ctrlKey) {
+                event.preventDefault();
+                actions.openViewInNewTab(section, entityId);
+                return;
+            }
+            await onPrimaryOpen();
+        });
+
+        item.addEventListener("auxclick", (event) => {
+            if (event.button !== 1) {
+                return;
+            }
+            event.preventDefault();
+            actions.openViewInNewTab(section, entityId);
+        });
+    }
+
     function buildTagEditForm(tag) {
         const form = createNode("form", { className: "form-grid stack compact-form" });
         const nameInput = createNode("input", {
@@ -106,7 +125,7 @@ export function createTagsRenderer({ state, actions, common }) {
                 if (state.selected.tagId === tag.id) {
                     item.classList.add("active");
                 }
-                item.addEventListener("click", async () => {
+                bindEntityNavigation(item, "tags", tag.id, async () => {
                     await actions.selectTag(tag.id);
                 });
                 return item;

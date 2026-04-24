@@ -29,9 +29,6 @@ class User(Base):
         "SocialCircle", back_populates="user", cascade="all, delete-orphan"
     )
     brands = relationship("Brand", back_populates="user", cascade="all, delete-orphan")
-    interactions = relationship(
-        "Interaction", back_populates="user", cascade="all, delete-orphan"
-    )
     events = relationship("Event", back_populates="user", cascade="all, delete-orphan")
 
 
@@ -46,6 +43,7 @@ class Person(Base):
     first_name = Column(String(255), nullable=False)
     last_name = Column(String(255), nullable=True)
     birth_date = Column(Date, nullable=True)
+    date_of_death = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
@@ -62,9 +60,6 @@ class Person(Base):
     )
     social_circles = relationship(
         "SocialCircle", secondary="circle_members", back_populates="members"
-    )
-    interactions = relationship(
-        "Interaction", secondary="interaction_participants", back_populates="people"
     )
     events = relationship(
         "Event", secondary="event_participants", back_populates="people"
@@ -234,45 +229,6 @@ class BrandContact(Base):
     # Relationships
     brand = relationship("Brand", back_populates="contact_infos")
 
-
-# ===== Interaction =====
-class Interaction(Base):
-    """Meeting, call, message, or other interaction."""
-
-    __tablename__ = "interactions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    title = Column(String(255), nullable=True)
-    interaction_type = Column(String(100), nullable=True)
-    date = Column(DateTime, nullable=False)
-    start_time = Column(DateTime, nullable=True)
-    end_time = Column(DateTime, nullable=True)
-    medium = Column(String(100), nullable=True)  # Zoom, Phone call, Email, In-person, etc.
-    location = Column(String(255), nullable=True)
-    notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(
-        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-    # Relationships
-    user = relationship("User", back_populates="interactions")
-    people = relationship(
-        "Person", secondary="interaction_participants", back_populates="interactions"
-    )
-
-
-# ===== InteractionParticipant (association) =====
-class InteractionParticipant(Base):
-    """Association between Interaction and Person."""
-
-    __tablename__ = "interaction_participants"
-
-    interaction_id = Column(Integer, ForeignKey("interactions.id"), primary_key=True)
-    person_id = Column(Integer, ForeignKey("people.id"), primary_key=True)
-
-
 # ===== Event =====
 class Event(Base):
     """Special occasion (birthday, anniversary, etc.)."""
@@ -318,7 +274,7 @@ class Resource(Base):
     __tablename__ = "resources"
 
     id = Column(Integer, primary_key=True, index=True)
-    entity_type = Column(String(50), nullable=False)  # person, event, interaction, etc.
+    entity_type = Column(String(50), nullable=False)  # person, event, brand, social_circle, etc.
     entity_id = Column(Integer, nullable=False)
     resource_type = Column(String(50), nullable=False)  # link or file
     url = Column(String(2000), nullable=True)  # For links

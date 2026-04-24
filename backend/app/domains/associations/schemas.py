@@ -43,25 +43,6 @@ class EventParticipantResponse(BaseModel):
         from_attributes = True
 
 
-class InteractionParticipantRequest(BaseModel):
-    """Add/remove participant from interaction."""
-
-    interaction_id: int
-    person_id: int
-
-
-class InteractionParticipantResponse(BaseModel):
-    """Interaction participant association response."""
-
-    interaction_id: int
-    person_id: int
-
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
-
-
 class BrandAssociationRequest(BaseModel):
     """Add/remove member from brand."""
 

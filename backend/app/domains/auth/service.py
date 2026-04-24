@@ -2,10 +2,12 @@
 
 from datetime import timedelta
 
+from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
+    decode_token,
     create_access_token,
     create_refresh_token,
     hash_password,
@@ -93,3 +95,40 @@ class AuthService:
         refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
         return user, access_token, refresh_token
+
+    async def refresh_access_token(self, refresh_token: str) -> tuple[User, str, str]:
+        """Refresh access token using a valid refresh token.
+
+        Args:
+            refresh_token: JWT refresh token
+
+        Returns:
+            Tuple of (user, new_access_token, new_refresh_token)
+
+        Raises:
+            UnauthorizedError: If refresh token is invalid or user cannot be authenticated
+        """
+        try:
+            payload = decode_token(refresh_token)
+        except JWTError as error:
+            raise UnauthorizedError(f"Invalid refresh token: {str(error)}")
+
+        if payload.get("type") != "refresh":
+            raise UnauthorizedError("Invalid token type")
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise UnauthorizedError("Invalid refresh token")
+
+        stmt = select(User).where(User.id == int(user_id))
+        result = await self.session.execute(stmt)
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise UnauthorizedError("User not found")
+        if not user.is_active:
+            raise UnauthorizedError("User account is inactive")
+
+        new_access_token = create_access_token(data={"sub": str(user.id)})
+        new_refresh_token = create_refresh_token(data={"sub": str(user.id)})
+        return user, new_access_token, new_refresh_token

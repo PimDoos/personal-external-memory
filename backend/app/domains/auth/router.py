@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.auth.schemas import (
+    TokenRefreshRequest,
     TokenResponse,
     UserLoginRequest,
     UserRegisterRequest,
@@ -62,3 +63,16 @@ async def login(
         email=request.email, password=request.password
     )
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(
+    request: TokenRefreshRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Refresh an access token using a refresh token."""
+    service = AuthService(db)
+    _, access_token, refresh_token_value = await service.refresh_access_token(
+        refresh_token=request.refresh_token
+    )
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token_value)

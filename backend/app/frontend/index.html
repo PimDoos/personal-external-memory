@@ -25,7 +25,6 @@
                 <button class="nav-button" data-section="circles" data-label="Circles" type="button">Circles</button>
                 <button class="nav-button" data-section="brands" data-label="Brands" type="button">Brands</button>
                 <button class="nav-button" data-section="events" data-label="Events" type="button">Events</button>
-                <button class="nav-button" data-section="interactions" data-label="Interactions" type="button">Interactions</button>
                 <button class="nav-button" data-section="tags" data-label="Tags" type="button">Tags</button>
                 <button class="nav-button" data-section="types" data-label="Types" type="button">Types</button>
                 <button class="nav-button" data-section="topology" data-label="Topology" type="button">Topology</button>
@@ -44,7 +43,7 @@
                         <button class="tab-button" data-auth-tab="register" type="button">Register</button>
                     </div>
 
-                    <form id="login-form" class="stack form-grid" method="post">
+                    <form id="login-form" class="stack form-grid" method="post" action="javascript:void(0)">
                         <label>
                             <span>Email</span>
                             <input name="email" type="email" required placeholder="you@example.com">
@@ -56,7 +55,7 @@
                         <button class="primary-button" type="submit">Sign in</button>
                     </form>
 
-                    <form id="register-form" class="stack form-grid hidden" method="post">
+                    <form id="register-form" class="stack form-grid hidden" method="post" action="javascript:void(0)">
                         <label>
                             <span>Email</span>
                             <input name="email" type="email" required placeholder="you@example.com">
@@ -81,9 +80,9 @@
                         </article>
                         <article class="panel">
                             <div class="panel-heading">
-                                <h3>Recent Interactions</h3>
+                                <h3>Recent Events</h3>
                             </div>
-                            <div id="dashboard-interactions"></div>
+                            <div id="dashboard-recent-events"></div>
                         </article>
                     </div>
                     <article class="panel">
@@ -107,6 +106,7 @@
                                 <label><span>First name</span><input name="first_name" required></label>
                                 <label><span>Last name</span><input name="last_name"></label>
                                 <label><span>Birthday</span><input name="birth_date" type="date"></label>
+                                <label><span>Date of death</span><input name="date_of_death" type="date"></label>
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Add person</button>
                             </form>
@@ -179,30 +179,6 @@
                     </div>
                 </section>
 
-                <section class="view-section" id="section-interactions">
-                    <div class="workspace-grid">
-                        <article class="panel">
-                            <div class="panel-heading"><h2>Interactions</h2><button class="primary-button" data-new-section="interactions" type="button">New</button></div>
-                            <label class="search-field compact-search"><span>Filter</span><input id="filter-interactions" data-filter-section="interactions" type="search" placeholder="Filter interactions"></label>
-                            <div class="list" id="interactions-list"></div>
-                        </article>
-                        <article class="panel detail-panel hidden" id="interaction-detail-panel">
-                            <div class="panel-heading"><h2>Participants</h2></div>
-                            <form id="interaction-form" class="form-grid stack compact-form hidden">
-                                <label><span>Title</span><input name="title" placeholder="Weekly check-in, coffee chat"></label>
-                                <label><span>Type</span><select name="interaction_type"></select></label>
-                                <label><span>Start</span><input name="start_time" type="datetime-local"></label>
-                                <label><span>End</span><input name="end_time" type="datetime-local"></label>
-                                <label><span>Medium</span><select name="medium"></select></label>
-                                <label><span>Location</span><input name="location"></label>
-                                <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
-                                <button class="primary-button" type="submit">Create interaction</button>
-                            </form>
-                            <div id="interaction-detail" class="empty-state hidden">Select an interaction to manage participants.</div>
-                        </article>
-                    </div>
-                </section>
-
                 <section class="view-section" id="section-tags">
                     <div class="workspace-grid">
                         <article class="panel">
@@ -233,8 +209,8 @@
                         <article class="panel" id="types-panel-relationship"></article>
                         <article class="panel" id="types-panel-social-circle"></article>
                         <article class="panel" id="types-panel-event"></article>
-                        <article class="panel" id="types-panel-interaction"></article>
-                        <article class="panel" id="types-panel-interaction-medium"></article>
+                        <article class="panel" id="types-panel-event-participant-role"></article>
+                        <article class="panel" id="types-panel-brand-membership"></article>
                     </div>
                 </section>
 
@@ -261,6 +237,6 @@
 
     <div class="toast" id="toast"></div>
 
-    <script type="module" src="/assets/js/app.js"></script>
+    <script type="module" src="/assets/js/app.js?v=20260423"></script>
 </body>
 </html>

@@ -1,10 +1,21 @@
-import { api } from "./api.js";
+import { api, refreshAccessToken, setAuthExpiredHandler } from "./api.js";
 import { createFormDataObject, getNodeById } from "./dom.js";
 import { createRenderer } from "./render.js";
 import { clearSession, saveSession, state } from "./state.js";
 import { toIsoDateTime } from "./ui.js";
 
 export function createAppController() {
+    const TOKEN_REFRESH_EARLY_MS = 60 * 1000;
+    const TOKEN_REFRESH_FALLBACK_MS = 5 * 60 * 1000;
+    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "types", "topology"]);
+    const ENTITY_KEY_BY_SECTION = {
+        people: "personId",
+        circles: "circleId",
+        brands: "brandId",
+        events: "eventId",
+        tags: "tagId",
+    };
+
     const refs = {
         authPanel: getNodeById("auth-panel"),
         authMessage: getNodeById("auth-message"),
@@ -25,16 +36,228 @@ export function createAppController() {
         circleMembers: new Map(),
         brandMembers: new Map(),
         eventParticipants: new Map(),
-        interactionParticipants: new Map(),
         topology: {
             relationships: [],
             circleMembersByCircleId: new Map(),
             brandMembersByBrandId: new Map(),
             eventParticipantsByEventId: new Map(),
-            interactionParticipantsByInteractionId: new Map(),
             personBrandAffiliations: new Map(),
         },
     };
+
+    let backgroundRefreshTimerId = null;
+    let isApplyingLocationState = false;
+
+    function clearBackgroundRefreshTimer() {
+        if (backgroundRefreshTimerId !== null) {
+            window.clearTimeout(backgroundRefreshTimerId);
+            backgroundRefreshTimerId = null;
+        }
+    }
+
+    function parseTokenExpiryMs(token) {
+        if (!token) {
+            return null;
+        }
+        try {
+            const tokenParts = token.split(".");
+            if (tokenParts.length < 2) {
+                return null;
+            }
+            const payloadBase64 = tokenParts[1].replace(/-/g, "+").replace(/_/g, "/");
+            const payloadJson = window.atob(payloadBase64);
+            const payload = JSON.parse(payloadJson);
+            if (!payload.exp) {
+                return null;
+            }
+            return Number(payload.exp) * 1000;
+        } catch {
+            return null;
+        }
+    }
+
+    function clearAllCaches() {
+        caches.personContacts.clear();
+        caches.personTags.clear();
+        caches.peopleTagSummaries.clear();
+        caches.personRelationships.clear();
+        caches.personAssociations.clear();
+        caches.circleMembers.clear();
+        caches.brandMembers.clear();
+        caches.eventParticipants.clear();
+        caches.topology = {
+            relationships: [],
+            circleMembersByCircleId: new Map(),
+            brandMembersByBrandId: new Map(),
+            eventParticipantsByEventId: new Map(),
+            personBrandAffiliations: new Map(),
+        };
+    }
+
+    function endAuthenticatedSession(message = "Session expired. Please sign in again.", isError = true) {
+        clearBackgroundRefreshTimer();
+        clearSession();
+        clearAllCaches();
+        renderer.renderAll();
+        if (message) {
+            setAuthMessage(message);
+            showToast(message, isError);
+        }
+    }
+
+    async function refreshInBackground() {
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) {
+            endAuthenticatedSession("Session expired. Please sign in again.", true);
+            return;
+        }
+        scheduleBackgroundRefresh();
+    }
+
+    function scheduleBackgroundRefresh() {
+        clearBackgroundRefreshTimer();
+
+        if (!state.token || !state.refreshToken) {
+            return;
+        }
+
+        const expiresAtMs = parseTokenExpiryMs(state.token);
+        const delayMs = expiresAtMs
+            ? Math.max(0, expiresAtMs - Date.now() - TOKEN_REFRESH_EARLY_MS)
+            : TOKEN_REFRESH_FALLBACK_MS;
+
+        backgroundRefreshTimerId = window.setTimeout(() => {
+            refreshInBackground();
+        }, delayMs);
+    }
+
+    function clearSelectionState() {
+        state.selected.personId = null;
+        state.selected.circleId = null;
+        state.selected.brandId = null;
+        state.selected.eventId = null;
+        state.selected.tagId = null;
+        Object.keys(state.sidebar).forEach((section) => {
+            state.sidebar[section] = "hidden";
+        });
+    }
+
+    function applyHashToState() {
+        const hash = String(window.location.hash || "").replace(/^#/, "");
+        const params = new URLSearchParams(hash);
+        const sectionParam = params.get("section") || "dashboard";
+        const section = NAV_SECTIONS.has(sectionParam) ? sectionParam : "dashboard";
+
+        clearSelectionState();
+        state.activeSection = section;
+
+        const selectedKey = ENTITY_KEY_BY_SECTION[section];
+        if (!selectedKey) {
+            return;
+        }
+
+        const entityId = Number(params.get("id"));
+        if (Number.isInteger(entityId) && entityId > 0) {
+            state.selected[selectedKey] = entityId;
+            state.sidebar[section] = "detail";
+        }
+    }
+
+    function buildHashFromState({ sectionOverride, entityIdOverride } = {}) {
+        const section = sectionOverride || state.activeSection || "dashboard";
+        const params = new URLSearchParams();
+        params.set("section", section);
+
+        const selectedKey = ENTITY_KEY_BY_SECTION[section];
+        if (!selectedKey) {
+            return params.toString();
+        }
+
+        const entityId = entityIdOverride !== undefined
+            ? entityIdOverride
+            : state.selected[selectedKey];
+        if (Number.isInteger(entityId) && entityId > 0) {
+            params.set("id", String(entityId));
+        }
+
+        return params.toString();
+    }
+
+    function writeHashFromState({ replace = false } = {}) {
+        if (!state.token || isApplyingLocationState) {
+            return;
+        }
+
+        const nextHash = buildHashFromState();
+        const currentHash = String(window.location.hash || "").replace(/^#/, "");
+        if (nextHash === currentHash) {
+            return;
+        }
+
+        const baseUrl = `${window.location.pathname}${window.location.search}`;
+        const nextUrl = `${baseUrl}#${nextHash}`;
+        if (replace) {
+            window.history.replaceState({ hash: nextHash }, "", nextUrl);
+        } else {
+            window.history.pushState({ hash: nextHash }, "", nextUrl);
+        }
+    }
+
+    function openViewInNewTab(section, entityId = null) {
+        const hash = buildHashFromState({ sectionOverride: section, entityIdOverride: entityId });
+        const targetUrl = `${window.location.origin}${window.location.pathname}${window.location.search}#${hash}`;
+        window.open(targetUrl, "_blank", "noopener,noreferrer");
+    }
+
+    function selectionExists(section) {
+        switch (section) {
+            case "people":
+                return state.data.people.some((entry) => entry.id === state.selected.personId);
+            case "circles":
+                return state.data.circles.some((entry) => entry.id === state.selected.circleId);
+            case "brands":
+                return state.data.brands.some((entry) => entry.id === state.selected.brandId);
+            case "events":
+                return state.data.events.some((entry) => entry.id === state.selected.eventId);
+            case "tags":
+                return state.data.tags.some((entry) => entry.id === state.selected.tagId);
+            default:
+                return true;
+        }
+    }
+
+    function sanitizeSelectionState() {
+        Object.keys(ENTITY_KEY_BY_SECTION).forEach((section) => {
+            const selectedKey = ENTITY_KEY_BY_SECTION[section];
+            const selectedId = state.selected[selectedKey];
+            if (!selectedId) {
+                state.sidebar[section] = "hidden";
+                return;
+            }
+
+            if (!selectionExists(section)) {
+                state.selected[selectedKey] = null;
+                state.sidebar[section] = "hidden";
+            }
+        });
+    }
+
+    async function applyLocationStateFromHash() {
+        if (!state.token || isApplyingLocationState) {
+            return;
+        }
+
+        isApplyingLocationState = true;
+        try {
+            applyHashToState();
+            sanitizeSelectionState();
+            await refreshSelectedEntityCaches();
+            renderer.renderAll();
+            writeHashFromState({ replace: true });
+        } finally {
+            isApplyingLocationState = false;
+        }
+    }
 
     function resetSidebar(section) {
         state.sidebar[section] = "hidden";
@@ -51,9 +274,6 @@ export function createAppController() {
             case "events":
                 state.selected.eventId = null;
                 break;
-            case "interactions":
-                state.selected.interactionId = null;
-                break;
             case "tags":
                 state.selected.tagId = null;
                 break;
@@ -66,6 +286,7 @@ export function createAppController() {
         resetSidebar(section);
         state.sidebar[section] = "create";
         renderer.renderAll();
+        writeHashFromState();
     }
 
     function setAuthMessage(message) {
@@ -96,8 +317,12 @@ export function createAppController() {
             await action();
             if (options.render) {
                 renderer.renderAll();
+                writeHashFromState();
             }
         } catch (error) {
+            if (error?.code === "AUTH_EXPIRED") {
+                return;
+            }
             showToast(error.message || "Action failed", true);
         }
     }
@@ -124,9 +349,6 @@ export function createAppController() {
         if (state.selected.eventId) {
             await loadEventParticipants(state.selected.eventId);
         }
-        if (state.selected.interactionId) {
-            await loadInteractionParticipants(state.selected.interactionId);
-        }
     }
 
     async function checkApi() {
@@ -139,19 +361,17 @@ export function createAppController() {
     }
 
     async function refreshBaseData() {
-        const [people, circles, brands, events, interactions, tags, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, interactionTypes, interactionMediums, brandMembershipTypes] = await Promise.all([
+        const [people, circles, brands, events, tags, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, eventParticipantRoleTypes, brandMembershipTypes] = await Promise.all([
             api.people.list(),
             api.circles.list(),
             api.brands.list(),
             api.events.list(),
-            api.interactions.list(),
             api.tags.list(),
             api.types.list("contact-info"),
             api.types.list("relationship"),
             api.types.list("social-circle"),
             api.types.list("event"),
-            api.types.list("interaction"),
-            api.types.list("interaction-medium"),
+            api.types.list("event-participant-role"),
             api.types.list("brand-membership"),
         ]);
 
@@ -159,15 +379,13 @@ export function createAppController() {
         state.data.circles = circles;
         state.data.brands = brands;
         state.data.events = events;
-        state.data.interactions = interactions;
         state.data.tags = tags;
         state.data.typeLists = {
             contactInfoTypes,
             relationshipTypes,
             socialCircleTypes,
             eventTypes,
-            interactionTypes,
-            interactionMediums,
+            eventParticipantRoleTypes,
             brandMembershipTypes,
         };
 
@@ -175,12 +393,11 @@ export function createAppController() {
     }
 
     async function refreshTopologyData() {
-        const [relationships, circleMembersLists, brandMembersLists, eventParticipantsLists, interactionParticipantsLists] = await Promise.all([
+        const [relationships, circleMembersLists, brandMembersLists, eventParticipantsLists] = await Promise.all([
             api.relationships.list(),
             Promise.all(state.data.circles.map((circle) => api.circles.members(circle.id))),
             Promise.all(state.data.brands.map((brand) => api.brands.members(brand.id))),
             Promise.all(state.data.events.map((event) => api.events.participants(event.id))),
-            Promise.all(state.data.interactions.map((interaction) => api.interactions.participants(interaction.id))),
         ]);
 
         const circleMembersByCircleId = new Map(
@@ -191,9 +408,6 @@ export function createAppController() {
         );
         const eventParticipantsByEventId = new Map(
             state.data.events.map((event, index) => [event.id, eventParticipantsLists[index] || []])
-        );
-        const interactionParticipantsByInteractionId = new Map(
-            state.data.interactions.map((interaction, index) => [interaction.id, interactionParticipantsLists[index] || []])
         );
 
         const personBrandAffiliations = new Map(
@@ -211,7 +425,7 @@ export function createAppController() {
             });
         });
 
-        // Add heuristic brand affiliations from events/interactions
+        // Add heuristic brand affiliations from events
         state.data.brands.forEach((brand) => {
             const needle = String(brand.name || "").toLowerCase().trim();
             if (!needle) {
@@ -232,21 +446,6 @@ export function createAppController() {
                     }
                 });
             });
-
-            state.data.interactions.forEach((interaction) => {
-                const matchesBrand = [interaction.title, interaction.location, interaction.medium, interaction.notes]
-                    .some((value) => String(value || "").toLowerCase().includes(needle));
-                if (!matchesBrand) {
-                    return;
-                }
-
-                (interactionParticipantsByInteractionId.get(interaction.id) || []).forEach((personId) => {
-                    const personSet = personBrandAffiliations.get(personId);
-                    if (personSet) {
-                        personSet.add(brand.id);
-                    }
-                });
-            });
         });
 
         caches.topology = {
@@ -254,7 +453,6 @@ export function createAppController() {
             circleMembersByCircleId,
             brandMembersByBrandId,
             eventParticipantsByEventId,
-            interactionParticipantsByInteractionId,
             personBrandAffiliations,
         };
     }
@@ -339,10 +537,9 @@ export function createAppController() {
         caches.personTags.set(personId, tags);
         caches.personRelationships.set(personId, relationships);
 
-        const [circleMembersLists, eventParticipantLists, interactionParticipantLists, brandMembersLists] = await Promise.all([
+        const [circleMembersLists, eventParticipantLists, brandMembersLists] = await Promise.all([
             Promise.all(state.data.circles.map((circle) => api.circles.members(circle.id))),
             Promise.all(state.data.events.map((event) => api.events.participants(event.id))),
-            Promise.all(state.data.interactions.map((interaction) => api.interactions.participants(interaction.id))),
             Promise.all(state.data.brands.map((brand) => api.brands.members(brand.id))),
         ]);
 
@@ -354,27 +551,21 @@ export function createAppController() {
             .filter((event, index) => eventParticipantLists[index].some((participant) => participant.person_id === personId))
             .map((event) => event.id);
 
-        const interactionIds = state.data.interactions
-            .filter((interaction, index) => interactionParticipantLists[index].includes(personId))
-            .map((interaction) => interaction.id);
-
         // Explicit brand associations for this person
         const explicitBrandIds = state.data.brands
             .filter((brand, index) => (brandMembersLists[index] || []).some((m) => (m.person_id || m) === personId))
             .map((brand) => brand.id);
 
-        // Heuristic affiliations from event/interaction context
+        // Heuristic affiliations from event context
         const associatedEvents = state.data.events.filter((event) => eventIds.includes(event.id));
-        const associatedInteractions = state.data.interactions.filter((interaction) => interactionIds.includes(interaction.id));
         const heuristicBrandIds = state.data.brands
             .filter((brand) => {
                 const needle = brand.name.toLowerCase();
-                return associatedEvents.some((event) => String(event.location || "").toLowerCase().includes(needle))
-                    || associatedInteractions.some((interaction) => {
-                        return String(interaction.location || "").toLowerCase().includes(needle)
-                            || String(interaction.medium || "").toLowerCase().includes(needle)
-                            || String(interaction.notes || "").toLowerCase().includes(needle);
-                    });
+                return associatedEvents.some((event) => {
+                    return String(event.location || "").toLowerCase().includes(needle)
+                        || String(event.notes || "").toLowerCase().includes(needle)
+                        || String(event.title || "").toLowerCase().includes(needle);
+                });
             })
             .map((brand) => brand.id);
 
@@ -383,7 +574,6 @@ export function createAppController() {
         caches.personAssociations.set(personId, {
             circleIds,
             eventIds,
-            interactionIds,
             brandIds,
             explicitBrandIds,
         });
@@ -401,16 +591,10 @@ export function createAppController() {
         caches.eventParticipants.set(eventId, await api.events.participants(eventId));
     }
 
-    async function loadInteractionParticipants(interactionId) {
-        caches.interactionParticipants.set(
-            interactionId,
-            await api.interactions.participants(interactionId)
-        );
-    }
-
     async function bootstrapAuthenticated() {
         await refreshBaseData();
         await loadPeopleTagSummaries();
+        sanitizeSelectionState();
 
         if (state.selected.personId) {
             await loadPersonCaches(state.selected.personId);
@@ -423,9 +607,6 @@ export function createAppController() {
         }
         if (state.selected.eventId) {
             await loadEventParticipants(state.selected.eventId);
-        }
-        if (state.selected.interactionId) {
-            await loadInteractionParticipants(state.selected.interactionId);
         }
 
         renderer.renderAll();
@@ -443,9 +624,12 @@ export function createAppController() {
                 form.reset();
             } else {
                 const tokens = await api.auth.login(payload);
-                saveSession(tokens.access_token, payload.email);
+                saveSession(tokens.access_token, payload.email, tokens.refresh_token);
                 setAuthMessage("Signed in.");
+                applyHashToState();
                 await bootstrapAuthenticated();
+                writeHashFromState({ replace: true });
+                scheduleBackgroundRefresh();
                 showToast("Logged in.");
             }
         } catch (error) {
@@ -492,15 +676,7 @@ export function createAppController() {
         });
 
         refs.logoutButton.addEventListener("click", () => {
-            clearSession();
-            caches.personContacts.clear();
-            caches.personTags.clear();
-            caches.personRelationships.clear();
-            caches.personAssociations.clear();
-            caches.circleMembers.clear();
-            caches.eventParticipants.clear();
-            caches.interactionParticipants.clear();
-            renderer.renderAll();
+            endAuthenticatedSession("", false);
             showToast("Logged out.");
         });
 
@@ -523,6 +699,7 @@ export function createAppController() {
                 }
                 renderer.setAuthShell();
                 renderer.renderAll();
+                writeHashFromState();
             });
         });
 
@@ -546,6 +723,11 @@ export function createAppController() {
                 } else {
                     delete payload.birth_date;
                 }
+                if (payload.date_of_death) {
+                    payload.date_of_death = payload.date_of_death;
+                } else {
+                    delete payload.date_of_death;
+                }
 
                 await createAndSelect({
                     section: "people",
@@ -556,6 +738,7 @@ export function createAppController() {
                     matcher: (person) => person.first_name === payload.first_name
                         && (person.last_name || "") === (payload.last_name || "")
                         && (person.birth_date || null) === (payload.birth_date || null)
+                        && (person.date_of_death || null) === (payload.date_of_death || null)
                         && (person.notes || "") === (payload.notes || ""),
                 });
                 formNode.reset();
@@ -632,38 +815,6 @@ export function createAppController() {
                 });
                 formNode.reset();
                 showToast("Event created.");
-            });
-        });
-
-        getNodeById("interaction-form").addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const formNode = event.currentTarget;
-            await withAction(async () => {
-                const payload = optionalFields(createFormDataObject(formNode), ["title", "interaction_type", "start_time", "end_time", "medium", "location", "notes"]);
-                if (payload.start_time) {
-                    payload.start_time = toIsoDateTime(payload.start_time);
-                }
-                if (payload.end_time) {
-                    payload.end_time = toIsoDateTime(payload.end_time);
-                }
-                payload.date = payload.start_time || payload.end_time || new Date().toISOString();
-                await createAndSelect({
-                    section: "interactions",
-                    selectedKey: "interactionId",
-                    collectionKey: "interactions",
-                    createRequest: (data) => api.interactions.create(data),
-                    payload,
-                    matcher: (entry) => (entry.title || "") === (payload.title || "")
-                        && (entry.interaction_type || "") === (payload.interaction_type || "")
-                        && entry.date === payload.date
-                        && (entry.start_time || null) === (payload.start_time || null)
-                        && (entry.end_time || null) === (payload.end_time || null)
-                        && (entry.medium || "") === (payload.medium || "")
-                        && (entry.location || "") === (payload.location || "")
-                        && (entry.notes || "") === (payload.notes || ""),
-                });
-                formNode.reset();
-                showToast("Interaction created.");
             });
         });
 
@@ -885,47 +1036,6 @@ export function createAppController() {
             }
             showToast("Event updated.");
         }),
-        selectInteraction: async (interactionId) => withAction(async () => {
-            state.selected.interactionId = interactionId;
-            state.sidebar.interactions = "detail";
-            await loadInteractionParticipants(interactionId);
-        }),
-        deleteInteraction: async (interactionId) => withAction(async () => {
-            await api.interactions.remove(interactionId);
-            if (state.selected.interactionId === interactionId) {
-                resetSidebar("interactions");
-            }
-            await refreshBaseData();
-            showToast("Interaction removed.");
-        }),
-        addInteractionParticipant: async (interactionId, personId) => withAction(async () => {
-            await api.interactions.addParticipant({ interaction_id: interactionId, person_id: personId });
-            await loadInteractionParticipants(interactionId);
-            if (state.selected.personId) {
-                await loadPersonCaches(state.selected.personId);
-            }
-            await refreshTopologyData();
-            showToast("Participant added.");
-        }),
-        removeInteractionParticipant: async (interactionId, personId) => withAction(async () => {
-            await api.interactions.removeParticipant(interactionId, personId);
-            await loadInteractionParticipants(interactionId);
-            if (state.selected.personId) {
-                await loadPersonCaches(state.selected.personId);
-            }
-            await refreshTopologyData();
-            showToast("Participant removed.");
-        }),
-        updateInteraction: async (interactionId, payload) => withAction(async () => {
-            await api.interactions.update(interactionId, payload);
-            await refreshBaseData();
-            await loadPeopleTagSummaries();
-            await loadInteractionParticipants(interactionId);
-            if (state.selected.personId) {
-                await loadPersonCaches(state.selected.personId);
-            }
-            showToast("Interaction updated.");
-        }),
         selectTag: async (tagId) => withAction(async () => {
             state.selected.tagId = tagId;
             state.sidebar.tags = "detail";
@@ -980,6 +1090,7 @@ export function createAppController() {
             await refreshBaseData();
             showToast("Type removed.");
         }),
+        openViewInNewTab,
     };
 
     const renderer = createRenderer({
@@ -991,15 +1102,26 @@ export function createAppController() {
 
     async function init() {
         bindStaticHandlers();
+        setAuthExpiredHandler(() => {
+            endAuthenticatedSession("Session expired. Please sign in again.", true);
+        });
         await checkApi();
+
+        window.addEventListener("hashchange", () => {
+            applyLocationStateFromHash();
+        });
+        window.addEventListener("popstate", () => {
+            applyLocationStateFromHash();
+        });
 
         if (state.token) {
             try {
+                applyHashToState();
                 await bootstrapAuthenticated();
+                writeHashFromState({ replace: true });
+                scheduleBackgroundRefresh();
             } catch (error) {
-                clearSession();
-                renderer.renderAll();
-                showToast(error.message || "Session restore failed", true);
+                endAuthenticatedSession(error.message || "Session restore failed", true);
             }
         } else {
             renderer.renderAll();

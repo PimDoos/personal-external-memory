@@ -17,6 +17,12 @@ class UserLoginRequest(BaseModel):
     password: str
 
 
+class TokenRefreshRequest(BaseModel):
+    """Refresh token request."""
+
+    refresh_token: str
+
+
 class TokenResponse(BaseModel):
     """Token response."""
 

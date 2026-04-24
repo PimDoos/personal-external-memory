@@ -24,6 +24,7 @@ class PersonCreateRequest(BaseModel):
     first_name: str
     last_name: Optional[str] = None
     birth_date: Optional[date] = None
+    date_of_death: Optional[date] = None
     notes: Optional[str] = None
 
 
@@ -33,6 +34,7 @@ class PersonUpdateRequest(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     birth_date: Optional[date] = None
+    date_of_death: Optional[date] = None
     notes: Optional[str] = None
 
 
@@ -43,6 +45,7 @@ class PersonResponse(BaseModel):
     first_name: str
     last_name: Optional[str]
     birth_date: Optional[date]
+    date_of_death: Optional[date]
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime

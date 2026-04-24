@@ -68,11 +68,17 @@ async def _apply_sqlite_migrations(connection) -> None:
         if column_name not in columns:
             await connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"))
 
+    async def drop_table_if_exists(table_name: str) -> None:
+        await connection.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
+
     await add_column_if_missing("events", "title", "VARCHAR(255)")
     await add_column_if_missing("events", "event_type", "VARCHAR(100)")
-    await add_column_if_missing("interactions", "title", "VARCHAR(255)")
-    await add_column_if_missing("interactions", "interaction_type", "VARCHAR(100)")
     await add_column_if_missing("social_circles", "circle_type", "VARCHAR(100)")
+    await add_column_if_missing("people", "date_of_death", "DATE")
+
+    # Interactions were consolidated into events and can be safely removed.
+    await drop_table_if_exists("interaction_participants")
+    await drop_table_if_exists("interactions")
 
 
 async def close_db() -> None:

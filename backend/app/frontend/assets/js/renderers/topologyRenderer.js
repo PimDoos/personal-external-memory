@@ -17,6 +17,12 @@ export function createTopologyRenderer({ state, caches, actions }) {
     let graphHandlersBound = false;
     let lastLayoutSignature = "";
     let renderFrameRef = null;
+    let viewportGroupRef = null;
+    let draggedNodeId = null;
+    let hoveredNodeId = null;
+    let activeGraphRef = null;
+    let simulationBounds = { width: 1200, height: 700 };
+    let simulationTickCount = 0;
 
     function relationEmoji(relationshipType) {
         const entry = (state.data.typeLists.relationshipTypes || []).find(
@@ -50,6 +56,146 @@ export function createTopologyRenderer({ state, caches, actions }) {
             return 22;
         }
         return 16;
+    }
+
+    function getNodeLabelLines(node) {
+        if (!node) {
+            return [];
+        }
+
+        if (Array.isArray(node.labelLines) && node.labelLines.length) {
+            return node.labelLines;
+        }
+
+        return [node.label || ""];
+    }
+
+    function getNodeHitMetrics(node) {
+        const radius = getNodeRadius(node);
+        const labelLines = getNodeLabelLines(node);
+        const lineHeight = 13;
+        const labelTopOffset = radius + 18;
+        const labelWidth = Math.max(
+            radius * 2,
+            ...labelLines.map((line) => Math.max(0, String(line || "").length * 7))
+        );
+        const labelHeight = Math.max(0, labelLines.length * lineHeight);
+        const left = -Math.max(radius, labelWidth / 2) - 8;
+        const right = Math.max(radius, labelWidth / 2) + 8;
+        const top = -radius - 8;
+        const bottom = Math.max(radius, labelTopOffset + labelHeight) + 8;
+
+        return {
+            radius,
+            labelLines,
+            lineHeight,
+            labelTopOffset,
+            labelWidth,
+            labelHeight,
+            left,
+            right,
+            top,
+            bottom,
+            collisionRadius: Math.sqrt(
+                Math.max(radius, labelWidth / 2) ** 2 + Math.max(radius, labelTopOffset + labelHeight * 0.5) ** 2
+            ),
+        };
+    }
+
+    function getSvgPoint(event, svg) {
+        const screenMatrix = svg.getScreenCTM();
+        if (!screenMatrix) {
+            return { x: 0, y: 0 };
+        }
+
+        const point = new DOMPoint(event.clientX, event.clientY);
+        const svgPoint = point.matrixTransform(screenMatrix.inverse());
+        return { x: svgPoint.x, y: svgPoint.y };
+    }
+
+    function getPointerWorldPosition(event, svg) {
+        const matrix = viewportGroupRef?.getScreenCTM();
+        if (!matrix) {
+            const point = getSvgPoint(event, svg);
+            return {
+                x: (point.x - viewport.tx) / viewport.scale,
+                y: (point.y - viewport.ty) / viewport.scale,
+            };
+        }
+
+        const point = new DOMPoint(event.clientX, event.clientY);
+        const worldPoint = point.matrixTransform(matrix.inverse());
+        return { x: worldPoint.x, y: worldPoint.y };
+    }
+
+    function getPanDelta(currentPoint, lastPoint) {
+        return {
+            x: currentPoint.x - lastPoint.x,
+            y: currentPoint.y - lastPoint.y,
+        };
+    }
+
+    function findNodeGroup(target) {
+        if (!target || typeof target.closest !== "function") {
+            return null;
+        }
+        return target.closest(".topology-node");
+    }
+
+    function getGraphDimensions(nodeCount) {
+        const safeCount = Math.max(1, nodeCount);
+        const densityScale = Math.sqrt(safeCount);
+        const width = Math.max(1200, Math.round(760 + (densityScale * 190)));
+        const height = Math.max(700, Math.round(520 + (densityScale * 160)));
+        return { width, height };
+    }
+
+    function getSimulationPadding(nodeCount) {
+        return 32 + Math.min(64, Math.sqrt(Math.max(1, nodeCount)) * 6);
+    }
+
+    function scheduleSimulation(graph) {
+        if (graph) {
+            activeGraphRef = graph;
+        }
+
+        if (!activeGraphRef) {
+            return;
+        }
+
+        if (animationFrameId !== null) {
+            return;
+        }
+
+        simulationTickCount = 0;
+        const animate = () => {
+            if (!activeGraphRef) {
+                animationFrameId = null;
+                return;
+            }
+
+            simulationTickCount += 1;
+            const kineticEnergy = stepSimulation(
+                activeGraphRef.nodes,
+                activeGraphRef.edges,
+                simulationBounds.width,
+                simulationBounds.height
+            );
+            if (renderFrameRef) {
+                renderFrameRef();
+            }
+
+            const hasSignificantMotion = kineticEnergy > 0.2;
+            const shouldContinue = draggedNodeId || hasSignificantMotion || simulationTickCount < 50;
+            if (shouldContinue && simulationTickCount < 1000) {
+                animationFrameId = window.requestAnimationFrame(animate);
+                return;
+            }
+
+            animationFrameId = null;
+        };
+
+        animationFrameId = window.requestAnimationFrame(animate);
     }
 
     function distancePointToSegment(point, start, end) {
@@ -185,45 +331,44 @@ export function createTopologyRenderer({ state, caches, actions }) {
     }
 
     function buildGraph() {
+        const showDeceased = state.topologyFilters.showDeceased !== false;
+        const personFilter = (person) => showDeceased || !person.date_of_death;
+        const livingPersonIds = new Set(
+            state.data.people
+                .filter(personFilter)
+                .map((person) => person.id)
+        );
         const nodes = [
-            ...state.data.people.map((person) => ({
+            ...state.data.people.filter(personFilter).map((person) => ({
                 id: `person:${person.id}`,
                 entity: "person",
                 entityId: person.id,
                 label: `${person.first_name} ${person.last_name || ""}`.trim() || `Person #${person.id}`,
+                labelLines: [person.first_name || "", person.last_name || ""].filter(Boolean),
             })),
             ...state.data.brands.map((brand) => ({
                 id: `brand:${brand.id}`,
                 entity: "brand",
                 entityId: brand.id,
                 label: brand.name || `Brand #${brand.id}`,
+                labelLines: [brand.name || `Brand #${brand.id}`],
             })),
             ...state.data.circles.map((circle) => ({
                 id: `circle:${circle.id}`,
                 entity: "circle",
                 entityId: circle.id,
                 label: circle.name || `Circle #${circle.id}`,
+                labelLines: [circle.name || `Circle #${circle.id}`],
             })),
         ];
 
         const edges = [];
 
-        const sharedInteractionCounts = new Map();
-        state.data.interactions.forEach((interaction) => {
-            const participants = caches.topology.interactionParticipantsByInteractionId.get(interaction.id) || [];
-            for (let i = 0; i < participants.length; i += 1) {
-                for (let j = i + 1; j < participants.length; j += 1) {
-                    const source = `person:${participants[i]}`;
-                    const target = `person:${participants[j]}`;
-                    const pairKey = keyPair(source, target);
-                    sharedInteractionCounts.set(pairKey, (sharedInteractionCounts.get(pairKey) || 0) + 1);
-                }
-            }
-        });
-
         const sharedEventCounts = new Map();
         state.data.events.forEach((event) => {
-            const participants = (caches.topology.eventParticipantsByEventId.get(event.id) || []).map((entry) => entry.person_id);
+            const participants = (caches.topology.eventParticipantsByEventId.get(event.id) || [])
+                .map((entry) => entry.person_id)
+                .filter((personId) => livingPersonIds.has(personId));
             for (let i = 0; i < participants.length; i += 1) {
                 for (let j = i + 1; j < participants.length; j += 1) {
                     const source = `person:${participants[i]}`;
@@ -235,10 +380,12 @@ export function createTopologyRenderer({ state, caches, actions }) {
         });
 
         (caches.topology.relationships || []).forEach((relationship) => {
+            if (!livingPersonIds.has(relationship.person_id_1) || !livingPersonIds.has(relationship.person_id_2)) {
+                return;
+            }
             const source = `person:${relationship.person_id_1}`;
             const target = `person:${relationship.person_id_2}`;
             const pairKey = keyPair(source, target);
-            const interactionCount = sharedInteractionCounts.get(pairKey) || 0;
             const eventCount = sharedEventCounts.get(pairKey) || 0;
 
             edges.push({
@@ -248,13 +395,14 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 target,
                 label: relationship.relationship_type || "",
                 emoji: relationEmoji(relationship.relationship_type),
-                weight: 1 + interactionCount + eventCount,
+                weight: 1 + eventCount,
             });
         });
 
         const membershipEdgeMap = new Map();
         state.data.circles.forEach((circle) => {
-            const members = caches.topology.circleMembersByCircleId.get(circle.id) || [];
+            const members = (caches.topology.circleMembersByCircleId.get(circle.id) || [])
+                .filter((memberId) => livingPersonIds.has(memberId));
             members.forEach((memberId) => {
                 const pairKey = `${memberId}:${circle.id}`;
                 edges.push({
@@ -269,6 +417,9 @@ export function createTopologyRenderer({ state, caches, actions }) {
         });
 
         (caches.topology.personBrandAffiliations || new Map()).forEach((brandSet, personId) => {
+            if (!livingPersonIds.has(personId)) {
+                return;
+            }
             [...brandSet].forEach((brandId) => {
                 edges.push({
                     id: `affiliation:${personId}:${brandId}`,
@@ -304,10 +455,15 @@ export function createTopologyRenderer({ state, caches, actions }) {
             });
         }
 
+        let allowedNodeIds = null;
         if (socialCircleIdFilter) {
             const circleNodeId = `circle:${socialCircleIdFilter}`;
+            const memberNodeIds = new Set(
+                (caches.topology.circleMembersByCircleId.get(socialCircleIdFilter) || []).map((memberId) => `person:${memberId}`)
+            );
+            allowedNodeIds = new Set([circleNodeId, ...memberNodeIds]);
             filteredEdges = filteredEdges.filter((edge) => {
-                return edge.source === circleNodeId || edge.target === circleNodeId;
+                return allowedNodeIds.has(edge.source) && allowedNodeIds.has(edge.target);
             });
         }
 
@@ -324,7 +480,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
             return graph;
         }
 
-        const nodeIds = new Set();
+        const nodeIds = allowedNodeIds ? new Set(allowedNodeIds) : new Set();
         filteredEdges.forEach((edge) => {
             nodeIds.add(edge.source);
             nodeIds.add(edge.target);
@@ -365,6 +521,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
         const spring = 0.015;
         const damping = 0.86;
         const centerPull = 0.004;
+        const boundaryPadding = getSimulationPadding(nodes.length);
 
         nodes.forEach((node) => ensurePosition(node, width, height));
 
@@ -377,8 +534,8 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 const nodeB = nodes[j];
                 const posB = positions.get(nodeB.id);
                 const velB = velocities.get(nodeB.id);
-                const radiusA = getNodeRadius(nodeA);
-                const radiusB = getNodeRadius(nodeB);
+                const radiusA = getNodeHitMetrics(nodeA).collisionRadius;
+                const radiusB = getNodeHitMetrics(nodeB).collisionRadius;
 
                 const dx = posB.x - posA.x;
                 const dy = posB.y - posA.y;
@@ -461,6 +618,11 @@ export function createTopologyRenderer({ state, caches, actions }) {
         nodes.forEach((node) => {
             const pos = positions.get(node.id);
             const vel = velocities.get(node.id);
+            if (node.id === draggedNodeId) {
+                vel.x = 0;
+                vel.y = 0;
+                return;
+            }
             const connectionBias = node.normalizedConnectionCount || 0;
             const nodeCenterPull = centerPull * (0.35 + (connectionBias * 1.25));
 
@@ -470,8 +632,8 @@ export function createTopologyRenderer({ state, caches, actions }) {
             vel.x *= damping;
             vel.y *= damping;
 
-            pos.x = Math.min(width - 30, Math.max(30, pos.x + vel.x));
-            pos.y = Math.min(height - 30, Math.max(30, pos.y + vel.y));
+            pos.x = Math.min(width - boundaryPadding, Math.max(boundaryPadding, pos.x + vel.x));
+            pos.y = Math.min(height - boundaryPadding, Math.max(boundaryPadding, pos.y + vel.y));
             
             kineticEnergy += vel.x * vel.x + vel.y * vel.y;
         });
@@ -514,6 +676,22 @@ export function createTopologyRenderer({ state, caches, actions }) {
         circleItem.appendChild(circleSwatch);
         circleItem.appendChild(createNode("span", { className: "topology-legend__label", text: "Social Circles" }));
         legend.appendChild(circleItem);
+
+        const showDeceased = state.topologyFilters.showDeceased !== false;
+        const deceasedItem = createNode("button", {
+            className: `topology-legend__item${showDeceased ? "" : " topology-legend__item--disabled"}`,
+            attrs: { type: "button" },
+        });
+        const deceasedSwatch = createNode("span", { className: "topology-legend__swatch" });
+        deceasedSwatch.style.backgroundColor = "#999";
+        const deceasedLabel = createNode("span", { className: "topology-legend__label", text: "Show Deceased" });
+        deceasedItem.appendChild(deceasedSwatch);
+        deceasedItem.appendChild(deceasedLabel);
+        deceasedItem.addEventListener("click", () => {
+            state.topologyFilters.showDeceased = !showDeceased;
+            renderTopology();
+        });
+        legend.appendChild(deceasedItem);
     }
 
     function drawGraph(graph) {
@@ -522,8 +700,11 @@ export function createTopologyRenderer({ state, caches, actions }) {
             return;
         }
 
-        const width = Math.max(svg.clientWidth || 1200, 800);
-        const height = Math.max(svg.clientHeight || 700, 520);
+        const { width, height } = getGraphDimensions(graph.nodes.length);
+        simulationBounds = { width, height };
+        activeGraphRef = graph;
+        svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
         if (animationFrameId !== null) {
             window.cancelAnimationFrame(animationFrameId);
@@ -546,6 +727,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
             const viewportGroup = document.createElementNS(SVG_NS, "g");
             viewportGroup.setAttribute("transform", `translate(${viewport.tx}, ${viewport.ty}) scale(${viewport.scale})`);
             svg.appendChild(viewportGroup);
+            viewportGroupRef = viewportGroup;
 
             graph.edges.forEach((edge) => {
                 const source = positions.get(edge.source);
@@ -553,6 +735,9 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 if (!source || !target || !nodesById.has(edge.source) || !nodesById.has(edge.target)) {
                     return;
                 }
+
+                const isConnectedToHoveredNode = hoveredNodeId && (edge.source === hoveredNodeId || edge.target === hoveredNodeId);
+                const hasHoverFocus = Boolean(hoveredNodeId);
 
                 const geometry = computeEdgeGeometry(edge, positions, nodesById, graph.nodes);
                 if (!geometry) {
@@ -564,7 +749,10 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 path.setAttribute("fill", "none");
                 path.setAttribute("stroke", EDGE_COLORS[edge.type] || "#888");
                 path.setAttribute("stroke-width", String(edge.weight ? Math.min(7, 1 + edge.weight * 0.45) : 2));
-                path.setAttribute("opacity", "0.78");
+                path.setAttribute("opacity", hasHoverFocus ? (isConnectedToHoveredNode ? "1" : "0.18") : "0.78");
+                if (isConnectedToHoveredNode) {
+                    path.setAttribute("stroke-width", String((edge.weight ? Math.min(7, 1 + edge.weight * 0.45) : 2) + 1.25));
+                }
                 viewportGroup.appendChild(path);
 
                 if (edge.emoji) {
@@ -584,9 +772,30 @@ export function createTopologyRenderer({ state, caches, actions }) {
                     return;
                 }
 
+                const metrics = getNodeHitMetrics(node);
+                const isHovered = hoveredNodeId === node.id;
+                const isAdjacentToHovered = hoveredNodeId && graph.edges.some((edge) => {
+                    return (edge.source === hoveredNodeId && edge.target === node.id)
+                        || (edge.target === hoveredNodeId && edge.source === node.id);
+                });
+                const shouldFade = hoveredNodeId && !isHovered && !isAdjacentToHovered;
+
                 const group = document.createElementNS(SVG_NS, "g");
                 group.setAttribute("class", "topology-node");
                 group.setAttribute("transform", `translate(${pos.x}, ${pos.y})`);
+                group.setAttribute("opacity", shouldFade ? "0.32" : "1");
+                group.dataset.nodeId = node.id;
+                group.dataset.entity = node.entity;
+                group.dataset.entityId = String(node.entityId);
+
+                const hitbox = document.createElementNS(SVG_NS, "rect");
+                hitbox.setAttribute("x", String(metrics.left));
+                hitbox.setAttribute("y", String(metrics.top));
+                hitbox.setAttribute("width", String(metrics.right - metrics.left));
+                hitbox.setAttribute("height", String(metrics.bottom - metrics.top));
+                hitbox.setAttribute("rx", "12");
+                hitbox.setAttribute("fill", "transparent");
+                group.appendChild(hitbox);
 
                 const circle = document.createElementNS(SVG_NS, "circle");
                 let radius = 16;
@@ -606,7 +815,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 circle.setAttribute("r", String(radius));
                 circle.setAttribute("fill", fill);
                 circle.setAttribute("stroke", stroke);
-                circle.setAttribute("stroke-width", "2");
+                circle.setAttribute("stroke-width", isHovered || isAdjacentToHovered ? "3.5" : "2");
                 group.appendChild(circle);
 
                 const initials = document.createElementNS(SVG_NS, "text");
@@ -623,23 +832,22 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 group.appendChild(initials);
 
                 const label = document.createElementNS(SVG_NS, "text");
-                label.textContent = node.label;
                 label.setAttribute("text-anchor", "middle");
-                label.setAttribute("dy", "40");
+                label.setAttribute("y", String(metrics.labelTopOffset));
                 label.setAttribute("font-size", "12");
                 label.setAttribute("class", "topology-node-label");
+                metrics.labelLines.forEach((line, index) => {
+                    const tspan = document.createElementNS(SVG_NS, "tspan");
+                    tspan.textContent = line;
+                    tspan.setAttribute("x", "0");
+                    if (index === 0) {
+                        tspan.setAttribute("dy", "0");
+                    } else {
+                        tspan.setAttribute("dy", String(metrics.lineHeight));
+                    }
+                    label.appendChild(tspan);
+                });
                 group.appendChild(label);
-
-                if (node.entity !== "circle") {
-                    group.style.cursor = "pointer";
-                    group.addEventListener("click", async () => {
-                        if (node.entity === "person") {
-                            await actions.openPersonFromContext(node.entityId);
-                        } else {
-                            await actions.openBrandFromContext(node.entityId);
-                        }
-                    });
-                }
 
                 viewportGroup.appendChild(group);
             });
@@ -650,23 +858,20 @@ export function createTopologyRenderer({ state, caches, actions }) {
         if (!graphHandlersBound) {
             graphHandlersBound = true;
             let isPanning = false;
-            let lastX = 0;
-            let lastY = 0;
+            let lastPanPoint = null;
 
             svg.addEventListener("wheel", (event) => {
                 event.preventDefault();
-                const rect = svg.getBoundingClientRect();
-                const pointerX = event.clientX - rect.left;
-                const pointerY = event.clientY - rect.top;
+                const pointer = getSvgPoint(event, svg);
                 const scaleFactor = event.deltaY < 0 ? 1.08 : 0.92;
                 const nextScale = Math.min(3.5, Math.max(0.35, viewport.scale * scaleFactor));
 
-                const localX = (pointerX - viewport.tx) / viewport.scale;
-                const localY = (pointerY - viewport.ty) / viewport.scale;
+                const localX = (pointer.x - viewport.tx) / viewport.scale;
+                const localY = (pointer.y - viewport.ty) / viewport.scale;
 
                 viewport.scale = nextScale;
-                viewport.tx = pointerX - localX * viewport.scale;
-                viewport.ty = pointerY - localY * viewport.scale;
+                viewport.tx = pointer.x - localX * viewport.scale;
+                viewport.ty = pointer.y - localY * viewport.scale;
 
                 if (renderFrameRef) {
                     renderFrameRef();
@@ -674,57 +879,166 @@ export function createTopologyRenderer({ state, caches, actions }) {
             }, { passive: false });
 
             svg.addEventListener("mousedown", (event) => {
-                const targetNode = event.target;
-                if (event.button !== 0 || targetNode.closest(".topology-node")) {
+                if (event.button !== 0) {
                     return;
                 }
+
+                const targetNode = findNodeGroup(event.target);
+                if (targetNode) {
+                    const nodeId = targetNode.dataset.nodeId;
+                    const draggedPos = positions.get(nodeId);
+                    if (!nodeId || !draggedPos) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    isPanning = false;
+                    draggedNodeId = nodeId;
+                    const worldPoint = getPointerWorldPosition(event, svg);
+                    const boundaryPadding = getSimulationPadding(activeGraphRef?.nodes.length || 1);
+                    draggedPos.x = Math.min(
+                        simulationBounds.width - boundaryPadding,
+                        Math.max(boundaryPadding, worldPoint.x)
+                    );
+                    draggedPos.y = Math.min(
+                        simulationBounds.height - boundaryPadding,
+                        Math.max(boundaryPadding, worldPoint.y)
+                    );
+                    const draggedVelocity = velocities.get(nodeId);
+                    if (draggedVelocity) {
+                        draggedVelocity.x = 0;
+                        draggedVelocity.y = 0;
+                    }
+                    svg.style.cursor = "grabbing";
+                    scheduleSimulation();
+                    return;
+                }
+
                 event.preventDefault();
                 isPanning = true;
-                lastX = event.clientX;
-                lastY = event.clientY;
+                lastPanPoint = getSvgPoint(event, svg);
                 svg.style.cursor = "grabbing";
             });
 
+            svg.addEventListener("dblclick", async (event) => {
+                const targetNode = findNodeGroup(event.target);
+                if (!targetNode) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                const entity = targetNode.dataset.entity;
+                const entityId = Number(targetNode.dataset.entityId);
+                if (!entityId || entity === "circle") {
+                    return;
+                }
+
+                if (entity === "person") {
+                    await actions.openPersonFromContext(entityId);
+                    return;
+                }
+
+                if (entity === "brand") {
+                    await actions.openBrandFromContext(entityId);
+                }
+            });
+
+            svg.addEventListener("mousemove", (event) => {
+                if (draggedNodeId || isPanning) {
+                    if (hoveredNodeId !== null) {
+                        hoveredNodeId = null;
+                        if (renderFrameRef) {
+                            renderFrameRef();
+                        }
+                    }
+                    return;
+                }
+
+                const targetNode = findNodeGroup(event.target);
+                const nextHoveredNodeId = targetNode?.dataset.nodeId || null;
+                if (hoveredNodeId === nextHoveredNodeId) {
+                    return;
+                }
+
+                hoveredNodeId = nextHoveredNodeId;
+                if (renderFrameRef) {
+                    renderFrameRef();
+                }
+            });
+
+            svg.addEventListener("mouseleave", () => {
+                if (hoveredNodeId === null) {
+                    return;
+                }
+
+                hoveredNodeId = null;
+                if (renderFrameRef) {
+                    renderFrameRef();
+                }
+            });
+
             window.addEventListener("mousemove", (event) => {
+                if (draggedNodeId) {
+                    const draggedPos = positions.get(draggedNodeId);
+                    const draggedVelocity = velocities.get(draggedNodeId);
+                    if (draggedPos) {
+                        const worldPoint = getPointerWorldPosition(event, svg);
+                        const boundaryPadding = getSimulationPadding(activeGraphRef?.nodes.length || 1);
+                        draggedPos.x = Math.min(
+                            simulationBounds.width - boundaryPadding,
+                            Math.max(boundaryPadding, worldPoint.x)
+                        );
+                        draggedPos.y = Math.min(
+                            simulationBounds.height - boundaryPadding,
+                            Math.max(boundaryPadding, worldPoint.y)
+                        );
+                        if (draggedVelocity) {
+                            draggedVelocity.x = 0;
+                            draggedVelocity.y = 0;
+                        }
+                        if (renderFrameRef) {
+                            renderFrameRef();
+                        }
+                    }
+                    return;
+                }
                 if (!isPanning) {
                     return;
                 }
-                viewport.tx += event.clientX - lastX;
-                viewport.ty += event.clientY - lastY;
-                lastX = event.clientX;
-                lastY = event.clientY;
+                const currentPanPoint = getSvgPoint(event, svg);
+                const panDelta = getPanDelta(currentPanPoint, lastPanPoint);
+                viewport.tx += panDelta.x;
+                viewport.ty += panDelta.y;
+                lastPanPoint = currentPanPoint;
                 if (renderFrameRef) {
                     renderFrameRef();
                 }
             });
 
             window.addEventListener("mouseup", () => {
+                if (draggedNodeId) {
+                    const releasedVelocity = velocities.get(draggedNodeId);
+                    if (releasedVelocity) {
+                        releasedVelocity.x = 0;
+                        releasedVelocity.y = 0;
+                    }
+                    draggedNodeId = null;
+                    svg.style.cursor = "default";
+                    scheduleSimulation();
+                }
                 if (!isPanning) {
                     return;
                 }
                 isPanning = false;
+                lastPanPoint = null;
                 svg.style.cursor = "default";
             });
         }
 
-        let ticks = 0;
-        const animate = () => {
-            ticks += 1;
-            const kineticEnergy = stepSimulation(graph.nodes, graph.edges, width, height);
-            renderFrame();
-
-            // Continue animating while there's significant motion or we're in early ticks
-            const hasSignificantMotion = kineticEnergy > 0.2;
-            const minTicks = 50;
-            if ((hasSignificantMotion || ticks < minTicks) && ticks < 1000) {
-                animationFrameId = window.requestAnimationFrame(animate);
-            } else {
-                animationFrameId = null;
-            }
-        };
-
         graph.nodes.forEach((node) => ensurePosition(node, width, height));
-        animate();
+        renderFrame();
+        scheduleSimulation(graph);
     }
 
     function bindFilterHandlers() {

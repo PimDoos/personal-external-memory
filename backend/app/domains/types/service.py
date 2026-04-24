@@ -12,8 +12,7 @@ VALID_CATEGORIES = {
     "relationship",
     "social-circle",
     "event",
-    "interaction",
-    "interaction-medium",
+    "event-participant-role",
     "brand-membership",
 }
 
@@ -34,13 +33,10 @@ DEFAULT_TYPES = {
     ],
     "social-circle": [{"name": "General"}],
     "event": [{"name": "General"}],
-    "interaction": [{"name": "General"}],
-    "interaction-medium": [
-        {"name": "In person"},
-        {"name": "Phone"},
-        {"name": "Email"},
-        {"name": "Chat"},
-        {"name": "Video"},
+    "event-participant-role": [
+        {"name": "Host"},
+        {"name": "Guest"},
+        {"name": "Organizer"},
     ],
     "brand-membership": [
         {"name": "Employee"},

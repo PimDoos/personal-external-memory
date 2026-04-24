@@ -104,7 +104,6 @@ def create_app() -> FastAPI:
     from app.domains.people.router import router as people_router
     from app.domains.social_circles.router import router as social_circles_router
     from app.domains.brands.router import router as brands_router
-    from app.domains.interactions.router import router as interactions_router
     from app.domains.events.router import router as events_router
     from app.domains.resources.router import router as resources_router
 
@@ -114,9 +113,6 @@ def create_app() -> FastAPI:
         social_circles_router, prefix="/api/social-circles", tags=["social_circles"]
     )
     app.include_router(brands_router, prefix="/api/brands", tags=["brands"])
-    app.include_router(
-        interactions_router, prefix="/api/interactions", tags=["interactions"]
-    )
     app.include_router(events_router, prefix="/api/events", tags=["events"])
     from app.domains.contact_info.router import router as contact_info_router
     from app.domains.tags.router import router as tags_router

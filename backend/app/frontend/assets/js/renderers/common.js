@@ -35,10 +35,6 @@ export function createRenderCommon({ state, refs, caches }) {
         return state.data.events.find((entry) => entry.id === state.selected.eventId) || null;
     }
 
-    function selectedInteraction() {
-        return state.data.interactions.find((entry) => entry.id === state.selected.interactionId) || null;
-    }
-
     function setAuthShell() {
         const isAuthenticated = Boolean(state.token);
         refs.authPanel.classList.toggle("hidden", isAuthenticated);
@@ -52,7 +48,6 @@ export function createRenderCommon({ state, refs, caches }) {
             circles: state.data.circles.length,
             brands: state.data.brands.length,
             events: state.data.events.length,
-            interactions: state.data.interactions.length,
             tags: state.data.tags.length,
             types: Object.values(state.data.typeLists || {}).reduce((total, items) => total + items.length, 0),
         };
@@ -134,7 +129,6 @@ export function createRenderCommon({ state, refs, caches }) {
         selectedPerson,
         selectedCircle,
         selectedEvent,
-        selectedInteraction,
         setAuthShell,
         renderSimpleList,
         createMetricCard,

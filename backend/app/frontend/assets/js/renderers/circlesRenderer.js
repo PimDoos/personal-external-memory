@@ -3,6 +3,33 @@ import { createButtonNode, clearNodeChildren, createNode, createSelectNode, crea
 export function createCirclesRenderer({ state, caches, actions, common }) {
     const { filtered, selectedCircle, createListItem, renderSimpleList } = common;
 
+    function comparePeopleByFirstName(left, right) {
+        const firstNameDelta = String(left.first_name || "").localeCompare(String(right.first_name || ""), undefined, { sensitivity: "base" });
+        if (firstNameDelta !== 0) {
+            return firstNameDelta;
+        }
+        return String(left.last_name || "").localeCompare(String(right.last_name || ""), undefined, { sensitivity: "base" });
+    }
+
+    function bindEntityNavigation(item, section, entityId, onPrimaryOpen) {
+        item.addEventListener("click", async (event) => {
+            if (event.metaKey || event.ctrlKey) {
+                event.preventDefault();
+                actions.openViewInNewTab(section, entityId);
+                return;
+            }
+            await onPrimaryOpen();
+        });
+
+        item.addEventListener("auxclick", (event) => {
+            if (event.button !== 1) {
+                return;
+            }
+            event.preventDefault();
+            actions.openViewInNewTab(section, entityId);
+        });
+    }
+
     function buildCircleEditForm(circle) {
         const form = createNode("form", { className: "form-grid stack compact-form" });
         const nameInput = createNode("input", {
@@ -93,7 +120,9 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
 
         const memberIds = caches.circleMembers.get(circle.id) || [];
         const members = state.data.people.filter((person) => memberIds.includes(person.id));
-        const availablePeople = state.data.people.filter((person) => !memberIds.includes(person.id));
+        const availablePeople = state.data.people
+            .filter((person) => !memberIds.includes(person.id))
+            .sort(comparePeopleByFirstName);
 
         container.appendChild(createNode("article", {
             className: "subpanel",
@@ -152,7 +181,7 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                     await actions.removeCircleMember(circle.id, member.id);
                 }));
                 const item = createListItem(`${member.first_name} ${member.last_name || ""}`.trim(), "", actionsNode);
-                item.addEventListener("click", async () => {
+                bindEntityNavigation(item, "people", member.id, async () => {
                     await actions.openPersonFromContext(member.id);
                 });
                 return item;
@@ -190,7 +219,7 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                     item.classList.add("active");
                 }
 
-                item.addEventListener("click", async () => {
+                bindEntityNavigation(item, "circles", circle.id, async () => {
                     await actions.selectCircle(circle.id);
                 });
 

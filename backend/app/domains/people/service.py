@@ -38,10 +38,12 @@ class PersonService:
             first_name=data.first_name,
             last_name=data.last_name,
             birth_date=data.birth_date,
+            date_of_death=data.date_of_death,
             notes=data.notes,
         )
         self.session.add(person)
         await self.session.flush()
+        await self.session.refresh(person)
         return person
 
     async def get_person(self, person_id: int, user_id: int) -> Person:
@@ -93,6 +95,7 @@ class PersonService:
             setattr(person, key, value)
         
         await self.session.flush()
+        await self.session.refresh(person)
         return person
 
     async def delete_person(self, person_id: int, user_id: int) -> None:

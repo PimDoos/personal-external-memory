@@ -4,6 +4,37 @@ import { formatDateTime, toLocalDateTimeInputValue, toIsoDateTime } from "../ui.
 export function createEventsRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedEvent, createListItem, renderSimpleList } = common;
 
+    function comparePeopleByFirstName(left, right) {
+        const firstNameDelta = String(left.first_name || "").localeCompare(String(right.first_name || ""), undefined, { sensitivity: "base" });
+        if (firstNameDelta !== 0) {
+            return firstNameDelta;
+        }
+        return String(left.last_name || "").localeCompare(String(right.last_name || ""), undefined, { sensitivity: "base" });
+    }
+
+    function getEventStartTimestamp(event) {
+        return new Date(event.start_time || event.date || 0).getTime();
+    }
+
+    function bindEntityNavigation(item, section, entityId, onPrimaryOpen) {
+        item.addEventListener("click", async (eventObj) => {
+            if (eventObj.metaKey || eventObj.ctrlKey) {
+                eventObj.preventDefault();
+                actions.openViewInNewTab(section, entityId);
+                return;
+            }
+            await onPrimaryOpen();
+        });
+
+        item.addEventListener("auxclick", (eventObj) => {
+            if (eventObj.button !== 1) {
+                return;
+            }
+            eventObj.preventDefault();
+            actions.openViewInNewTab(section, entityId);
+        });
+    }
+
     function buildEventEditForm(event) {
         const form = createNode("form", { className: "form-grid stack compact-form" });
         const titleInput = createNode("input", {
@@ -118,7 +149,9 @@ export function createEventsRenderer({ state, caches, actions, common }) {
 
         const participants = caches.eventParticipants.get(event.id) || [];
         const participantIds = participants.map((participant) => participant.person_id);
-        const availablePeople = state.data.people.filter((person) => !participantIds.includes(person.id));
+        const availablePeople = state.data.people
+            .filter((person) => !participantIds.includes(person.id))
+            .sort(comparePeopleByFirstName);
 
         container.appendChild(createNode("article", {
             className: "subpanel",
@@ -148,7 +181,9 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             name: "person_id",
             disabled: availablePeople.length ? undefined : true,
         });
-        const roleInput = createNode("input", { attrs: { name: "role", placeholder: "host, guest, organizer" } });
+        const roleOptions = [{ value: "", label: "No role" }]
+            .concat((state.data.typeLists.eventParticipantRoleTypes || []).map((entry) => ({ value: entry.name, label: entry.name })));
+        const roleInput = createSelectNode(roleOptions, "", { name: "role" });
 
         form.appendChild(personSelect);
         form.appendChild(roleInput);
@@ -177,17 +212,28 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             participants,
             (participant) => {
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Role", "secondary-button", async () => {
-                    const nextRole = window.prompt("New role", participant.role || "guest");
-                    if (nextRole) {
-                        await actions.changeEventRole(event.id, participant.person_id, nextRole);
-                    }
-                }));
+                actionsNode.addEventListener("mousedown", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+                actionsNode.addEventListener("click", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+                const roleSelectOptions = [{ value: "", label: "No role" }]
+                    .concat((state.data.typeLists.eventParticipantRoleTypes || []).map((entry) => ({ value: entry.name, label: entry.name })));
+                const roleSelect = createSelectNode(roleSelectOptions, participant.role || "", { name: "role" });
+                roleSelect.addEventListener("click", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+                const setRoleButton = createButtonNode("Set role", "secondary-button", async () => {
+                    await actions.changeEventRole(event.id, participant.person_id, roleSelect.value || "");
+                });
+                actionsNode.appendChild(roleSelect);
+                actionsNode.appendChild(setRoleButton);
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeEventParticipant(event.id, participant.person_id);
                 }));
                 const item = createListItem(nameOfPerson(participant.person_id), participant.role || "No role", actionsNode);
-                item.addEventListener("click", async () => {
+                bindEntityNavigation(item, "people", participant.person_id, async () => {
                     await actions.openPersonFromContext(participant.person_id);
                 });
                 return item;
@@ -206,7 +252,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             (event) => event.event_type,
             (event) => event.location,
             (event) => event.notes
-        );
+        ).sort((left, right) => getEventStartTimestamp(left) - getEventStartTimestamp(right));
 
         const listNode = document.getElementById("events-list");
         clearNodeChildren(listNode);
@@ -219,7 +265,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
                 if (state.selected.eventId === event.id) {
                     item.classList.add("active");
                 }
-                item.addEventListener("click", async () => {
+                bindEntityNavigation(item, "events", event.id, async () => {
                     await actions.selectEvent(event.id);
                 });
                 return item;

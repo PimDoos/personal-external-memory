@@ -5,8 +5,8 @@ const CATEGORY_CONFIG = [
     { key: "relationshipTypes", category: "relationship", label: "Relationship Types", panelId: "types-panel-relationship", fields: ["name", "left_label", "right_label", "emoji"] },
     { key: "socialCircleTypes", category: "social-circle", label: "Social Circle Types", panelId: "types-panel-social-circle", fields: ["name"] },
     { key: "eventTypes", category: "event", label: "Event Types", panelId: "types-panel-event", fields: ["name"] },
-    { key: "interactionTypes", category: "interaction", label: "Interaction Types", panelId: "types-panel-interaction", fields: ["name"] },
-    { key: "interactionMediums", category: "interaction-medium", label: "Interaction Mediums", panelId: "types-panel-interaction-medium", fields: ["name"] },
+    { key: "eventParticipantRoleTypes", category: "event-participant-role", label: "Event Participant Roles", panelId: "types-panel-event-participant-role", fields: ["name"] },
+    { key: "brandMembershipTypes", category: "brand-membership", label: "Brand Membership Types", panelId: "types-panel-brand-membership", fields: ["name"] },
 ];
 
 const FIELD_LABELS = {
@@ -47,7 +47,7 @@ export function createTypesRenderer({ state, actions }) {
             const payload = createFormDataObject(form);
             Object.keys(payload).forEach((key) => {
                 if (payload[key] === "") {
-                    delete payload[key];
+                    payload[key] = null;
                 }
             });
             await actions.updateType(category, entry.id, payload);

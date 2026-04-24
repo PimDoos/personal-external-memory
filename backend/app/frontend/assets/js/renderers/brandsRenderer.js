@@ -3,12 +3,39 @@ import { clearNodeChildren, createButtonNode, createFormDataObject, createNode }
 export function createBrandsRenderer({ state, actions, common }) {
     const { filtered, createListItem, renderSimpleList } = common;
 
+    function comparePeopleByFirstName(left, right) {
+        const firstNameDelta = String(left.first_name || "").localeCompare(String(right.first_name || ""), undefined, { sensitivity: "base" });
+        if (firstNameDelta !== 0) {
+            return firstNameDelta;
+        }
+        return String(left.last_name || "").localeCompare(String(right.last_name || ""), undefined, { sensitivity: "base" });
+    }
+
+    function bindEntityNavigation(item, section, entityId, onPrimaryOpen) {
+        item.addEventListener("click", async (event) => {
+            if (event.metaKey || event.ctrlKey) {
+                event.preventDefault();
+                actions.openViewInNewTab(section, entityId);
+                return;
+            }
+            await onPrimaryOpen();
+        });
+
+        item.addEventListener("auxclick", (event) => {
+            if (event.button !== 1) {
+                return;
+            }
+            event.preventDefault();
+            actions.openViewInNewTab(section, entityId);
+        });
+    }
+
     function buildBrandMembersPanel(brand) {
         const members = common.caches.brandMembers.get(brand.id) || [];
         const memberPersonIds = new Set(members.map((m) => m.person_id || m));
-        const availablePeople = state.data.people.filter(
-            (person) => !memberPersonIds.has(person.id)
-        );
+        const availablePeople = state.data.people
+            .filter((person) => !memberPersonIds.has(person.id))
+            .sort(comparePeopleByFirstName);
 
         const panel = createNode("article", {
             className: "subpanel",
@@ -245,7 +272,7 @@ export function createBrandsRenderer({ state, actions, common }) {
                 if (state.selected.brandId === brand.id) {
                     item.classList.add("active");
                 }
-                item.addEventListener("click", async () => {
+                bindEntityNavigation(item, "brands", brand.id, async () => {
                     await actions.selectBrand(brand.id);
                 });
                 return item;

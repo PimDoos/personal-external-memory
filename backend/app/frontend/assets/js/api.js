@@ -1,6 +1,67 @@
-import { state } from "./state.js";
+import { saveSession, state } from "./state.js";
 
-async function request(path, options = {}) {
+let authExpiredHandler = null;
+let refreshPromise = null;
+let authExpiredNotified = false;
+
+function notifyAuthExpired() {
+    if (authExpiredNotified) {
+        return;
+    }
+    authExpiredNotified = true;
+    if (typeof authExpiredHandler === "function") {
+        authExpiredHandler();
+    }
+}
+
+function shouldTryRefresh(path) {
+    return !String(path || "").startsWith("/api/auth/");
+}
+
+export function setAuthExpiredHandler(handler) {
+    authExpiredHandler = handler;
+}
+
+export async function refreshAccessToken() {
+    if (!state.refreshToken) {
+        return false;
+    }
+
+    if (refreshPromise) {
+        return refreshPromise;
+    }
+
+    refreshPromise = (async () => {
+        try {
+            const response = await fetch("/api/auth/refresh", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refresh_token: state.refreshToken }),
+            });
+
+            if (!response.ok) {
+                return false;
+            }
+
+            const tokens = await response.json();
+            saveSession(
+                tokens.access_token,
+                state.email,
+                tokens.refresh_token || state.refreshToken
+            );
+            authExpiredNotified = false;
+            return true;
+        } catch {
+            return false;
+        } finally {
+            refreshPromise = null;
+        }
+    })();
+
+    return refreshPromise;
+}
+
+async function request(path, options = {}, authMeta = { retryAfterRefresh: true }) {
     const headers = {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...(options.headers || {}),
@@ -14,6 +75,17 @@ async function request(path, options = {}) {
         ...options,
         headers,
     });
+
+    if (response.status === 401 && authMeta.retryAfterRefresh && shouldTryRefresh(path)) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+            return request(path, options, { retryAfterRefresh: false });
+        }
+        notifyAuthExpired();
+        const error = new Error("Session expired. Please sign in again.");
+        error.code = "AUTH_EXPIRED";
+        throw error;
+    }
 
     if (response.status === 204) {
         return null;
@@ -39,6 +111,7 @@ export const api = {
     auth: {
         register: (data) => request("/api/auth/register", { method: "POST", ...jsonBody(data) }),
         login: (data) => request("/api/auth/login", { method: "POST", ...jsonBody(data) }),
+        refresh: (data) => request("/api/auth/refresh", { method: "POST", ...jsonBody(data) }, { retryAfterRefresh: false }),
     },
     people: {
         list: () => request("/api/people"),
@@ -95,15 +168,6 @@ export const api = {
         addParticipant: (data) => request("/api/associations/event-participants", { method: "POST", ...jsonBody(data) }),
         updateParticipantRole: (eventId, personId, role) => request(`/api/associations/event-participants/${eventId}/${personId}/role?role=${encodeURIComponent(role)}`, { method: "PUT" }),
         removeParticipant: (eventId, personId) => request(`/api/associations/event-participants/${eventId}/${personId}`, { method: "DELETE" }),
-    },
-    interactions: {
-        list: () => request("/api/interactions"),
-        create: (data) => request("/api/interactions", { method: "POST", ...jsonBody(data) }),
-        update: (id, data) => request(`/api/interactions/${id}`, { method: "PUT", ...jsonBody(data) }),
-        remove: (id) => request(`/api/interactions/${id}`, { method: "DELETE" }),
-        participants: (interactionId) => request(`/api/associations/interaction-participants/${interactionId}`),
-        addParticipant: (data) => request("/api/associations/interaction-participants", { method: "POST", ...jsonBody(data) }),
-        removeParticipant: (interactionId, personId) => request(`/api/associations/interaction-participants/${interactionId}/${personId}`, { method: "DELETE" }),
     },
     types: {
         list: (category) => request(`/api/types/${category}`),

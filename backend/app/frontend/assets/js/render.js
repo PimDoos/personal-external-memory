@@ -4,7 +4,6 @@ import { createPeopleRenderer } from "./renderers/peopleRenderer.js";
 import { createCirclesRenderer } from "./renderers/circlesRenderer.js";
 import { createBrandsRenderer } from "./renderers/brandsRenderer.js";
 import { createEventsRenderer } from "./renderers/eventsRenderer.js";
-import { createInteractionsRenderer } from "./renderers/interactionsRenderer.js";
 import { createTagsRenderer } from "./renderers/tagsRenderer.js";
 import { createTypesRenderer } from "./renderers/typesRenderer.js";
 import { createTopologyRenderer } from "./renderers/topologyRenderer.js";
@@ -24,7 +23,6 @@ export function createRenderer(ctx) {
     const { renderCircles } = createCirclesRenderer({ state, caches, actions, common });
     const { renderBrands } = createBrandsRenderer({ state, caches, actions, common });
     const { renderEvents } = createEventsRenderer({ state, caches, actions, common });
-    const { renderInteractions } = createInteractionsRenderer({ state, caches, actions, common });
     const { renderTags } = createTagsRenderer({ state, actions, common });
     const { renderTypes } = createTypesRenderer({ state, actions });
     const { renderTopology } = createTopologyRenderer({ state, caches, actions });
@@ -40,7 +38,6 @@ export function createRenderer(ctx) {
         renderCircles();
         renderBrands();
         renderEvents();
-        renderInteractions();
         renderTags();
         renderTypes();
         renderTopology();

@@ -37,6 +37,8 @@ async def get_current_user(
 
     try:
         payload = decode_token(credentials.credentials)
+        if payload.get("type") == "refresh":
+            raise UnauthorizedError("Invalid token type")
         user_id = payload.get("sub")
         if not user_id:
             raise UnauthorizedError("Invalid token")
