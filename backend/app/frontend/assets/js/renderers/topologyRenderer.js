@@ -1,4 +1,5 @@
 import { createNode } from "../dom.js";
+import { getAvatarInitials, getEntityAvatarPalette } from "../avatar.js";
 
 const EDGE_COLORS = {
     relationship: "#c5483f",
@@ -799,32 +800,22 @@ export function createTopologyRenderer({ state, caches, actions }) {
 
                 const circle = document.createElementNS(SVG_NS, "circle");
                 let radius = 16;
-                let fill = "#d9ece0";
-                let stroke = "#588868";
+                const palette = getEntityAvatarPalette(node.entity);
                 
                 if (node.entity === "brand") {
                     radius = 19;
-                    fill = "#f0d5bc";
-                    stroke = "#b86a37";
                 } else if (node.entity === "circle") {
                     radius = 22;
-                    fill = "#ede0f5";
-                    stroke = "#8b5f9f";
                 }
                 
                 circle.setAttribute("r", String(radius));
-                circle.setAttribute("fill", fill);
-                circle.setAttribute("stroke", stroke);
+                circle.setAttribute("fill", palette.fill);
+                circle.setAttribute("stroke", palette.stroke);
                 circle.setAttribute("stroke-width", isHovered || isAdjacentToHovered ? "3.5" : "2");
                 group.appendChild(circle);
 
                 const initials = document.createElementNS(SVG_NS, "text");
-                initials.textContent = node.label
-                    .split(" ")
-                    .map((part) => part[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase();
+                initials.textContent = getAvatarInitials(node.label);
                 initials.setAttribute("text-anchor", "middle");
                 initials.setAttribute("dy", "5");
                 initials.setAttribute("font-size", "10");

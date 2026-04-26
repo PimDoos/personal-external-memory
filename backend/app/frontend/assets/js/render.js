@@ -18,7 +18,7 @@ export function createRenderer(ctx) {
 
     const common = createRenderCommon({ state, refs, caches });
 
-    const { renderDashboard } = createDashboardRenderer({ state, actions, common });
+    const { renderDashboard } = createDashboardRenderer({ state, caches, actions, common });
     const { renderPeople } = createPeopleRenderer({ state, caches, actions, common });
     const { renderCircles } = createCirclesRenderer({ state, caches, actions, common });
     const { renderBrands } = createBrandsRenderer({ state, caches, actions, common });

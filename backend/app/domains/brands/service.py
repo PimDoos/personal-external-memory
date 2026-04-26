@@ -25,6 +25,7 @@ class BrandService:
         )
         self.session.add(brand)
         await self.session.flush()
+        await self.session.refresh(brand)
         return brand
 
     async def get(self, brand_id: int, user_id: int) -> Brand:
@@ -49,6 +50,7 @@ class BrandService:
             setattr(brand, key, value)
 
         await self.session.flush()
+        await self.session.refresh(brand)
         return brand
 
     async def delete(self, brand_id: int, user_id: int) -> None:

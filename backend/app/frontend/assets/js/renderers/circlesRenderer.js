@@ -1,4 +1,6 @@
 import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
+import { createCombobox } from "../combobox.js";
+import { getAvatarInitials } from "../avatar.js";
 
 export function createCirclesRenderer({ state, caches, actions, common }) {
     const { filtered, selectedCircle, createListItem, renderSimpleList } = common;
@@ -61,13 +63,13 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
             event.preventDefault();
             const payload = createFormDataObject(form);
             if (payload.circle_type === "") {
-                delete payload.circle_type;
+                payload.circle_type = null;
             }
             if (payload.description === "") {
-                delete payload.description;
+                payload.description = null;
             }
             if (payload.notes === "") {
-                delete payload.notes;
+                payload.notes = null;
             }
             await actions.updateCircle(circle.id, payload);
         });
@@ -143,13 +145,12 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
         const section = createNode("section", { className: "subpanel" });
         const form = createNode("form", { className: "inline-form" });
 
-        const options = availablePeople.length
-            ? availablePeople.map((person) => ({ value: person.id, label: `${person.first_name} ${person.last_name || ""}`.trim() }))
-            : [{ value: "", label: "No available people" }];
+        const options = availablePeople.map((person) => ({ value: person.id, label: `${person.first_name} ${person.last_name || ""}`.trim() }));
 
-        const selectNode = createSelectNode(options, "", {
+        const selectNode = createCombobox(options, "", {
             name: "person_id",
-            disabled: availablePeople.length ? undefined : true,
+            placeholder: availablePeople.length ? "Search people…" : "No available people",
+            disabled: !availablePeople.length,
         });
 
         form.appendChild(selectNode);
@@ -180,7 +181,13 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeCircleMember(circle.id, member.id);
                 }));
-                const item = createListItem(`${member.first_name} ${member.last_name || ""}`.trim(), "", actionsNode);
+                const memberName = `${member.first_name} ${member.last_name || ""}`.trim();
+                const avatar = createNode("span", {
+                    className: "list-avatar list-avatar--person",
+                    text: getAvatarInitials(memberName),
+                    attrs: { title: memberName, "aria-label": memberName },
+                });
+                const item = createListItem(memberName, "", actionsNode, avatar);
                 bindEntityNavigation(item, "people", member.id, async () => {
                     await actions.openPersonFromContext(member.id);
                 });

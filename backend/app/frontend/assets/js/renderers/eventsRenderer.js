@@ -1,5 +1,7 @@
 import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
 import { formatDateTime, toLocalDateTimeInputValue, toIsoDateTime } from "../ui.js";
+import { createCombobox } from "../combobox.js";
+import { getAvatarInitials } from "../avatar.js";
 
 export function createEventsRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedEvent, createListItem, renderSimpleList } = common;
@@ -78,24 +80,24 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             if (payload.start_time) {
                 payload.start_time = toIsoDateTime(payload.start_time);
             } else {
-                delete payload.start_time;
+                payload.start_time = null;
             }
             if (payload.end_time) {
                 payload.end_time = toIsoDateTime(payload.end_time);
             } else {
-                delete payload.end_time;
+                payload.end_time = null;
             }
             if (payload.title === "") {
-                delete payload.title;
+                payload.title = null;
             }
             if (payload.event_type === "") {
-                delete payload.event_type;
+                payload.event_type = null;
             }
             if (payload.location === "") {
-                delete payload.location;
+                payload.location = null;
             }
             if (payload.notes === "") {
-                delete payload.notes;
+                payload.notes = null;
             }
             payload.date = payload.start_time || payload.end_time || event.date;
             await actions.updateEvent(event.id, payload);
@@ -173,13 +175,12 @@ export function createEventsRenderer({ state, caches, actions, common }) {
         const section = createNode("section", { className: "subpanel" });
         const form = createNode("form", { className: "inline-form" });
 
-        const options = availablePeople.length
-            ? availablePeople.map((person) => ({ value: person.id, label: nameOfPerson(person.id) }))
-            : [{ value: "", label: "No available people" }];
+        const options = availablePeople.map((person) => ({ value: person.id, label: nameOfPerson(person.id) }));
 
-        const personSelect = createSelectNode(options, "", {
+        const personSelect = createCombobox(options, "", {
             name: "person_id",
-            disabled: availablePeople.length ? undefined : true,
+            placeholder: availablePeople.length ? "Search people…" : "No available people",
+            disabled: !availablePeople.length,
         });
         const roleOptions = [{ value: "", label: "No role" }]
             .concat((state.data.typeLists.eventParticipantRoleTypes || []).map((entry) => ({ value: entry.name, label: entry.name })));
@@ -232,7 +233,13 @@ export function createEventsRenderer({ state, caches, actions, common }) {
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeEventParticipant(event.id, participant.person_id);
                 }));
-                const item = createListItem(nameOfPerson(participant.person_id), participant.role || "No role", actionsNode);
+                const participantName = nameOfPerson(participant.person_id);
+                const avatar = createNode("span", {
+                    className: "list-avatar list-avatar--person",
+                    text: getAvatarInitials(participantName),
+                    attrs: { title: participantName, "aria-label": participantName },
+                });
+                const item = createListItem(participantName, participant.role || "No role", actionsNode, avatar);
                 bindEntityNavigation(item, "people", participant.person_id, async () => {
                     await actions.openPersonFromContext(participant.person_id);
                 });
@@ -261,7 +268,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             listNode,
             events,
             (event) => {
-                const item = createListItem(event.title || event.location || "Event", event.event_type || formatDateTime(event.date));
+                const item = createListItem(event.title || event.location || "Event", formatDateTime(event.start_time || event.date));
                 if (state.selected.eventId === event.id) {
                     item.classList.add("active");
                 }

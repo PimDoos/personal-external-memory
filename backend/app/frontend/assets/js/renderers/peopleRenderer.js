@@ -1,5 +1,7 @@
 import { createButtonNode, clearNodeChildren, createNode, createEmptyStateNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
 import { calculateAge, calculateAgeAtDate, formatDate } from "../ui.js";
+import { createCombobox } from "../combobox.js";
+import { getAvatarInitials } from "../avatar.js";
 
 export function createPeopleRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedPerson, createListItem, renderSimpleList } = common;
@@ -123,13 +125,12 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             .filter((entry) => entry.id !== personId)
             .sort(comparePeopleByFirstName);
 
-        const peopleOptions = people.length
-            ? people.map((entry) => ({ value: entry.id, label: `${entry.first_name} ${entry.last_name || ""}`.trim() }))
-            : [{ value: "", label: "No available people" }];
+        const peopleOptions = people.map((entry) => ({ value: entry.id, label: `${entry.first_name} ${entry.last_name || ""}`.trim() }));
 
-        const personSelect = createSelectNode(peopleOptions, "", {
+        const personSelect = createCombobox(peopleOptions, "", {
             name: "person_id_2",
-            disabled: people.length ? undefined : true,
+            placeholder: people.length ? "Search people…" : "No available people",
+            disabled: !people.length,
         });
 
         const relationshipTypes = state.data.typeLists.relationshipTypes || [];
@@ -247,16 +248,16 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             event.preventDefault();
             const payload = createFormDataObject(form);
             if (!payload.birth_date) {
-                delete payload.birth_date;
+                payload.birth_date = null;
             }
             if (!payload.date_of_death) {
-                delete payload.date_of_death;
+                payload.date_of_death = null;
             }
             if (payload.last_name === "") {
-                delete payload.last_name;
+                payload.last_name = null;
             }
             if (payload.notes === "") {
-                delete payload.notes;
+                payload.notes = null;
             }
             await actions.updatePerson(person.id, payload);
         });
@@ -426,7 +427,13 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.deleteRelationship(relationship.id, person.id);
                 }));
-                const item = createListItem(nameOfPerson(counterpartId), subtitle, actionsNode);
+                const counterpartName = nameOfPerson(counterpartId);
+                const avatar = createNode("span", {
+                    className: "list-avatar list-avatar--person",
+                    text: getAvatarInitials(counterpartName),
+                    attrs: { title: counterpartName, "aria-label": counterpartName },
+                });
+                const item = createListItem(counterpartName, subtitle, actionsNode, avatar);
                 item.classList.add("clickable");
                 bindEntityNavigation(item, "people", counterpartId, async () => {
                     await actions.openPersonFromContext(counterpartId);
@@ -607,6 +614,12 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                         createNode("span", { className: "age-hint", text: age === null ? "" : ` age ${age}` }),
                     ],
                 });
+                const personName = `${person.first_name} ${person.last_name || ""}`.trim();
+                const avatar = createNode("span", {
+                    className: "list-avatar list-avatar--person",
+                    text: getAvatarInitials(personName),
+                    attrs: { title: personName, "aria-label": personName },
+                });
 
                 const item = createNode("div", {
                     className: `list-item${person.date_of_death ? " person-card--deceased" : ""}`,
@@ -615,7 +628,14 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                             className: "list-item__row",
                             children: [
                                 createNode("div", {
-                                    children: [titleNode, tagsNode],
+                                    className: "list-item__main",
+                                    children: [
+                                        avatar,
+                                        createNode("div", {
+                                            className: "list-item__text",
+                                            children: [titleNode, tagsNode],
+                                        }),
+                                    ],
                                 }),
                             ],
                         }),

@@ -26,6 +26,7 @@ class ResourceService:
         )
         self.session.add(resource)
         await self.session.flush()
+        await self.session.refresh(resource)
         return resource
 
     async def get(self, resource_id: int) -> Resource:

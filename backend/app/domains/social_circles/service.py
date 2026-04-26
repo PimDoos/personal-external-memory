@@ -29,6 +29,7 @@ class SocialCircleService:
         )
         self.session.add(circle)
         await self.session.flush()
+        await self.session.refresh(circle)
         return circle
 
     async def get(self, circle_id: int, user_id: int) -> SocialCircle:
@@ -55,6 +56,7 @@ class SocialCircleService:
             setattr(circle, key, value)
 
         await self.session.flush()
+        await self.session.refresh(circle)
         return circle
 
     async def delete(self, circle_id: int, user_id: int) -> None:

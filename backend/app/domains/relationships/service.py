@@ -72,6 +72,7 @@ class PersonRelationshipService:
         )
         self.session.add(relationship)
         await self.session.flush()
+        await self.session.refresh(relationship)
         return relationship
 
     async def get(self, relationship_id: int, user_id: int) -> PersonRelationship:
@@ -104,6 +105,7 @@ class PersonRelationshipService:
             setattr(relationship, key, value)
 
         await self.session.flush()
+        await self.session.refresh(relationship)
         return relationship
 
     async def delete(self, relationship_id: int, user_id: int) -> None:

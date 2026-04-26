@@ -1,6 +1,8 @@
 import { formatBirthday, formatDateTime } from "../ui.js";
+import { createNode } from "../dom.js";
+import { getAvatarInitials } from "../avatar.js";
 
-export function createDashboardRenderer({ state, actions, common }) {
+export function createDashboardRenderer({ state, caches, actions, common }) {
     const { createListItem, renderSimpleList } = common;
 
     function getEventStartTimestamp(event) {
@@ -50,6 +52,50 @@ export function createDashboardRenderer({ state, actions, common }) {
         });
     }
 
+    function personLabel(personId) {
+        const person = state.data.people.find((entry) => entry.id === personId);
+        if (!person) {
+            return `Person #${personId}`;
+        }
+        return `${person.first_name} ${person.last_name || ""}`.trim();
+    }
+
+    function eventParticipants(eventId) {
+        return (caches.topology.eventParticipantsByEventId.get(eventId)
+            || caches.eventParticipants.get(eventId)
+            || []);
+    }
+
+    function createParticipantAvatarsNode(eventId) {
+        const participants = eventParticipants(eventId);
+        if (!participants.length) {
+            return null;
+        }
+
+        const wrapper = createNode("div", { className: "dashboard-participants" });
+        const visibleParticipants = participants.slice(0, 5);
+
+        visibleParticipants.forEach((participant) => {
+            const label = personLabel(participant.person_id);
+            const avatar = createNode("span", {
+                className: "dashboard-avatar",
+                text: getAvatarInitials(label),
+                attrs: { title: label, "aria-label": label },
+            });
+            wrapper.appendChild(avatar);
+        });
+
+        if (participants.length > visibleParticipants.length) {
+            wrapper.appendChild(createNode("span", {
+                className: "dashboard-avatar dashboard-avatar--more",
+                text: `+${participants.length - visibleParticipants.length}`,
+                attrs: { title: `${participants.length} participants` },
+            }));
+        }
+
+        return wrapper;
+    }
+
     function renderDashboard() {
         const livingPeople = state.data.people.filter((person) => !person.date_of_death);
         const nowMs = Date.now();
@@ -79,7 +125,11 @@ export function createDashboardRenderer({ state, actions, common }) {
             document.getElementById("dashboard-events"),
             upcomingEvents,
             (item) => {
-                const row = createListItem(item.title || item.location || "Untitled event", formatDateTime(item.date));
+                const row = createListItem(
+                    item.title || item.location || "Untitled event",
+                    formatDateTime(item.date),
+                    createParticipantAvatarsNode(item.id)
+                );
                 bindEntityNavigation(row, "events", item.id, async () => {
                     state.activeSection = "events";
                     await actions.selectEvent(item.id);
@@ -93,7 +143,11 @@ export function createDashboardRenderer({ state, actions, common }) {
             document.getElementById("dashboard-recent-events"),
             recentEvents,
             (item) => {
-                const row = createListItem(item.title || item.location || "Event", formatDateTime(item.date));
+                const row = createListItem(
+                    item.title || item.location || "Event",
+                    formatDateTime(item.date),
+                    createParticipantAvatarsNode(item.id)
+                );
                 bindEntityNavigation(row, "events", item.id, async () => {
                     state.activeSection = "events";
                     await actions.selectEvent(item.id);
@@ -107,7 +161,13 @@ export function createDashboardRenderer({ state, actions, common }) {
             document.getElementById("dashboard-birthdays"),
             birthdays,
             (item) => {
-                const row = createListItem(`${item.first_name} ${item.last_name || ""}`.trim(), formatBirthday(item.birth_date));
+                const personName = `${item.first_name} ${item.last_name || ""}`.trim();
+                const avatar = createNode("span", {
+                    className: "list-avatar list-avatar--person",
+                    text: getAvatarInitials(personName),
+                    attrs: { title: personName, "aria-label": personName },
+                });
+                const row = createListItem(personName, formatBirthday(item.birth_date), null, avatar);
                 bindEntityNavigation(row, "people", item.id, async () => {
                     await actions.openPersonFromContext(item.id);
                 });

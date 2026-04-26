@@ -128,7 +128,16 @@ export function calculateAgeAtDate(birthDate, endDate) {
 }
 
 export function toIsoDateTime(localValue) {
-    return localValue ? new Date(localValue).toISOString() : null;
+    if (!localValue) {
+        return null;
+    }
+
+    // Preserve wall-clock time from datetime-local inputs.
+    const normalized = String(localValue).trim();
+    if (!normalized) {
+        return null;
+    }
+    return normalized.length === 16 ? `${normalized}:00` : normalized;
 }
 
 export function toLocalDateTimeInputValue(value) {

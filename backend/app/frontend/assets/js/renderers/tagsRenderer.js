@@ -46,7 +46,7 @@ export function createTagsRenderer({ state, actions, common }) {
             event.preventDefault();
             const payload = createFormDataObject(form);
             if (payload.description === "") {
-                delete payload.description;
+                payload.description = null;
             }
             await actions.updateTag(tag.id, payload);
         });

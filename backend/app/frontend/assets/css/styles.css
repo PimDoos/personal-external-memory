@@ -559,9 +559,41 @@ textarea {
 }
 
 .list-item__row {
+    display: flex;
+    justify-content: space-between;
     grid-template-columns: 1fr auto;
     align-items: center;
     gap: 8px;
+}
+
+.list-item__main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.list-item__text {
+    min-width: 0;
+}
+
+.list-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid #15201e;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    background: #2a3a36;
+    flex: 0 0 36px;
+}
+
+.list-avatar--person {
+    background: #2a3a36;
 }
 
 .list-item h4,
@@ -598,6 +630,38 @@ textarea {
     background: var(--pill-bg);
     border: 1px solid var(--pill-line);
     font-size: 0.9rem;
+}
+
+.dashboard-participants {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.dashboard-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #15201e;
+    margin-left: -6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffffff;
+    background: #2a3a36;
+}
+
+.dashboard-avatar:first-child {
+    margin-left: 0;
+}
+
+.dashboard-avatar--more {
+    background: #1d2b28;
+    border-color: #0f1715;
+    font-size: 9px;
 }
 
 .subpanel {
@@ -647,6 +711,62 @@ textarea {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* ===== Combobox ===== */
+
+.combobox {
+    position: relative;
+    width: 100%;
+}
+
+.combobox__input {
+    width: 100%;
+}
+
+.combobox__dropdown {
+    display: none;
+    position: absolute;
+    z-index: 100;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    box-shadow: var(--shadow);
+    max-height: 240px;
+    overflow-y: auto;
+    backdrop-filter: blur(14px);
+}
+
+.combobox__dropdown.open {
+    display: block;
+}
+
+.combobox__option {
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--ink);
+}
+
+.combobox__option:hover,
+.combobox__option.focused {
+    background: var(--accent-soft);
+}
+
+.combobox__option[aria-selected="true"] {
+    color: var(--accent-strong);
+    font-weight: 600;
+}
+
+.combobox__option--empty {
+    color: var(--ink-soft);
+    cursor: default;
 }
 
 @media (max-width: 1100px) {

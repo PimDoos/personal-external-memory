@@ -1,4 +1,6 @@
 import { clearNodeChildren, createButtonNode, createFormDataObject, createNode } from "../dom.js";
+import { createCombobox } from "../combobox.js";
+import { getAvatarInitials } from "../avatar.js";
 
 export function createBrandsRenderer({ state, actions, common }) {
     const { filtered, createListItem, renderSimpleList } = common;
@@ -48,70 +50,54 @@ export function createBrandsRenderer({ state, actions, common }) {
         });
 
         // Members list
-        const membersList = createNode("div", { className: "list compact-list" });
-        members.forEach((member) => {
-            const personId = member.person_id || member;
-            const person = state.data.people.find((p) => p.id === personId);
-            if (!person) {
-                return;
-            }
-            
-            const memberTypeLabel = member.type || "(no type)";
-            const item = createNode("div", {
-                className: "list-item horizontal-flex",
-                children: [
-                    createNode("span", {
-                        text: `${person.first_name} ${person.last_name || ""}`.trim(),
-                    }),
-                    createNode("span", {
-                        className: "secondary-text",
-                        text: memberTypeLabel,
-                        style: { fontSize: "0.9em", opacity: "0.7" },
-                    }),
-                    createButtonNode("Edit", "compact-button", async () => {
-                        const newType = prompt("Enter new member type:", member.type || "");
-                        if (newType !== null && newType !== member.type) {
-                            await actions.changeBrandMemberType(brand.id, personId, newType || null);
-                        }
-                    }),
-                    createButtonNode("Remove", "compact-button", async () => {
-                        await actions.removeBrandMember(brand.id, personId);
-                    }),
-                ],
-            });
-            membersList.appendChild(item);
-        });
+        const membersList = createNode("div", { className: "list" });
+        renderSimpleList(
+            membersList,
+            members,
+            (member) => {
+                const personId = member.person_id || member;
+                const person = state.data.people.find((p) => p.id === personId);
+                if (!person) {
+                    return createNode("div", { className: "empty-state", text: "Unknown person" });
+                }
 
-        if (members.length === 0) {
-            membersList.appendChild(
-                createNode("div", {
-                    className: "list-placeholder",
-                    text: "No members yet",
-                })
-            );
-        }
+                const personName = `${person.first_name} ${person.last_name || ""}`.trim();
+                const avatar = createNode("span", {
+                    className: "list-avatar list-avatar--person",
+                    text: getAvatarInitials(personName),
+                    attrs: { title: personName, "aria-label": personName },
+                });
+                const actionsNode = createNode("div", { className: "list-actions" });
+                actionsNode.appendChild(createButtonNode("Edit", "secondary-button", async () => {
+                    const newType = prompt("Enter new member type:", member.type || "");
+                    if (newType !== null && newType !== member.type) {
+                        await actions.changeBrandMemberType(brand.id, personId, newType || null);
+                    }
+                }));
+                actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
+                    await actions.removeBrandMember(brand.id, personId);
+                }));
+                const item = createListItem(personName, member.type || "(no type)", actionsNode, avatar);
+                bindEntityNavigation(item, "people", personId, async () => {
+                    await actions.openPersonFromContext(personId);
+                });
+                return item;
+            },
+            "No members yet"
+        );
 
         panel.appendChild(membersList);
 
         // Add member form
         if (availablePeople.length > 0) {
             const form = createNode("form", { className: "form-grid stack compact-form" });
-            const personSelect = createNode("select", {
-                attrs: { name: "person_id", required: true },
-            });
-            personSelect.appendChild(
-                createNode("option", {
-                    attrs: { value: "" },
-                    text: "Select person...",
-                })
-            );
-            availablePeople.forEach((person) => {
-                personSelect.appendChild(
-                    createNode("option", {
-                        attrs: { value: String(person.id) },
-                        text: `${person.first_name} ${person.last_name || ""}`.trim(),
-                    })
-                );
+            const personOptions = availablePeople.map((person) => ({
+                value: person.id,
+                label: `${person.first_name} ${person.last_name || ""}`.trim(),
+            }));
+            const personSelect = createCombobox(personOptions, "", {
+                name: "person_id",
+                placeholder: "Search people…",
             });
 
             const typeSelect = createNode("select", {
@@ -189,10 +175,10 @@ export function createBrandsRenderer({ state, actions, common }) {
             event.preventDefault();
             const payload = createFormDataObject(form);
             if (payload.description === "") {
-                delete payload.description;
+                payload.description = null;
             }
             if (payload.notes === "") {
-                delete payload.notes;
+                payload.notes = null;
             }
             await actions.updateBrand(brand.id, payload);
         });
