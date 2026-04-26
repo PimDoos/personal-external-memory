@@ -5,6 +5,10 @@ import { getAvatarInitials } from "../avatar.js";
 export function createDashboardRenderer({ state, caches, actions, common }) {
     const { createListItem, renderSimpleList } = common;
 
+    function displayEventLabel(event) {
+        return event.title || `Event #${event.id}`;
+    }
+
     function getEventStartTimestamp(event) {
         return new Date(event.start_time || event.date || 0).getTime();
     }
@@ -126,7 +130,7 @@ export function createDashboardRenderer({ state, caches, actions, common }) {
             upcomingEvents,
             (item) => {
                 const row = createListItem(
-                    item.title || item.location || "Untitled event",
+                    displayEventLabel(item),
                     formatDateTime(item.date),
                     createParticipantAvatarsNode(item.id)
                 );
@@ -144,7 +148,7 @@ export function createDashboardRenderer({ state, caches, actions, common }) {
             recentEvents,
             (item) => {
                 const row = createListItem(
-                    item.title || item.location || "Event",
+                    displayEventLabel(item),
                     formatDateTime(item.date),
                     createParticipantAvatarsNode(item.id)
                 );

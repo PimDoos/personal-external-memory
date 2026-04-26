@@ -7,6 +7,7 @@ const CATEGORY_CONFIG = [
     { key: "eventTypes", category: "event", label: "Event Types", panelId: "types-panel-event", fields: ["name"] },
     { key: "eventParticipantRoleTypes", category: "event-participant-role", label: "Event Participant Roles", panelId: "types-panel-event-participant-role", fields: ["name"] },
     { key: "brandMembershipTypes", category: "brand-membership", label: "Brand Membership Types", panelId: "types-panel-brand-membership", fields: ["name"] },
+    { key: "locationTypes", category: "location", label: "Location Types", panelId: "types-panel-location", fields: ["name"] },
 ];
 
 const FIELD_LABELS = {
@@ -26,15 +27,16 @@ export function createTypesRenderer({ state, actions }) {
             .some((value) => String(value || "").toLowerCase().includes(needle));
     }
 
-    function buildTypeEditor(category, entry) {
+    function buildTypeEditor(config, entry) {
         const form = createNode("form", { className: "inline-form" });
 
-        ["name", "uri_handler", "left_label", "right_label", "emoji"].forEach((field) => {
+        config.fields.forEach((field) => {
             const input = createNode("input", {
                 value: entry[field] || "",
                 attrs: {
                     name: field,
                     placeholder: FIELD_LABELS[field],
+                    required: field === "name",
                 },
             });
             form.appendChild(input);
@@ -50,7 +52,7 @@ export function createTypesRenderer({ state, actions }) {
                     payload[key] = null;
                 }
             });
-            await actions.updateType(category, entry.id, payload);
+            await actions.updateType(config.category, entry.id, payload);
         });
 
         return form;
@@ -105,7 +107,7 @@ export function createTypesRenderer({ state, actions }) {
                     .filter(Boolean)
                     .join(" · ");
                 const actionsNode = createNode("div", { className: "list-actions" });
-                const editor = buildTypeEditor(config.category, entry);
+                const editor = buildTypeEditor(config, entry);
                 editor.style.display = "none";
 
                 actionsNode.appendChild(createButtonNode("Edit", "secondary-button", () => {

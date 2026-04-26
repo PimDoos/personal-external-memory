@@ -127,6 +127,9 @@ def create_app() -> FastAPI:
     app.include_router(associations_router, prefix="/api/associations", tags=["associations"])
     app.include_router(types_router, prefix="/api/types", tags=["types"])
 
+    from app.domains.locations.router import router as locations_router
+    app.include_router(locations_router, prefix="/api/locations", tags=["locations"])
+
     return app
 
 

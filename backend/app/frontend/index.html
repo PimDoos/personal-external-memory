@@ -26,6 +26,7 @@
                 <button class="nav-button" data-section="brands" data-label="Brands" type="button">Brands</button>
                 <button class="nav-button" data-section="events" data-label="Events" type="button">Events</button>
                 <button class="nav-button" data-section="tags" data-label="Tags" type="button">Tags</button>
+                <button class="nav-button" data-section="locations" data-label="Locations" type="button">Locations</button>
                 <button class="nav-button" data-section="types" data-label="Types" type="button">Types</button>
                 <button class="nav-button" data-section="topology" data-label="Topology" type="button">Topology</button>
                 <div class="user-chip">
@@ -170,7 +171,6 @@
                                 <label><span>Type</span><select name="event_type"></select></label>
                                 <label><span>Start</span><input name="start_time" type="datetime-local"></label>
                                 <label><span>End</span><input name="end_time" type="datetime-local"></label>
-                                <label><span>Location</span><input name="location"></label>
                                 <label><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
                                 <button class="primary-button" type="submit">Create event</button>
                             </form>
@@ -199,6 +199,26 @@
                     </div>
                 </section>
 
+                <section class="view-section" id="section-locations">
+                    <div class="workspace-grid">
+                        <article class="panel">
+                            <div class="panel-heading"><h2>Locations</h2><button class="primary-button" data-new-section="locations" type="button">New</button></div>
+                            <label class="search-field compact-search"><span>Filter</span><input id="filter-locations" data-filter-section="locations" type="search" placeholder="Filter locations"></label>
+                            <div class="list" id="locations-list"></div>
+                        </article>
+                        <article class="panel detail-panel hidden" id="location-detail-panel">
+                            <div class="panel-heading"><h2>Location Detail</h2></div>
+                            <form id="location-form" class="form-grid stack compact-form hidden">
+                                <label><span>Address or Coordinates</span><input name="location" required></label>
+                                <label><span>Type</span><select name="location_type"></select></label>
+                                <label><span>Optional label</span><input name="label" placeholder="Optional label"></label>
+                                <button class="primary-button" type="submit">Add location</button>
+                            </form>
+                            <div id="location-detail" class="empty-state hidden">Select a location to view details.</div>
+                        </article>
+                    </div>
+                </section>
+
                 <section class="view-section" id="section-types">
                     <div class="types-header">
                         <h2>Type Management</h2>
@@ -211,6 +231,7 @@
                         <article class="panel" id="types-panel-event"></article>
                         <article class="panel" id="types-panel-event-participant-role"></article>
                         <article class="panel" id="types-panel-brand-membership"></article>
+                        <article class="panel" id="types-panel-location"></article>
                     </div>
                 </section>
 

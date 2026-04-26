@@ -6,6 +6,14 @@ import { getAvatarInitials } from "../avatar.js";
 export function createPeopleRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedPerson, createListItem, renderSimpleList } = common;
 
+    function displayEventLabel(event) {
+        return event.title || `Event #${event.id}`;
+    }
+
+    function displayLocationLabel(location) {
+        return location.label || location.location || "(unnamed location)";
+    }
+
     function comparePeopleByFirstName(left, right) {
         const firstNameDelta = String(left.first_name || "").localeCompare(String(right.first_name || ""), undefined, { sensitivity: "base" });
         if (firstNameDelta !== 0) {
@@ -15,7 +23,8 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
     }
 
     function getEventStartTimestamp(event) {
-        return new Date(event.start_time || event.date || 0).getTime();
+        const timestamp = new Date(event.start_time || event.date || 0).getTime();
+        return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
     }
 
     function bindEntityNavigation(item, section, entityId, onPrimaryOpen) {
@@ -64,7 +73,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         const contactTypeOptions = state.data.typeLists.contactInfoTypes || [];
         const typeSelect = createSelectNode(
             contactTypeOptions.length
-                ? contactTypeOptions.map((entry) => ({ value: entry.name, label: entry.name }))
+                ? contactTypeOptions.map((entry) => ({ value: entry.name, label: entry.display_name || entry.name }))
                 : [{ value: "", label: "No contact types" }],
             contactTypeOptions[0]?.name || "",
             { name: "contact_type", required: true, disabled: !contactTypeOptions.length }
@@ -81,6 +90,124 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             payload.person_id = personId;
             await actions.addContact(payload);
             form.reset();
+        });
+
+        return form;
+    }
+
+    function buildEditContactForm(contact) {
+        const form = createNode("form", { className: "inline-form" });
+        const contactTypeOptions = state.data.typeLists.contactInfoTypes || [];
+        const typeSelect = createSelectNode(
+            contactTypeOptions.length
+                ? contactTypeOptions.map((entry) => ({ value: entry.name, label: entry.display_name || entry.name }))
+                : [{ value: "", label: "No contact types" }],
+            contact.contact_type || "",
+            { name: "contact_type", required: true, disabled: !contactTypeOptions.length }
+        );
+        const valueInput = createNode("input", {
+            value: contact.value || "",
+            attrs: { name: "value", required: true, placeholder: "Value" }
+        });
+
+        form.appendChild(typeSelect);
+        form.appendChild(valueInput);
+        form.appendChild(createButtonNode("Save", "primary-button", null, { type: "submit" }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            await actions.updateContact(contact.id, payload);
+        });
+
+        return form;
+    }
+
+    function getLocationTypeOptions(currentValue = "") {
+        const entries = state.data.typeLists.locationTypes || [];
+        const options = entries.map((entry) => ({ value: entry.name, label: entry.name }));
+        if (currentValue && !options.some((option) => option.value === currentValue)) {
+            options.unshift({ value: currentValue, label: currentValue });
+        }
+        if (!options.length) {
+            options.push({ value: "", label: "No location types" });
+        }
+        return options;
+    }
+
+    function buildCreateLocationForm(personId) {
+        const form = createNode("form", { className: "stack compact-form" });
+        const labelInput = createNode("input", {
+            attrs: { name: "label", placeholder: "Optional label" },
+        });
+        const typeInput = createSelectNode(
+            getLocationTypeOptions(),
+            getLocationTypeOptions()[0]?.value || "",
+            {
+                name: "location_type",
+                required: true,
+                disabled: !(state.data.typeLists.locationTypes || []).length,
+            }
+        );
+        const locationInput = createNode("input", {
+            attrs: { name: "location", required: true, placeholder: "Full address or coordinates" },
+        });
+
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Location" }), locationInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Type" }), typeInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Optional label" }), labelInput] }));
+        form.appendChild(createButtonNode("Add location", "primary-button", null, { type: "submit" }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            if (payload.label === "") {
+                payload.label = null;
+            }
+            if (payload.location_type === "") {
+                payload.location_type = null;
+            }
+            await actions.createLocationForPerson(personId, payload);
+            form.reset();
+            typeInput.value = getLocationTypeOptions()[0]?.value || "";
+        });
+
+        return form;
+    }
+
+    function buildAssociateLocationForm(personId, assignedLocations) {
+        const availableLocations = state.data.locations.filter(
+            (location) => !assignedLocations.some((assigned) => assigned.id === location.id)
+        );
+        const form = createNode("form", { className: "inline-form" });
+        const locationOptions = availableLocations.length
+            ? availableLocations.map((location) => ({
+                value: location.id,
+                label: location.location_type
+                    ? `${displayLocationLabel(location)} (${location.location_type})`
+                    : displayLocationLabel(location),
+            }))
+            : [{ value: "", label: "No available locations" }];
+
+        const locationSelect = createCombobox(locationOptions, "", {
+            name: "location_id",
+            placeholder: availableLocations.length ? "Search locations…" : "No available locations",
+            disabled: !availableLocations.length,
+        });
+
+        form.appendChild(locationSelect);
+        form.appendChild(createButtonNode("Assign", "primary-button", null, {
+            type: "submit",
+            disabled: !availableLocations.length,
+        }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            if (!payload.location_id) {
+                return;
+            }
+            await actions.associateLocationToPerson(Number(payload.location_id), personId);
         });
 
         return form;
@@ -298,6 +425,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         container.className = "detail-grid";
 
         const contacts = caches.personContacts.get(person.id) || [];
+        const locations = caches.personLocations.get(person.id) || [];
         const tags = caches.personTags.get(person.id) || [];
         const relationships = caches.personRelationships.get(person.id) || [];
         const associations = caches.personAssociations.get(person.id) || {
@@ -341,21 +469,88 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             (contact) => {
                 const actionsNode = createNode("div", { className: "list-actions" });
                 const typeEntry = findTypeByName(state.data.typeLists.contactInfoTypes || [], contact.contact_type);
+                const displayTypeName = typeEntry?.display_name || contact.contact_type;
                 const href = buildUriLink(typeEntry, contact.value);
                 if (href) {
                     actionsNode.appendChild(createButtonNode("Open", "secondary-button", () => {
                         window.open(href, "_blank", "noopener,noreferrer");
                     }));
                 }
-                actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
+
+                const editForm = buildEditContactForm(contact);
+                const editButton = createButtonNode("Edit", "secondary-button", () => {
+                    const editContainer = document.getElementById(`contact-edit-${contact.id}`);
+                    if (!editContainer) return;
+                    editContainer.classList.remove("hidden");
+                    editButton.style.display = "none";
+                    removeButton.style.display = "none";
+                });
+                const cancelButton = createButtonNode("Cancel", "secondary-button", () => {
+                    const editContainer = document.getElementById(`contact-edit-${contact.id}`);
+                    if (!editContainer) return;
+                    editContainer.classList.add("hidden");
+                    editButton.style.display = "";
+                    removeButton.style.display = "";
+                });
+                editForm.style.display = "none";
+
+                actionsNode.appendChild(editButton);
+
+                const removeButton = createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeContact(contact.id, person.id);
-                }));
-                return createListItem(contact.contact_type, contact.value, actionsNode);
+                });
+                actionsNode.appendChild(removeButton);
+
+                const item = createListItem(displayTypeName, contact.value, actionsNode);
+
+                const editContainer = createNode("div", { attrs: { id: `contact-edit-${contact.id}` }, className: "hidden" });
+                editContainer.appendChild(editForm);
+                editContainer.appendChild(cancelButton);
+                item.appendChild(editContainer);
+
+                return item;
             },
             "No contact info yet."
         );
         contactsSection.appendChild(contactsList);
         container.appendChild(contactsSection);
+
+        const locationsSection = createNode("section", { className: "subpanel" });
+        const createLocationUi = wrapCollapsible("+ Add", buildCreateLocationForm(person.id));
+        const associateLocationUi = wrapCollapsible("+ Assign", buildAssociateLocationForm(person.id, locations));
+        locationsSection.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [
+                createNode("h3", { text: "Locations" }),
+                createNode("div", {
+                    className: "list-actions",
+                    children: [createLocationUi.trigger, associateLocationUi.trigger],
+                }),
+            ],
+        }));
+        locationsSection.appendChild(createLocationUi.wrapper);
+        locationsSection.appendChild(associateLocationUi.wrapper);
+
+        const locationsList = createNode("div", { className: "list" });
+        renderSimpleList(
+            locationsList,
+            locations,
+            (location) => {
+                const subtitleParts = [location.location_type || "", location.location || ""].filter(Boolean);
+                const actionsNode = createNode("div", { className: "list-actions" });
+                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
+                    state.activeSection = "locations";
+                    await actions.selectLocation(location.id);
+                }));
+                actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
+                    await actions.removeLocationFromPerson(location.id, person.id);
+                }));
+                return createListItem(displayLocationLabel(location), subtitleParts.join(" · "), actionsNode);
+            },
+            "No locations yet."
+        );
+        locationsSection.appendChild(locationsList);
+        container.appendChild(locationsSection);
 
         const tagsSection = createNode("section", { className: "subpanel" });
         const { wrapper: tagFormWrapper, trigger: tagFormTrigger } = wrapCollapsible("+ Assign", buildTagsAssignmentForm(person.id, tags));
@@ -491,7 +686,9 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             eventsNode,
             associatedEvents,
             (event) => {
-                const item = createListItem(event.title || event.location || "Event", "Event");
+                const eventStart = event.start_time || event.date;
+                const subtitle = eventStart ? `Event · ${formatDate(eventStart)}` : "Event";
+                const item = createListItem(displayEventLabel(event), subtitle);
                 bindEntityNavigation(item, "events", event.id, async () => {
                     state.activeSection = "events";
                     await actions.selectEvent(event.id);
@@ -504,7 +701,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         const availableEvents = state.data.events.filter((event) => !associations.eventIds.includes(event.id));
         const eventForm = createNode("form", { className: "inline-form" });
         const eventOptions = availableEvents.length
-            ? availableEvents.map((event) => ({ value: event.id, label: event.title || event.location || `Event #${event.id}` }))
+            ? availableEvents.map((event) => ({ value: event.id, label: displayEventLabel(event) }))
             : [{ value: "", label: "No available events" }];
         eventForm.appendChild(createSelectNode(eventOptions, "", { name: "event_id", disabled: availableEvents.length ? undefined : true }));
         const eventParticipantRoleOptions = [{ value: "", label: "No role" }]
@@ -528,19 +725,63 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             brandsNode,
             associatedBrands,
             (brand) => {
-                const item = createListItem(brand.name, "Brand");
+                const isExplicit = (associations.explicitBrandIds || []).includes(brand.id);
+                const actionsNode = isExplicit ? createNode("div", { className: "list-actions" }) : null;
+                if (actionsNode) {
+                    actionsNode.addEventListener("mousedown", (eventObj) => {
+                        eventObj.stopPropagation();
+                    });
+                    actionsNode.addEventListener("click", (eventObj) => {
+                        eventObj.stopPropagation();
+                    });
+
+                    const members = caches.brandMembers.get(brand.id) || [];
+                    const memberEntry = members.find((entry) => (entry.person_id || entry) === person.id);
+                    const currentType = memberEntry?.type || "";
+                    const typeOptions = [{ value: "", label: "(no type)" }]
+                        .concat((state.data.typeLists.brandMembershipTypes || []).map((entry) => ({ value: entry.name, label: entry.name })));
+                    const typeSelect = createSelectNode(typeOptions, currentType, { name: "type" });
+                    typeSelect.style.display = "none";
+
+                    const saveButton = createButtonNode("Save", "secondary-button", async () => {
+                        await actions.changeBrandMemberType(brand.id, person.id, typeSelect.value || null);
+                        typeSelect.style.display = "none";
+                        saveButton.style.display = "none";
+                        cancelButton.style.display = "none";
+                        editButton.style.display = "";
+                    });
+                    saveButton.style.display = "none";
+
+                    const cancelButton = createButtonNode("Cancel", "secondary-button", () => {
+                        typeSelect.value = currentType;
+                        typeSelect.style.display = "none";
+                        saveButton.style.display = "none";
+                        cancelButton.style.display = "none";
+                        editButton.style.display = "";
+                    });
+                    cancelButton.style.display = "none";
+
+                    const editButton = createButtonNode("Edit", "secondary-button", () => {
+                        typeSelect.style.display = "";
+                        saveButton.style.display = "";
+                        cancelButton.style.display = "";
+                        editButton.style.display = "none";
+                    });
+
+                    actionsNode.appendChild(editButton);
+                    actionsNode.appendChild(typeSelect);
+                    actionsNode.appendChild(saveButton);
+                    actionsNode.appendChild(cancelButton);
+                    actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
+                        await actions.removeBrandMember(brand.id, person.id);
+                    }));
+                }
+
+                const item = createListItem(brand.name, "Brand", actionsNode);
                 bindEntityNavigation(item, "brands", brand.id, async () => {
                     state.activeSection = "brands";
                     await actions.selectBrand(brand.id);
                 });
-                // Add remove button only for explicitly associated brands
-                if ((associations.explicitBrandIds || []).includes(brand.id)) {
-                    const removeBtn = createButtonNode("Remove", "compact-button", async (e) => {
-                        e.stopPropagation();
-                        await actions.removeBrandMember(brand.id, person.id);
-                    });
-                    item.appendChild(removeBtn);
-                }
                 return item;
             },
             "No associated brands yet."

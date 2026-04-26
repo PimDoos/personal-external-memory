@@ -30,6 +30,7 @@ class User(Base):
     )
     brands = relationship("Brand", back_populates="user", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="user", cascade="all, delete-orphan")
+    locations = relationship("Location", back_populates="user", cascade="all, delete-orphan")
 
 
 # ===== Person =====
@@ -242,7 +243,6 @@ class Event(Base):
     date = Column(DateTime, nullable=False)
     start_time = Column(DateTime, nullable=True)
     end_time = Column(DateTime, nullable=True)
-    location = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
@@ -265,6 +265,38 @@ class EventParticipant(Base):
     event_id = Column(Integer, ForeignKey("events.id"), primary_key=True)
     person_id = Column(Integer, ForeignKey("people.id"), primary_key=True)
     role = Column(String(100), nullable=True)  # host, guest, organizer, etc.
+
+
+# ===== Location =====
+class Location(Base):
+    """Location entity that can be associated with people, brands, circles, or events."""
+
+    __tablename__ = "locations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    location_type = Column(String(100), nullable=True)  # Home, Office, Other, etc.
+    label = Column(String(255), nullable=True)
+    location = Column(String(500), nullable=False)  # Address or coordinates
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="locations")
+
+
+# ===== LocationAssociation (association) =====
+class LocationAssociation(Base):
+    """Association between Location and any entity (person, brand, social_circle, event)."""
+
+    __tablename__ = "location_associations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=False, index=True)
+    entity_type = Column(String(50), nullable=False)  # person, brand, social_circle, event
+    entity_id = Column(Integer, nullable=False, index=True)
 
 
 # ===== Resource =====

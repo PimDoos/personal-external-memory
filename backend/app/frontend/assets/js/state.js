@@ -9,6 +9,7 @@ export const state = {
         brands: "",
         events: "",
         tags: "",
+        locations: "",
         types: "",
     },
     selected: {
@@ -17,6 +18,7 @@ export const state = {
         brandId: null,
         eventId: null,
         tagId: null,
+        locationId: null,
     },
     topologyFilters: {
         relationshipType: "",
@@ -34,6 +36,7 @@ export const state = {
         brands: "hidden",
         events: "hidden",
         tags: "hidden",
+        locations: "hidden",
     },
     data: {
         people: [],
@@ -41,6 +44,7 @@ export const state = {
         brands: [],
         events: [],
         tags: [],
+        locations: [],
         typeLists: {
             contactInfoTypes: [],
             relationshipTypes: [],
@@ -48,6 +52,7 @@ export const state = {
             eventTypes: [],
             eventParticipantRoleTypes: [],
             brandMembershipTypes: [],
+            locationTypes: [],
         },
     },
 };
@@ -74,6 +79,7 @@ export function clearSession() {
     state.selected.brandId = null;
     state.selected.eventId = null;
     state.selected.tagId = null;
+    state.selected.locationId = null;
     Object.keys(state.sidebar).forEach((section) => {
         state.sidebar[section] = "hidden";
     });

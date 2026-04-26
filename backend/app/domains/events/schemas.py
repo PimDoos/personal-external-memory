@@ -14,7 +14,6 @@ class EventCreateRequest(BaseModel):
     date: datetime
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
-    location: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -26,7 +25,6 @@ class EventUpdateRequest(BaseModel):
     date: Optional[datetime] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
-    location: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -39,7 +37,6 @@ class EventResponse(BaseModel):
     date: datetime
     start_time: Optional[datetime]
     end_time: Optional[datetime]
-    location: Optional[str]
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime

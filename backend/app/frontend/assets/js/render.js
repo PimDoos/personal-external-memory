@@ -5,6 +5,7 @@ import { createCirclesRenderer } from "./renderers/circlesRenderer.js";
 import { createBrandsRenderer } from "./renderers/brandsRenderer.js";
 import { createEventsRenderer } from "./renderers/eventsRenderer.js";
 import { createTagsRenderer } from "./renderers/tagsRenderer.js";
+import { createLocationsRenderer } from "./renderers/locationsRenderer.js";
 import { createTypesRenderer } from "./renderers/typesRenderer.js";
 import { createTopologyRenderer } from "./renderers/topologyRenderer.js";
 
@@ -24,6 +25,7 @@ export function createRenderer(ctx) {
     const { renderBrands } = createBrandsRenderer({ state, caches, actions, common });
     const { renderEvents } = createEventsRenderer({ state, caches, actions, common });
     const { renderTags } = createTagsRenderer({ state, actions, common });
+    const { renderLocations } = createLocationsRenderer({ state, caches, actions, common });
     const { renderTypes } = createTypesRenderer({ state, actions });
     const { renderTopology } = createTopologyRenderer({ state, caches, actions });
 
@@ -39,6 +41,7 @@ export function createRenderer(ctx) {
         renderBrands();
         renderEvents();
         renderTags();
+        renderLocations();
         renderTypes();
         renderTopology();
     }

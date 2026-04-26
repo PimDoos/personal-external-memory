@@ -49,6 +49,7 @@ export function createRenderCommon({ state, refs, caches }) {
             brands: state.data.brands.length,
             events: state.data.events.length,
             tags: state.data.tags.length,
+            locations: state.data.locations.length,
             types: Object.values(state.data.typeLists || {}).reduce((total, items) => total + items.length, 0),
         };
 

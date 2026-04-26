@@ -122,6 +122,7 @@ export const api = {
     contactInfo: {
         listForPerson: (personId) => request(`/api/contact-info/people/${personId}`),
         create: (data) => request("/api/contact-info", { method: "POST", ...jsonBody(data) }),
+        update: (id, data) => request(`/api/contact-info/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (id) => request(`/api/contact-info/${id}`, { method: "DELETE" }),
     },
     tags: {
@@ -168,6 +169,16 @@ export const api = {
         addParticipant: (data) => request("/api/associations/event-participants", { method: "POST", ...jsonBody(data) }),
         updateParticipantRole: (eventId, personId, role) => request(`/api/associations/event-participants/${eventId}/${personId}/role?role=${encodeURIComponent(role)}`, { method: "PUT" }),
         removeParticipant: (eventId, personId) => request(`/api/associations/event-participants/${eventId}/${personId}`, { method: "DELETE" }),
+    },
+    locations: {
+        list: () => request("/api/locations"),
+        listForEntity: (entityType, entityId) => request(`/api/locations/entity/${entityType}/${entityId}`),
+        associations: (locationId) => request(`/api/locations/${locationId}/associations`),
+        create: (data) => request("/api/locations", { method: "POST", ...jsonBody(data) }),
+        update: (id, data) => request(`/api/locations/${id}`, { method: "PUT", ...jsonBody(data) }),
+        remove: (id) => request(`/api/locations/${id}`, { method: "DELETE" }),
+        associate: (locationId, entityType, entityId) => request(`/api/locations/${locationId}/associate/${entityType}/${entityId}`, { method: "POST" }),
+        removeAssociation: (locationId, entityType, entityId) => request(`/api/locations/${locationId}/associate/${entityType}/${entityId}`, { method: "DELETE" }),
     },
     types: {
         list: (category) => request(`/api/types/${category}`),

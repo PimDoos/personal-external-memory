@@ -24,7 +24,6 @@ class EventService:
             date=data.date,
             start_time=data.start_time,
             end_time=data.end_time,
-            location=data.location,
             notes=data.notes,
         )
         self.session.add(event)

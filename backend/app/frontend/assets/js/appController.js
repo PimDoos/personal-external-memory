@@ -7,13 +7,14 @@ import { toIsoDateTime } from "./ui.js";
 export function createAppController() {
     const TOKEN_REFRESH_EARLY_MS = 60 * 1000;
     const TOKEN_REFRESH_FALLBACK_MS = 5 * 60 * 1000;
-    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "types", "topology"]);
+    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "locations", "types", "topology"]);
     const ENTITY_KEY_BY_SECTION = {
         people: "personId",
         circles: "circleId",
         brands: "brandId",
         events: "eventId",
         tags: "tagId",
+        locations: "locationId",
     };
 
     const refs = {
@@ -29,6 +30,11 @@ export function createAppController() {
 
     const caches = {
         personContacts: new Map(),
+        personLocations: new Map(),
+        circleLocations: new Map(),
+        brandLocations: new Map(),
+        eventLocations: new Map(),
+        locationAssociations: new Map(),
         personTags: new Map(),
         peopleTagSummaries: new Map(),
         personRelationships: new Map(),
@@ -78,6 +84,11 @@ export function createAppController() {
 
     function clearAllCaches() {
         caches.personContacts.clear();
+        caches.personLocations.clear();
+        caches.circleLocations.clear();
+        caches.brandLocations.clear();
+        caches.eventLocations.clear();
+        caches.locationAssociations.clear();
         caches.personTags.clear();
         caches.peopleTagSummaries.clear();
         caches.personRelationships.clear();
@@ -137,6 +148,7 @@ export function createAppController() {
         state.selected.brandId = null;
         state.selected.eventId = null;
         state.selected.tagId = null;
+        state.selected.locationId = null;
         Object.keys(state.sidebar).forEach((section) => {
             state.sidebar[section] = "hidden";
         });
@@ -221,6 +233,8 @@ export function createAppController() {
                 return state.data.events.some((entry) => entry.id === state.selected.eventId);
             case "tags":
                 return state.data.tags.some((entry) => entry.id === state.selected.tagId);
+            case "locations":
+                return state.data.locations.some((entry) => entry.id === state.selected.locationId);
             default:
                 return true;
         }
@@ -276,6 +290,9 @@ export function createAppController() {
                 break;
             case "tags":
                 state.selected.tagId = null;
+                break;
+            case "locations":
+                state.selected.locationId = null;
                 break;
             default:
                 break;
@@ -341,13 +358,25 @@ export function createAppController() {
             await loadPersonCaches(state.selected.personId);
         }
         if (state.selected.circleId) {
-            await loadCircleMembers(state.selected.circleId);
+            await Promise.all([
+                loadCircleMembers(state.selected.circleId),
+                loadCircleLocations(state.selected.circleId),
+            ]);
         }
         if (state.selected.brandId) {
-            await loadBrandMembers(state.selected.brandId);
+            await Promise.all([
+                loadBrandMembers(state.selected.brandId),
+                loadBrandLocations(state.selected.brandId),
+            ]);
         }
         if (state.selected.eventId) {
-            await loadEventParticipants(state.selected.eventId);
+            await Promise.all([
+                loadEventParticipants(state.selected.eventId),
+                loadEventLocations(state.selected.eventId),
+            ]);
+        }
+        if (state.selected.locationId) {
+            await loadLocationAssociations(state.selected.locationId);
         }
     }
 
@@ -361,18 +390,20 @@ export function createAppController() {
     }
 
     async function refreshBaseData() {
-        const [people, circles, brands, events, tags, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, eventParticipantRoleTypes, brandMembershipTypes] = await Promise.all([
+        const [people, circles, brands, events, tags, locations, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, eventParticipantRoleTypes, brandMembershipTypes, locationTypes] = await Promise.all([
             api.people.list(),
             api.circles.list(),
             api.brands.list(),
             api.events.list(),
             api.tags.list(),
+            api.locations.list(),
             api.types.list("contact-info"),
             api.types.list("relationship"),
             api.types.list("social-circle"),
             api.types.list("event"),
             api.types.list("event-participant-role"),
             api.types.list("brand-membership"),
+            api.types.list("location"),
         ]);
 
         state.data.people = people;
@@ -380,6 +411,7 @@ export function createAppController() {
         state.data.brands = brands;
         state.data.events = events;
         state.data.tags = tags;
+        state.data.locations = locations;
         state.data.typeLists = {
             contactInfoTypes,
             relationshipTypes,
@@ -387,17 +419,19 @@ export function createAppController() {
             eventTypes,
             eventParticipantRoleTypes,
             brandMembershipTypes,
+            locationTypes,
         };
 
         await refreshTopologyData();
     }
 
     async function refreshTopologyData() {
-        const [relationships, circleMembersLists, brandMembersLists, eventParticipantsLists] = await Promise.all([
+        const [relationships, circleMembersLists, brandMembersLists, eventParticipantsLists, eventLocationLists] = await Promise.all([
             api.relationships.list(),
             Promise.all(state.data.circles.map((circle) => api.circles.members(circle.id))),
             Promise.all(state.data.brands.map((brand) => api.brands.members(brand.id))),
             Promise.all(state.data.events.map((event) => api.events.participants(event.id))),
+            Promise.all(state.data.events.map((event) => api.locations.listForEntity("event", event.id))),
         ]);
 
         const circleMembersByCircleId = new Map(
@@ -408,6 +442,9 @@ export function createAppController() {
         );
         const eventParticipantsByEventId = new Map(
             state.data.events.map((event, index) => [event.id, eventParticipantsLists[index] || []])
+        );
+        caches.eventLocations = new Map(
+            state.data.events.map((event, index) => [event.id, eventLocationLists[index] || []])
         );
 
         const personBrandAffiliations = new Map(
@@ -433,7 +470,13 @@ export function createAppController() {
             }
 
             state.data.events.forEach((event) => {
-                const matchesBrand = [event.title, event.location, event.notes]
+                const eventLocations = caches.eventLocations.get(event.id) || [];
+                const matchesBrand = [
+                    event.title,
+                    event.notes,
+                    ...eventLocations.map((location) => location.label),
+                    ...eventLocations.map((location) => location.location),
+                ]
                     .some((value) => String(value || "").toLowerCase().includes(needle));
                 if (!matchesBrand) {
                     return;
@@ -527,13 +570,15 @@ export function createAppController() {
     }
 
     async function loadPersonCaches(personId) {
-        const [contacts, tags, relationships] = await Promise.all([
+        const [contacts, locations, tags, relationships] = await Promise.all([
             api.contactInfo.listForPerson(personId),
+            api.locations.listForEntity("person", personId),
             api.tags.listForPerson(personId),
             api.relationships.listForPerson(personId),
         ]);
 
         caches.personContacts.set(personId, contacts);
+        caches.personLocations.set(personId, locations);
         caches.personTags.set(personId, tags);
         caches.personRelationships.set(personId, relationships);
 
@@ -562,7 +607,9 @@ export function createAppController() {
             .filter((brand) => {
                 const needle = brand.name.toLowerCase();
                 return associatedEvents.some((event) => {
-                    return String(event.location || "").toLowerCase().includes(needle)
+                    const eventLocations = caches.eventLocations.get(event.id) || [];
+                    return eventLocations.some((location) => String(location.location || "").toLowerCase().includes(needle))
+                        || eventLocations.some((location) => String(location.label || "").toLowerCase().includes(needle))
                         || String(event.notes || "").toLowerCase().includes(needle)
                         || String(event.title || "").toLowerCase().includes(needle);
                 });
@@ -583,12 +630,28 @@ export function createAppController() {
         caches.circleMembers.set(circleId, await api.circles.members(circleId));
     }
 
+    async function loadCircleLocations(circleId) {
+        caches.circleLocations.set(circleId, await api.locations.listForEntity("social_circle", circleId));
+    }
+
     async function loadBrandMembers(brandId) {
         caches.brandMembers.set(brandId, await api.brands.members(brandId));
     }
 
+    async function loadBrandLocations(brandId) {
+        caches.brandLocations.set(brandId, await api.locations.listForEntity("brand", brandId));
+    }
+
     async function loadEventParticipants(eventId) {
         caches.eventParticipants.set(eventId, await api.events.participants(eventId));
+    }
+
+    async function loadEventLocations(eventId) {
+        caches.eventLocations.set(eventId, await api.locations.listForEntity("event", eventId));
+    }
+
+    async function loadLocationAssociations(locationId) {
+        caches.locationAssociations.set(locationId, await api.locations.associations(locationId));
     }
 
     async function bootstrapAuthenticated() {
@@ -600,13 +663,25 @@ export function createAppController() {
             await loadPersonCaches(state.selected.personId);
         }
         if (state.selected.circleId) {
-            await loadCircleMembers(state.selected.circleId);
+            await Promise.all([
+                loadCircleMembers(state.selected.circleId),
+                loadCircleLocations(state.selected.circleId),
+            ]);
         }
         if (state.selected.brandId) {
-            await loadBrandMembers(state.selected.brandId);
+            await Promise.all([
+                loadBrandMembers(state.selected.brandId),
+                loadBrandLocations(state.selected.brandId),
+            ]);
         }
         if (state.selected.eventId) {
-            await loadEventParticipants(state.selected.eventId);
+            await Promise.all([
+                loadEventParticipants(state.selected.eventId),
+                loadEventLocations(state.selected.eventId),
+            ]);
+        }
+        if (state.selected.locationId) {
+            await loadLocationAssociations(state.selected.locationId);
         }
 
         renderer.renderAll();
@@ -791,7 +866,7 @@ export function createAppController() {
             event.preventDefault();
             const formNode = event.currentTarget;
             await withAction(async () => {
-                const payload = optionalFields(createFormDataObject(formNode), ["title", "event_type", "start_time", "end_time", "location", "notes"]);
+                const payload = optionalFields(createFormDataObject(formNode), ["title", "event_type", "start_time", "end_time", "notes"]);
                 if (payload.start_time) {
                     payload.start_time = toIsoDateTime(payload.start_time);
                 }
@@ -810,7 +885,6 @@ export function createAppController() {
                         && entry.date === payload.date
                         && (entry.start_time || null) === (payload.start_time || null)
                         && (entry.end_time || null) === (payload.end_time || null)
-                        && (entry.location || "") === (payload.location || "")
                         && (entry.notes || "") === (payload.notes || ""),
                 });
                 formNode.reset();
@@ -856,6 +930,32 @@ export function createAppController() {
             await api.contactInfo.create(payload);
             await loadPersonCaches(payload.person_id);
             showToast("Contact info added.");
+        }),
+        updateContact: async (contactId, payload) => withAction(async () => {
+            await api.contactInfo.update(contactId, payload);
+            const allContacts = Array.from(state.caches.personContacts.values()).flat();
+            const contact = allContacts.find(c => c.id === contactId);
+            if (contact) {
+                await loadPersonCaches(contact.person_id);
+                showToast("Contact info updated.");
+            }
+        }),
+        createLocationForPerson: async (personId, payload) => withAction(async () => {
+            const location = await api.locations.create(payload);
+            await api.locations.associate(location.id, "person", personId);
+            await refreshBaseData();
+            await loadPersonCaches(personId);
+            showToast("Location added.");
+        }),
+        associateLocationToPerson: async (locationId, personId) => withAction(async () => {
+            await api.locations.associate(locationId, "person", personId);
+            await loadPersonCaches(personId);
+            showToast("Location assigned.");
+        }),
+        removeLocationFromPerson: async (locationId, personId) => withAction(async () => {
+            await api.locations.removeAssociation(locationId, "person", personId);
+            await loadPersonCaches(personId);
+            showToast("Location removed.");
         }),
         removeContact: async (contactId, personId) => withAction(async () => {
             await api.contactInfo.remove(contactId);
@@ -907,7 +1007,27 @@ export function createAppController() {
         selectCircle: async (circleId) => withAction(async () => {
             state.selected.circleId = circleId;
             state.sidebar.circles = "detail";
-            await loadCircleMembers(circleId);
+            await Promise.all([
+                loadCircleMembers(circleId),
+                loadCircleLocations(circleId),
+            ]);
+        }),
+        createLocationForCircle: async (circleId, payload) => withAction(async () => {
+            const location = await api.locations.create(payload);
+            await api.locations.associate(location.id, "social_circle", circleId);
+            await refreshBaseData();
+            await loadCircleLocations(circleId);
+            showToast("Location added.");
+        }),
+        associateLocationToCircle: async (locationId, circleId) => withAction(async () => {
+            await api.locations.associate(locationId, "social_circle", circleId);
+            await loadCircleLocations(circleId);
+            showToast("Location assigned.");
+        }),
+        removeLocationFromCircle: async (locationId, circleId) => withAction(async () => {
+            await api.locations.removeAssociation(locationId, "social_circle", circleId);
+            await loadCircleLocations(circleId);
+            showToast("Location removed.");
         }),
         deleteCircle: async (circleId) => withAction(async () => {
             await api.circles.remove(circleId);
@@ -939,7 +1059,10 @@ export function createAppController() {
             await api.circles.update(circleId, payload);
             await refreshBaseData();
             await loadPeopleTagSummaries();
-            await loadCircleMembers(circleId);
+            await Promise.all([
+                loadCircleMembers(circleId),
+                loadCircleLocations(circleId),
+            ]);
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
@@ -948,12 +1071,33 @@ export function createAppController() {
         selectBrand: async (brandId) => withAction(async () => {
             state.selected.brandId = brandId;
             state.sidebar.brands = "detail";
-            await loadBrandMembers(brandId);
+            await Promise.all([
+                loadBrandMembers(brandId),
+                loadBrandLocations(brandId),
+            ]);
+        }),
+        createLocationForBrand: async (brandId, payload) => withAction(async () => {
+            const location = await api.locations.create(payload);
+            await api.locations.associate(location.id, "brand", brandId);
+            await refreshBaseData();
+            await loadBrandLocations(brandId);
+            showToast("Location added.");
+        }),
+        associateLocationToBrand: async (locationId, brandId) => withAction(async () => {
+            await api.locations.associate(locationId, "brand", brandId);
+            await loadBrandLocations(brandId);
+            showToast("Location assigned.");
+        }),
+        removeLocationFromBrand: async (locationId, brandId) => withAction(async () => {
+            await api.locations.removeAssociation(locationId, "brand", brandId);
+            await loadBrandLocations(brandId);
+            showToast("Location removed.");
         }),
         updateBrand: async (brandId, payload) => withAction(async () => {
             await api.brands.update(brandId, payload);
             await refreshBaseData();
             await loadPeopleTagSummaries();
+            await loadBrandLocations(brandId);
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
@@ -993,7 +1137,27 @@ export function createAppController() {
         selectEvent: async (eventId) => withAction(async () => {
             state.selected.eventId = eventId;
             state.sidebar.events = "detail";
-            await loadEventParticipants(eventId);
+            await Promise.all([
+                loadEventParticipants(eventId),
+                loadEventLocations(eventId),
+            ]);
+        }),
+        createLocationForEvent: async (eventId, payload) => withAction(async () => {
+            const location = await api.locations.create(payload);
+            await api.locations.associate(location.id, "event", eventId);
+            await refreshBaseData();
+            await loadEventLocations(eventId);
+            showToast("Location added.");
+        }),
+        associateLocationToEvent: async (locationId, eventId) => withAction(async () => {
+            await api.locations.associate(locationId, "event", eventId);
+            await loadEventLocations(eventId);
+            showToast("Location assigned.");
+        }),
+        removeLocationFromEvent: async (locationId, eventId) => withAction(async () => {
+            await api.locations.removeAssociation(locationId, "event", eventId);
+            await loadEventLocations(eventId);
+            showToast("Location removed.");
         }),
         deleteEvent: async (eventId) => withAction(async () => {
             await api.events.remove(eventId);
@@ -1030,7 +1194,10 @@ export function createAppController() {
             await api.events.update(eventId, payload);
             await refreshBaseData();
             await loadPeopleTagSummaries();
-            await loadEventParticipants(eventId);
+            await Promise.all([
+                loadEventParticipants(eventId),
+                loadEventLocations(eventId),
+            ]);
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
@@ -1039,6 +1206,38 @@ export function createAppController() {
         selectTag: async (tagId) => withAction(async () => {
             state.selected.tagId = tagId;
             state.sidebar.tags = "detail";
+        }),
+        selectLocation: async (locationId) => withAction(async () => {
+            state.selected.locationId = locationId;
+            state.sidebar.locations = "detail";
+            await loadLocationAssociations(locationId);
+        }),
+        createLocation: async (payload) => withAction(async () => {
+            const created = await createAndSelect({
+                section: "locations",
+                selectedKey: "locationId",
+                collectionKey: "locations",
+                createRequest: (data) => api.locations.create(data),
+                payload,
+                matcher: (location) => (location.label || null) === (payload.label || null) && location.location === payload.location,
+            });
+            showToast("Location added.");
+            return created;
+        }),
+        updateLocation: async (locationId, payload) => withAction(async () => {
+            await api.locations.update(locationId, payload);
+            await refreshBaseData();
+            await refreshSelectedEntityCaches();
+            showToast("Location updated.");
+        }),
+        deleteLocation: async (locationId) => withAction(async () => {
+            await api.locations.remove(locationId);
+            if (state.selected.locationId === locationId) {
+                resetSidebar("locations");
+            }
+            await refreshBaseData();
+            await refreshSelectedEntityCaches();
+            showToast("Location removed.");
         }),
         updateTag: async (tagId, payload) => withAction(async () => {
             await api.tags.update(tagId, payload);

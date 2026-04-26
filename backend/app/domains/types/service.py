@@ -14,6 +14,7 @@ VALID_CATEGORIES = {
     "event",
     "event-participant-role",
     "brand-membership",
+    "location",
 }
 
 DEFAULT_TYPES = {
@@ -42,6 +43,11 @@ DEFAULT_TYPES = {
         {"name": "Employee"},
         {"name": "Owner"},
         {"name": "Customer"},
+    ],
+    "location": [
+        {"name": "Home"},
+        {"name": "Office"},
+        {"name": "Other"},
     ],
 }
 

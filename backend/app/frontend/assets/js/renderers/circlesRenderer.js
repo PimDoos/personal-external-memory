@@ -5,6 +5,22 @@ import { getAvatarInitials } from "../avatar.js";
 export function createCirclesRenderer({ state, caches, actions, common }) {
     const { filtered, selectedCircle, createListItem, renderSimpleList } = common;
 
+    function displayLocationLabel(location) {
+        return location.label || location.location || "(unnamed location)";
+    }
+
+    function getLocationTypeOptions(currentValue = "") {
+        const entries = state.data.typeLists.locationTypes || [];
+        const options = entries.map((entry) => ({ value: entry.name, label: entry.name }));
+        if (currentValue && !options.some((option) => option.value === currentValue)) {
+            options.unshift({ value: currentValue, label: currentValue });
+        }
+        if (!options.length) {
+            options.push({ value: "", label: "No location types" });
+        }
+        return options;
+    }
+
     function comparePeopleByFirstName(left, right) {
         const firstNameDelta = String(left.first_name || "").localeCompare(String(right.first_name || ""), undefined, { sensitivity: "base" });
         if (firstNameDelta !== 0) {
@@ -77,6 +93,112 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
         return form;
     }
 
+    function buildCreateLocationForm(circleId) {
+        const form = createNode("form", { className: "stack compact-form" });
+        const labelInput = createNode("input", {
+            attrs: { name: "label", placeholder: "Optional label" },
+        });
+        const typeInput = createSelectNode(
+            getLocationTypeOptions(),
+            getLocationTypeOptions()[0]?.value || "",
+            { name: "location_type", required: true, disabled: !(state.data.typeLists.locationTypes || []).length }
+        );
+        const locationInput = createNode("input", {
+            attrs: { name: "location", required: true, placeholder: "Full address or coordinates" },
+        });
+
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Location" }), locationInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Type" }), typeInput] }));
+        form.appendChild(createNode("label", { children: [createNode("span", { text: "Optional label" }), labelInput] }));
+        form.appendChild(createButtonNode("Add location", "primary-button", null, { type: "submit" }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            if (payload.label === "") {
+                payload.label = null;
+            }
+            if (payload.location_type === "") {
+                payload.location_type = null;
+            }
+            await actions.createLocationForCircle(circleId, payload);
+            form.reset();
+            typeInput.value = getLocationTypeOptions()[0]?.value || "";
+        });
+
+        return form;
+    }
+
+    function buildAssignLocationForm(circleId, assignedLocations) {
+        const availableLocations = state.data.locations.filter(
+            (location) => !assignedLocations.some((assigned) => assigned.id === location.id)
+        );
+        const options = availableLocations.length
+            ? availableLocations.map((location) => ({
+                value: location.id,
+                label: location.location_type
+                    ? `${displayLocationLabel(location)} (${location.location_type})`
+                    : displayLocationLabel(location),
+            }))
+            : [{ value: "", label: "No available locations" }];
+
+        const form = createNode("form", { className: "inline-form" });
+        form.appendChild(createCombobox(options, "", {
+            name: "location_id",
+            placeholder: availableLocations.length ? "Search locations…" : "No available locations",
+            disabled: !availableLocations.length,
+        }));
+        form.appendChild(createButtonNode("Assign", "primary-button", null, { type: "submit", disabled: !availableLocations.length }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            if (!payload.location_id) {
+                return;
+            }
+            await actions.associateLocationToCircle(Number(payload.location_id), circleId);
+        });
+
+        return form;
+    }
+
+    function buildCircleLocationsPanel(circle) {
+        const locations = caches.circleLocations.get(circle.id) || [];
+        const panel = createNode("section", { className: "subpanel" });
+        const addUi = wrapCollapsible("+ Add", buildCreateLocationForm(circle.id));
+        const assignUi = wrapCollapsible("+ Assign", buildAssignLocationForm(circle.id, locations));
+        panel.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [
+                createNode("h3", { text: "Locations" }),
+                createNode("div", { className: "list-actions", children: [addUi.trigger, assignUi.trigger] }),
+            ],
+        }));
+        panel.appendChild(addUi.wrapper);
+        panel.appendChild(assignUi.wrapper);
+
+        const list = createNode("div", { className: "list" });
+        renderSimpleList(
+            list,
+            locations,
+            (location) => {
+                const subtitle = [location.location_type || "", location.location || ""].filter(Boolean).join(" · ");
+                const actionsNode = createNode("div", { className: "list-actions" });
+                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
+                    state.activeSection = "locations";
+                    await actions.selectLocation(location.id);
+                }));
+                actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
+                    await actions.removeLocationFromCircle(location.id, circle.id);
+                }));
+                return createListItem(displayLocationLabel(location), subtitle, actionsNode);
+            },
+            "No locations yet."
+        );
+        panel.appendChild(list);
+        return panel;
+    }
+
     function renderCircleDetail() {
         const panel = document.getElementById("circle-detail-panel");
         const formNode = document.getElementById("circle-form");
@@ -141,6 +263,7 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                 buildCircleEditForm(circle),
             ],
         }));
+        container.appendChild(buildCircleLocationsPanel(circle));
 
         const section = createNode("section", { className: "subpanel" });
         const form = createNode("form", { className: "inline-form" });

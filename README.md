@@ -129,3 +129,23 @@ The native frontend is now implemented and served directly by FastAPI.
     - People
     - Brands
     - Social Circles
+
+- Add locations as separate entities that can be associated with people, brands, social circles or events
+    - Locations have a type, customizable, with these defaults:
+        - Home
+        - Office
+        - Other
+    - Locations have a label
+    - Locations have a location, which is a string containing either a full address or coordinates
+    - One location can be associated with multiple entities, like a person and an event (e.g. a birthday party at someone's house)
+
+- Add a map view to visualize entities on a map
+    - Display the associated entities at their associated location
+    - Filter by entity type (people, brands, social circles, events)
+    - If multiple entities are at the same location, they are displayed in a cluster, which can be clicked to show the individual entities
+
+- Add start and end date to relationships
+- Add point in time filter to topology view, to visualize the relationships at a specific point in time.
+    - People that were not alive at that time are not displayed
+    - Relationships that were not active at that time are not displayed
+    - Filter is optional. If not set, the topology view shows the current relationships.
