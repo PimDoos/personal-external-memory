@@ -39,3 +39,17 @@ class SocialCircleResponse(BaseModel):
         """Pydantic config."""
 
         from_attributes = True
+
+
+class SocialCircleListResponse(SocialCircleResponse):
+    """Social circle list payload with related summaries."""
+
+    member_ids: list[int] = []
+    event_ids: list[int] = []
+    location_ids: list[int] = []
+
+
+class SocialCircleDetailResponse(SocialCircleListResponse):
+    """Social circle detail payload."""
+
+    pass

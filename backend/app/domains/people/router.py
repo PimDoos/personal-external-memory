@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.people.schemas import (
     PersonCreateRequest,
+    PersonDetailResponse,
+    PersonListResponse,
     PersonResponse,
     PersonUpdateRequest,
 )
@@ -38,12 +40,12 @@ async def create_person(
     return person
 
 
-@router.get("/{person_id}", response_model=PersonResponse)
+@router.get("/{person_id}", response_model=PersonDetailResponse)
 async def get_person(
     person_id: int,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
-) -> PersonResponse:
+) -> PersonDetailResponse:
     """Get a person by ID.
     
     Args:
@@ -55,16 +57,16 @@ async def get_person(
         Person
     """
     service = PersonService(db)
-    return await service.get_person(person_id, current_user.id)
+    return await service.get_person_detail(person_id, current_user.id)
 
 
-@router.get("", response_model=list[PersonResponse])
+@router.get("", response_model=list[PersonListResponse])
 async def list_people(
     current_user: CurrentUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
-) -> list[PersonResponse]:
+) -> list[PersonListResponse]:
     """List all people for current user.
     
     Args:
@@ -77,9 +79,7 @@ async def list_people(
         List of people
     """
     service = PersonService(db)
-    from app.domains.people.repository import PersonRepository
-    repo = PersonRepository(db)
-    return await repo.list_by_user(current_user.id, skip, limit)
+    return await service.list_people_with_related(current_user.id, skip, limit)
 
 
 @router.put("/{person_id}", response_model=PersonResponse)

@@ -3,7 +3,16 @@ import { createCombobox } from "../combobox.js";
 import { getAvatarInitials } from "../avatar.js";
 
 export function createCirclesRenderer({ state, caches, actions, common }) {
-    const { filtered, selectedCircle, createListItem, renderSimpleList } = common;
+    const { filtered, selectedCircle, createEventCard, createListItem, renderSimpleList } = common;
+
+    function displayEventLabel(event) {
+        return event.title || `Event #${event.id}`;
+    }
+
+    function getEventStartTimestamp(event) {
+        const timestamp = new Date(event.start_time || event.date || 0).getTime();
+        return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+    }
 
     function displayLocationLabel(location) {
         return location.label || location.location || "(unnamed location)";
@@ -184,14 +193,17 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
             (location) => {
                 const subtitle = [location.location_type || "", location.location || ""].filter(Boolean).join(" · ");
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
-                    state.activeSection = "locations";
-                    await actions.selectLocation(location.id);
-                }));
+                actionsNode.addEventListener("click", (e) => e.stopPropagation());
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeLocationFromCircle(location.id, circle.id);
                 }));
-                return createListItem(displayLocationLabel(location), subtitle, actionsNode);
+                const item = createListItem(displayLocationLabel(location), subtitle, actionsNode);
+                item.classList.add("clickable");
+                item.addEventListener("click", async () => {
+                    state.activeSection = "locations";
+                    await actions.selectLocation(location.id);
+                });
+                return item;
             },
             "No locations yet."
         );
@@ -321,6 +333,34 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
 
         section.appendChild(list);
         container.appendChild(section);
+
+        const circleEventsSection = createNode("section", { className: "subpanel" });
+        circleEventsSection.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [createNode("h3", { text: "Events" })],
+        }));
+
+        const eventList = createNode("div", { className: "list" });
+        const associatedEvents = (caches.circleEvents.get(circle.id) || [])
+            .slice()
+            .sort((left, right) => getEventStartTimestamp(left) - getEventStartTimestamp(right));
+
+        renderSimpleList(
+            eventList,
+            associatedEvents,
+            (event) => {
+                const item = createEventCard(event);
+                bindEntityNavigation(item, "events", event.id, async () => {
+                    state.activeSection = "events";
+                    await actions.selectEvent(event.id);
+                });
+                return item;
+            },
+            "No associated events yet."
+        );
+
+        circleEventsSection.appendChild(eventList);
+        container.appendChild(circleEventsSection);
     }
 
     function renderCircles() {

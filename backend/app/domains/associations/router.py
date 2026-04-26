@@ -7,6 +7,8 @@ from sqlalchemy import select
 from app.domains.associations.schemas import (
     CircleMemberRequest,
     CircleMemberResponse,
+    CircleEventRequest,
+    CircleEventResponse,
     EventParticipantRequest,
     EventParticipantResponse,
     BrandAssociationRequest,
@@ -14,12 +16,13 @@ from app.domains.associations.schemas import (
 )
 from app.domains.associations.service import (
     CircleMemberService,
+    CircleEventService,
     EventParticipantService,
     BrandAssociationService,
 )
 from app.infrastructure.database import get_db
 from app.infrastructure.dependencies import CurrentUser
-from app.infrastructure.models import SocialCircle, Event, Brand, CircleMember, EventParticipant, BrandAssociation, Person
+from app.infrastructure.models import SocialCircle, Event, Brand, CircleMember, EventParticipant, BrandAssociation, SocialCircleAssociation, Person
 from app.infrastructure.exceptions import NotFoundError
 
 router = APIRouter()
@@ -79,6 +82,38 @@ async def list_circle_members(
         select(Person.id)
         .join(CircleMember, CircleMember.person_id == Person.id)
         .where(CircleMember.social_circle_id == social_circle_id)
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.get("/circle-events/by-event/{event_id}", response_model=list[int])
+async def list_event_circles(
+    event_id: int,
+    current_user: CurrentUser,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db),
+) -> list[int]:
+    """List all social circle IDs associated with an event."""
+    # Verify event ownership
+    stmt = select(Event).where(
+        (Event.id == event_id) & (Event.user_id == current_user.id)
+    )
+    result = await db.execute(stmt)
+    if not result.scalar_one_or_none():
+        raise NotFoundError("Event not found")
+
+    # Get all associated circles owned by current user
+    stmt = (
+        select(SocialCircle.id)
+        .join(SocialCircleAssociation, SocialCircleAssociation.circle_id == SocialCircle.id)
+        .where(
+            (SocialCircleAssociation.event_id == event_id)
+            & (SocialCircle.user_id == current_user.id)
+        )
         .offset(skip)
         .limit(limit)
     )
@@ -233,6 +268,70 @@ async def list_brand_members(
     stmt = (
         select(BrandAssociation)
         .where(BrandAssociation.brand_id == brand_id)
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+# ===== Circle Events =====
+
+
+@router.post("/circle-events", response_model=CircleEventResponse)
+async def associate_event_to_circle(
+    request: CircleEventRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> CircleEventResponse:
+    """Associate an event with a social circle."""
+    service = CircleEventService(db)
+    association = await service.associate_event_to_circle(
+        request.social_circle_id, request.event_id, current_user.id
+    )
+    await db.commit()
+    return CircleEventResponse(
+        social_circle_id=association.circle_id,
+        event_id=association.event_id,
+    )
+
+
+@router.delete("/circle-events/{social_circle_id}/{event_id}")
+async def remove_event_from_circle(
+    social_circle_id: int,
+    event_id: int,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove an event from a social circle."""
+    service = CircleEventService(db)
+    await service.remove_event_from_circle(social_circle_id, event_id, current_user.id)
+    await db.commit()
+    return {"message": "Event removed from circle successfully"}
+
+
+@router.get("/circle-events/{social_circle_id}", response_model=list[int])
+async def list_circle_events(
+    social_circle_id: int,
+    current_user: CurrentUser,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db),
+) -> list[int]:
+    """List all event IDs associated with a social circle."""
+    # Verify circle ownership
+    stmt = select(SocialCircle).where(
+        (SocialCircle.id == social_circle_id) & (SocialCircle.user_id == current_user.id)
+    )
+    result = await db.execute(stmt)
+    if not result.scalar_one_or_none():
+        raise NotFoundError("Social circle not found")
+
+    # Get all associated events
+    stmt = (
+        select(Event.id)
+        .join(SocialCircleAssociation, SocialCircleAssociation.event_id == Event.id)
+        .where(SocialCircleAssociation.circle_id == social_circle_id)
         .offset(skip)
         .limit(limit)
     )

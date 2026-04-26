@@ -279,6 +279,31 @@ async def _apply_sqlite_migrations(connection) -> None:
     await add_column_if_missing("events", "event_type", "VARCHAR(100)")
     await add_column_if_missing("social_circles", "circle_type", "VARCHAR(100)")
     await add_column_if_missing("people", "date_of_death", "DATE")
+    
+    # Ensure social_circle_associations table exists
+    table_check_result = await connection.execute(text(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='social_circle_associations'"
+    ))
+    if not table_check_result.scalar():
+        await connection.execute(text(
+            """
+            CREATE TABLE social_circle_associations (
+                id INTEGER PRIMARY KEY,
+                circle_id INTEGER NOT NULL,
+                event_id INTEGER NOT NULL,
+                FOREIGN KEY(circle_id) REFERENCES social_circles(id),
+                FOREIGN KEY(event_id) REFERENCES events(id),
+                UNIQUE(circle_id, event_id)
+            )
+            """
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_social_circle_associations_circle_id ON social_circle_associations (circle_id)"
+        ))
+        await connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_social_circle_associations_event_id ON social_circle_associations (event_id)"
+        ))
+    
     await location_label_nullable_migration()
     await migrate_event_location_strings_to_locations()
     await backfill_missing_location_labels()

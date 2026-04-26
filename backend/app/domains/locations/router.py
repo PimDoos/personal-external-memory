@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domains.locations.schemas import (
     LocationAssociationResponse,
     LocationCreateRequest,
+    LocationDetailResponse,
     LocationResponse,
     LocationUpdateRequest,
 )
@@ -30,15 +31,25 @@ async def create_location(
     return location
 
 
-@router.get("/{location_id}", response_model=LocationResponse)
+@router.get("/{location_id}", response_model=LocationDetailResponse)
 async def get_location(
     location_id: int,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
-) -> LocationResponse:
+) -> LocationDetailResponse:
     """Get a location by ID."""
     service = LocationService(db)
-    return await service.get(location_id, current_user.id)
+    location = await service.get(location_id, current_user.id)
+    associations = await service.get_associations_for_location(location_id, current_user.id)
+    return LocationDetailResponse(
+        id=location.id,
+        location_type=location.location_type,
+        label=location.label,
+        location=location.location,
+        created_at=location.created_at,
+        updated_at=location.updated_at,
+        associations=associations,
+    )
 
 
 @router.get("/{location_id}/associations", response_model=list[LocationAssociationResponse])

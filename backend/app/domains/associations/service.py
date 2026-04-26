@@ -294,3 +294,78 @@ class BrandAssociationService:
         await self.session.flush()
         return association
 
+
+class CircleEventService:
+    """Service for managing circle-event associations."""
+
+    def __init__(self, session: AsyncSession):
+        """Initialize circle event service."""
+        self.session = session
+
+    async def associate_event_to_circle(
+        self, social_circle_id: int, event_id: int, user_id: int
+    ) -> "SocialCircleAssociation":
+        """Associate an event with a social circle."""
+        from app.infrastructure.models import SocialCircleAssociation
+
+        # Verify circle ownership
+        stmt = select(SocialCircle).where(
+            (SocialCircle.id == social_circle_id) & (SocialCircle.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Social circle not found")
+
+        # Verify event ownership
+        stmt = select(Event).where(
+            (Event.id == event_id) & (Event.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Event not found")
+
+        # Check if already associated
+        stmt = select(SocialCircleAssociation).where(
+            (SocialCircleAssociation.circle_id == social_circle_id)
+            & (SocialCircleAssociation.event_id == event_id)
+        )
+        result = await self.session.execute(stmt)
+        if result.scalar_one_or_none():
+            raise ConflictError("Event is already associated with this circle")
+
+        # Create association
+        association = SocialCircleAssociation(
+            circle_id=social_circle_id, event_id=event_id
+        )
+        self.session.add(association)
+        await self.session.flush()
+        return association
+
+    async def remove_event_from_circle(
+        self, social_circle_id: int, event_id: int, user_id: int
+    ) -> None:
+        """Remove an event from a social circle."""
+        from app.infrastructure.models import SocialCircleAssociation
+
+        # Verify circle ownership
+        stmt = select(SocialCircle).where(
+            (SocialCircle.id == social_circle_id) & (SocialCircle.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Social circle not found")
+
+        # Find and delete association
+        stmt = select(SocialCircleAssociation).where(
+            (SocialCircleAssociation.circle_id == social_circle_id)
+            & (SocialCircleAssociation.event_id == event_id)
+        )
+        result = await self.session.execute(stmt)
+        association = result.scalar_one_or_none()
+
+        if not association:
+            raise NotFoundError("Event is not associated with this circle")
+
+        await self.session.delete(association)
+        await self.session.flush()
+

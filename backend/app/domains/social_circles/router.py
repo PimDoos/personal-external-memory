@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.social_circles.schemas import (
     SocialCircleCreateRequest,
+    SocialCircleDetailResponse,
+    SocialCircleListResponse,
     SocialCircleResponse,
     SocialCircleUpdateRequest,
 )
@@ -28,29 +30,27 @@ async def create_social_circle(
     return circle
 
 
-@router.get("/{circle_id}", response_model=SocialCircleResponse)
+@router.get("/{circle_id}", response_model=SocialCircleDetailResponse)
 async def get_social_circle(
     circle_id: int,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
-) -> SocialCircleResponse:
+) -> SocialCircleDetailResponse:
     """Get a social circle by ID."""
     service = SocialCircleService(db)
-    return await service.get(circle_id, current_user.id)
+    return await service.get_detail(circle_id, current_user.id)
 
 
-@router.get("", response_model=list[SocialCircleResponse])
+@router.get("", response_model=list[SocialCircleListResponse])
 async def list_social_circles(
     current_user: CurrentUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
-) -> list[SocialCircleResponse]:
+) -> list[SocialCircleListResponse]:
     """List all social circles for current user."""
     service = SocialCircleService(db)
-    from app.domains.social_circles.repository import SocialCircleRepository
-    repo = SocialCircleRepository(db)
-    return await repo.list_by_user(current_user.id, skip, limit)
+    return await service.list_with_related(current_user.id, skip, limit)
 
 
 @router.put("/{circle_id}", response_model=SocialCircleResponse)

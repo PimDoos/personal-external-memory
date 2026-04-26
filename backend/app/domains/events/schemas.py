@@ -45,3 +45,25 @@ class EventResponse(BaseModel):
         """Pydantic config."""
 
         from_attributes = True
+
+
+class EventParticipantEmbedded(BaseModel):
+    """Embedded event participant association."""
+
+    event_id: int
+    person_id: int
+    role: Optional[str]
+
+
+class EventListResponse(EventResponse):
+    """Event list payload with summary associations."""
+
+    participants: list[EventParticipantEmbedded] = []
+    circle_ids: list[int] = []
+    location_ids: list[int] = []
+
+
+class EventDetailResponse(EventListResponse):
+    """Event detail payload."""
+
+    pass

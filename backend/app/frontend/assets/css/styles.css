@@ -489,6 +489,22 @@ select {
     gap: 8px;
 }
 
+.person-form--detail {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+@media (min-width: 760px) {
+    .person-form--detail {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .person-form--detail .person-form__notes {
+        grid-column: 1 / -1;
+    }
+}
+
 input,
 textarea,
 select {
@@ -616,6 +632,9 @@ textarea {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+.list-actions > select {
+    width: auto;
 }
 
 .detail-grid {

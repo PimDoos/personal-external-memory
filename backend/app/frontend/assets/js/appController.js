@@ -32,6 +32,7 @@ export function createAppController() {
         personContacts: new Map(),
         personLocations: new Map(),
         circleLocations: new Map(),
+        circleEvents: new Map(),
         brandLocations: new Map(),
         eventLocations: new Map(),
         locationAssociations: new Map(),
@@ -42,6 +43,7 @@ export function createAppController() {
         circleMembers: new Map(),
         brandMembers: new Map(),
         eventParticipants: new Map(),
+        eventCircles: new Map(),
         topology: {
             relationships: [],
             circleMembersByCircleId: new Map(),
@@ -53,6 +55,12 @@ export function createAppController() {
 
     let backgroundRefreshTimerId = null;
     let isApplyingLocationState = false;
+    const inFlightEntityDetails = {
+        circle: new Map(),
+        brand: new Map(),
+        event: new Map(),
+        location: new Map(),
+    };
 
     function clearBackgroundRefreshTimer() {
         if (backgroundRefreshTimerId !== null) {
@@ -86,6 +94,7 @@ export function createAppController() {
         caches.personContacts.clear();
         caches.personLocations.clear();
         caches.circleLocations.clear();
+        caches.circleEvents.clear();
         caches.brandLocations.clear();
         caches.eventLocations.clear();
         caches.locationAssociations.clear();
@@ -96,6 +105,7 @@ export function createAppController() {
         caches.circleMembers.clear();
         caches.brandMembers.clear();
         caches.eventParticipants.clear();
+        caches.eventCircles.clear();
         caches.topology = {
             relationships: [],
             circleMembersByCircleId: new Map(),
@@ -361,6 +371,7 @@ export function createAppController() {
             await Promise.all([
                 loadCircleMembers(state.selected.circleId),
                 loadCircleLocations(state.selected.circleId),
+                loadCircleEvents(state.selected.circleId),
             ]);
         }
         if (state.selected.brandId) {
@@ -373,6 +384,7 @@ export function createAppController() {
             await Promise.all([
                 loadEventParticipants(state.selected.eventId),
                 loadEventLocations(state.selected.eventId),
+                loadEventCircles(state.selected.eventId),
             ]);
         }
         if (state.selected.locationId) {
@@ -426,25 +438,26 @@ export function createAppController() {
     }
 
     async function refreshTopologyData() {
-        const [relationships, circleMembersLists, brandMembersLists, eventParticipantsLists, eventLocationLists] = await Promise.all([
+        const [relationships] = await Promise.all([
             api.relationships.list(),
-            Promise.all(state.data.circles.map((circle) => api.circles.members(circle.id))),
-            Promise.all(state.data.brands.map((brand) => api.brands.members(brand.id))),
-            Promise.all(state.data.events.map((event) => api.events.participants(event.id))),
-            Promise.all(state.data.events.map((event) => api.locations.listForEntity("event", event.id))),
         ]);
 
         const circleMembersByCircleId = new Map(
-            state.data.circles.map((circle, index) => [circle.id, circleMembersLists[index] || []])
+            state.data.circles.map((circle) => [circle.id, circle.member_ids || []])
         );
         const brandMembersByBrandId = new Map(
-            state.data.brands.map((brand, index) => [brand.id, brandMembersLists[index] || []])
+            state.data.brands.map((brand) => [brand.id, brand.members || []])
         );
         const eventParticipantsByEventId = new Map(
-            state.data.events.map((event, index) => [event.id, eventParticipantsLists[index] || []])
+            state.data.events.map((event) => [event.id, event.participants || []])
         );
         caches.eventLocations = new Map(
-            state.data.events.map((event, index) => [event.id, eventLocationLists[index] || []])
+            state.data.events.map((event) => [
+                event.id,
+                (event.location_ids || [])
+                    .map((locationId) => state.data.locations.find((entry) => entry.id === locationId))
+                    .filter(Boolean),
+            ])
         );
 
         const personBrandAffiliations = new Map(
@@ -501,21 +514,14 @@ export function createAppController() {
     }
 
     async function loadPeopleTagSummaries() {
-        const peopleTagSummaries = new Map(state.data.people.map((person) => [person.id, []]));
-        const peopleIdsByTag = await Promise.all(
-            state.data.tags.map((tag) => api.tags.listPeopleWithTag(tag.id))
+        const peopleTagSummaries = new Map(
+            state.data.people.map((person) => {
+                const tags = (person.tags || [])
+                    .map((tagSummary) => state.data.tags.find((entry) => entry.id === tagSummary.id) || tagSummary)
+                    .filter(Boolean);
+                return [person.id, tags];
+            })
         );
-
-        state.data.tags.forEach((tag, index) => {
-            const personIds = peopleIdsByTag[index] || [];
-            personIds.forEach((personId) => {
-                if (!peopleTagSummaries.has(personId)) {
-                    peopleTagSummaries.set(personId, []);
-                }
-                peopleTagSummaries.get(personId).push(tag);
-            });
-        });
-
         caches.peopleTagSummaries = peopleTagSummaries;
     }
 
@@ -570,36 +576,21 @@ export function createAppController() {
     }
 
     async function loadPersonCaches(personId) {
-        const [contacts, locations, tags, relationships] = await Promise.all([
-            api.contactInfo.listForPerson(personId),
-            api.locations.listForEntity("person", personId),
-            api.tags.listForPerson(personId),
-            api.relationships.listForPerson(personId),
-        ]);
+        const personDetail = await api.people.get(personId);
 
-        caches.personContacts.set(personId, contacts);
-        caches.personLocations.set(personId, locations);
-        caches.personTags.set(personId, tags);
-        caches.personRelationships.set(personId, relationships);
+        caches.personContacts.set(personId, personDetail.contact_infos || []);
+        caches.personLocations.set(personId, personDetail.locations || []);
+        caches.personTags.set(
+            personId,
+            (personDetail.tags || [])
+                .map((tagSummary) => state.data.tags.find((entry) => entry.id === tagSummary.id) || tagSummary)
+                .filter(Boolean)
+        );
+        caches.personRelationships.set(personId, personDetail.relationships || []);
 
-        const [circleMembersLists, eventParticipantLists, brandMembersLists] = await Promise.all([
-            Promise.all(state.data.circles.map((circle) => api.circles.members(circle.id))),
-            Promise.all(state.data.events.map((event) => api.events.participants(event.id))),
-            Promise.all(state.data.brands.map((brand) => api.brands.members(brand.id))),
-        ]);
-
-        const circleIds = state.data.circles
-            .filter((circle, index) => circleMembersLists[index].includes(personId))
-            .map((circle) => circle.id);
-
-        const eventIds = state.data.events
-            .filter((event, index) => eventParticipantLists[index].some((participant) => participant.person_id === personId))
-            .map((event) => event.id);
-
-        // Explicit brand associations for this person
-        const explicitBrandIds = state.data.brands
-            .filter((brand, index) => (brandMembersLists[index] || []).some((m) => (m.person_id || m) === personId))
-            .map((brand) => brand.id);
+        const circleIds = personDetail.circle_ids || [];
+        const eventIds = personDetail.event_ids || [];
+        const explicitBrandIds = personDetail.explicit_brand_ids || [];
 
         // Heuristic affiliations from event context
         const associatedEvents = state.data.events.filter((event) => eventIds.includes(event.id));
@@ -626,32 +617,134 @@ export function createAppController() {
         });
     }
 
+    async function loadCircleDetail(circleId) {
+        if (inFlightEntityDetails.circle.has(circleId)) {
+            await inFlightEntityDetails.circle.get(circleId);
+            return;
+        }
+        const request = (async () => {
+            const circle = await api.circles.get(circleId);
+            caches.circleMembers.set(circleId, circle.member_ids || []);
+            caches.circleLocations.set(
+                circleId,
+                (circle.location_ids || [])
+                    .map((locationId) => state.data.locations.find((entry) => entry.id === locationId))
+                    .filter(Boolean)
+            );
+            caches.circleEvents.set(
+                circleId,
+                state.data.events.filter((event) => (circle.event_ids || []).includes(event.id))
+            );
+        })();
+        inFlightEntityDetails.circle.set(circleId, request);
+        try {
+            await request;
+        } finally {
+            inFlightEntityDetails.circle.delete(circleId);
+        }
+    }
+
     async function loadCircleMembers(circleId) {
-        caches.circleMembers.set(circleId, await api.circles.members(circleId));
+        await loadCircleDetail(circleId);
     }
 
     async function loadCircleLocations(circleId) {
-        caches.circleLocations.set(circleId, await api.locations.listForEntity("social_circle", circleId));
+        await loadCircleDetail(circleId);
+    }
+
+    async function loadCircleEvents(circleId) {
+        await loadCircleDetail(circleId);
+    }
+
+    async function loadBrandDetail(brandId) {
+        if (inFlightEntityDetails.brand.has(brandId)) {
+            await inFlightEntityDetails.brand.get(brandId);
+            return;
+        }
+        const request = (async () => {
+            const brand = await api.brands.get(brandId);
+            caches.brandMembers.set(brandId, brand.members || []);
+            caches.brandLocations.set(
+                brandId,
+                (brand.location_ids || [])
+                    .map((locationId) => state.data.locations.find((entry) => entry.id === locationId))
+                    .filter(Boolean)
+            );
+        })();
+        inFlightEntityDetails.brand.set(brandId, request);
+        try {
+            await request;
+        } finally {
+            inFlightEntityDetails.brand.delete(brandId);
+        }
     }
 
     async function loadBrandMembers(brandId) {
-        caches.brandMembers.set(brandId, await api.brands.members(brandId));
+        await loadBrandDetail(brandId);
     }
 
     async function loadBrandLocations(brandId) {
-        caches.brandLocations.set(brandId, await api.locations.listForEntity("brand", brandId));
+        await loadBrandDetail(brandId);
+    }
+
+    async function loadEventDetail(eventId) {
+        if (inFlightEntityDetails.event.has(eventId)) {
+            await inFlightEntityDetails.event.get(eventId);
+            return;
+        }
+        const request = (async () => {
+            const event = await api.events.get(eventId);
+            caches.eventParticipants.set(eventId, event.participants || []);
+            caches.eventCircles.set(
+                eventId,
+                state.data.circles.filter((circle) => (event.circle_ids || []).includes(circle.id))
+            );
+            caches.eventLocations.set(
+                eventId,
+                (event.location_ids || [])
+                    .map((locationId) => state.data.locations.find((entry) => entry.id === locationId))
+                    .filter(Boolean)
+            );
+        })();
+        inFlightEntityDetails.event.set(eventId, request);
+        try {
+            await request;
+        } finally {
+            inFlightEntityDetails.event.delete(eventId);
+        }
     }
 
     async function loadEventParticipants(eventId) {
-        caches.eventParticipants.set(eventId, await api.events.participants(eventId));
+        await loadEventDetail(eventId);
+    }
+
+    async function loadEventCircles(eventId) {
+        await loadEventDetail(eventId);
     }
 
     async function loadEventLocations(eventId) {
-        caches.eventLocations.set(eventId, await api.locations.listForEntity("event", eventId));
+        await loadEventDetail(eventId);
+    }
+
+    async function loadLocationDetail(locationId) {
+        if (inFlightEntityDetails.location.has(locationId)) {
+            await inFlightEntityDetails.location.get(locationId);
+            return;
+        }
+        const request = (async () => {
+            const location = await api.locations.get(locationId);
+            caches.locationAssociations.set(locationId, location.associations || []);
+        })();
+        inFlightEntityDetails.location.set(locationId, request);
+        try {
+            await request;
+        } finally {
+            inFlightEntityDetails.location.delete(locationId);
+        }
     }
 
     async function loadLocationAssociations(locationId) {
-        caches.locationAssociations.set(locationId, await api.locations.associations(locationId));
+        await loadLocationDetail(locationId);
     }
 
     async function bootstrapAuthenticated() {
@@ -666,6 +759,7 @@ export function createAppController() {
             await Promise.all([
                 loadCircleMembers(state.selected.circleId),
                 loadCircleLocations(state.selected.circleId),
+                loadCircleEvents(state.selected.circleId),
             ]);
         }
         if (state.selected.brandId) {
@@ -678,6 +772,7 @@ export function createAppController() {
             await Promise.all([
                 loadEventParticipants(state.selected.eventId),
                 loadEventLocations(state.selected.eventId),
+                loadEventCircles(state.selected.eventId),
             ]);
         }
         if (state.selected.locationId) {
@@ -933,12 +1028,13 @@ export function createAppController() {
         }),
         updateContact: async (contactId, payload) => withAction(async () => {
             await api.contactInfo.update(contactId, payload);
-            const allContacts = Array.from(state.caches.personContacts.values()).flat();
-            const contact = allContacts.find(c => c.id === contactId);
-            if (contact) {
-                await loadPersonCaches(contact.person_id);
-                showToast("Contact info updated.");
+            const allContacts = Array.from(caches.personContacts.values()).flat();
+            const contact = allContacts.find((entry) => entry.id === contactId);
+            const personIdToRefresh = contact?.person_id || state.selected.personId;
+            if (personIdToRefresh) {
+                await loadPersonCaches(personIdToRefresh);
             }
+            showToast("Contact info updated.");
         }),
         createLocationForPerson: async (personId, payload) => withAction(async () => {
             const location = await api.locations.create(payload);
@@ -1010,6 +1106,7 @@ export function createAppController() {
             await Promise.all([
                 loadCircleMembers(circleId),
                 loadCircleLocations(circleId),
+                loadCircleEvents(circleId),
             ]);
         }),
         createLocationForCircle: async (circleId, payload) => withAction(async () => {
@@ -1062,6 +1159,7 @@ export function createAppController() {
             await Promise.all([
                 loadCircleMembers(circleId),
                 loadCircleLocations(circleId),
+                loadCircleEvents(circleId),
             ]);
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
@@ -1197,11 +1295,22 @@ export function createAppController() {
             await Promise.all([
                 loadEventParticipants(eventId),
                 loadEventLocations(eventId),
+                loadEventCircles(eventId),
             ]);
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
             showToast("Event updated.");
+        }),
+        associateCircleToEvent: async (circleId, eventId) => withAction(async () => {
+            await api.circles.associateEvent({ social_circle_id: circleId, event_id: eventId });
+            await loadEventCircles(eventId);
+            showToast("Circle associated with event.");
+        }),
+        removeCircleFromEvent: async (circleId, eventId) => withAction(async () => {
+            await api.circles.removeEvent(circleId, eventId);
+            await loadEventCircles(eventId);
+            showToast("Circle removed from event.");
         }),
         selectTag: async (tagId) => withAction(async () => {
             state.selected.tagId = tagId;

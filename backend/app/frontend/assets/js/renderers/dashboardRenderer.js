@@ -1,9 +1,9 @@
-import { formatBirthday, formatDateTime } from "../ui.js";
+import { formatBirthday } from "../ui.js";
 import { createNode } from "../dom.js";
 import { getAvatarInitials } from "../avatar.js";
 
 export function createDashboardRenderer({ state, caches, actions, common }) {
-    const { createListItem, renderSimpleList } = common;
+    const { createListItem, createEventCard, renderSimpleList } = common;
 
     function displayEventLabel(event) {
         return event.title || `Event #${event.id}`;
@@ -56,50 +56,6 @@ export function createDashboardRenderer({ state, caches, actions, common }) {
         });
     }
 
-    function personLabel(personId) {
-        const person = state.data.people.find((entry) => entry.id === personId);
-        if (!person) {
-            return `Person #${personId}`;
-        }
-        return `${person.first_name} ${person.last_name || ""}`.trim();
-    }
-
-    function eventParticipants(eventId) {
-        return (caches.topology.eventParticipantsByEventId.get(eventId)
-            || caches.eventParticipants.get(eventId)
-            || []);
-    }
-
-    function createParticipantAvatarsNode(eventId) {
-        const participants = eventParticipants(eventId);
-        if (!participants.length) {
-            return null;
-        }
-
-        const wrapper = createNode("div", { className: "dashboard-participants" });
-        const visibleParticipants = participants.slice(0, 5);
-
-        visibleParticipants.forEach((participant) => {
-            const label = personLabel(participant.person_id);
-            const avatar = createNode("span", {
-                className: "dashboard-avatar",
-                text: getAvatarInitials(label),
-                attrs: { title: label, "aria-label": label },
-            });
-            wrapper.appendChild(avatar);
-        });
-
-        if (participants.length > visibleParticipants.length) {
-            wrapper.appendChild(createNode("span", {
-                className: "dashboard-avatar dashboard-avatar--more",
-                text: `+${participants.length - visibleParticipants.length}`,
-                attrs: { title: `${participants.length} participants` },
-            }));
-        }
-
-        return wrapper;
-    }
-
     function renderDashboard() {
         const livingPeople = state.data.people.filter((person) => !person.date_of_death);
         const nowMs = Date.now();
@@ -129,11 +85,7 @@ export function createDashboardRenderer({ state, caches, actions, common }) {
             document.getElementById("dashboard-events"),
             upcomingEvents,
             (item) => {
-                const row = createListItem(
-                    displayEventLabel(item),
-                    formatDateTime(item.date),
-                    createParticipantAvatarsNode(item.id)
-                );
+                const row = createEventCard(item);
                 bindEntityNavigation(row, "events", item.id, async () => {
                     state.activeSection = "events";
                     await actions.selectEvent(item.id);
@@ -147,11 +99,7 @@ export function createDashboardRenderer({ state, caches, actions, common }) {
             document.getElementById("dashboard-recent-events"),
             recentEvents,
             (item) => {
-                const row = createListItem(
-                    displayEventLabel(item),
-                    formatDateTime(item.date),
-                    createParticipantAvatarsNode(item.id)
-                );
+                const row = createEventCard(item);
                 bindEntityNavigation(row, "events", item.id, async () => {
                     state.activeSection = "events";
                     await actions.selectEvent(item.id);

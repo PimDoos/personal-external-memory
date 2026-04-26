@@ -62,3 +62,22 @@ class BrandAssociationResponse(BaseModel):
         """Pydantic config."""
 
         from_attributes = True
+
+
+class CircleEventRequest(BaseModel):
+    """Associate event with social circle."""
+
+    social_circle_id: int
+    event_id: int
+
+
+class CircleEventResponse(BaseModel):
+    """Circle-event association response."""
+
+    social_circle_id: int
+    event_id: int
+
+    class Config:
+        """Pydantic config."""
+
+        from_attributes = True

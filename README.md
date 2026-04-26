@@ -130,15 +130,6 @@ The native frontend is now implemented and served directly by FastAPI.
     - Brands
     - Social Circles
 
-- Add locations as separate entities that can be associated with people, brands, social circles or events
-    - Locations have a type, customizable, with these defaults:
-        - Home
-        - Office
-        - Other
-    - Locations have a label
-    - Locations have a location, which is a string containing either a full address or coordinates
-    - One location can be associated with multiple entities, like a person and an event (e.g. a birthday party at someone's house)
-
 - Add a map view to visualize entities on a map
     - Display the associated entities at their associated location
     - Filter by entity type (people, brands, social circles, events)

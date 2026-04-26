@@ -2,7 +2,7 @@ import { clearNodeChildren, createButtonNode, createFormDataObject, createNode, 
 import { formatDateTime } from "../ui.js";
 
 export function createLocationsRenderer({ state, caches, actions, common }) {
-    const { filtered, createListItem, renderSimpleList } = common;
+    const { filtered, createEventCard, createListItem, renderSimpleList } = common;
 
     function displayLocationLabel(location) {
         return location.label || location.location || "(unnamed location)";
@@ -88,6 +88,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
                 return event
                     ? {
                         section: "events",
+                        event,
                         title: event.title || `Event #${event.id}`,
                         subtitle: `Event · ${formatDateTime(event.start_time || event.date)}`,
                         eventStartTimestamp: new Date(event.start_time || event.date || 0).getTime(),
@@ -247,7 +248,9 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
                     return createListItem(`Unknown #${association.entity_id}`, association.entity_type);
                 }
 
-                const item = createListItem(entity.title, entity.subtitle);
+                const item = entity.section === "events" && entity.event
+                    ? createEventCard(entity.event)
+                    : createListItem(entity.title, entity.subtitle);
                 bindEntityNavigation(item, entity.section, association.entity_id, entity.open);
                 return item;
             },

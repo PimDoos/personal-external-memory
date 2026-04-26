@@ -304,14 +304,17 @@ export function createBrandsRenderer({ state, actions, common }) {
             (location) => {
                 const subtitle = [location.location_type || "", location.location || ""].filter(Boolean).join(" · ");
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
-                    state.activeSection = "locations";
-                    await actions.selectLocation(location.id);
-                }));
+                actionsNode.addEventListener("click", (e) => e.stopPropagation());
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeLocationFromBrand(location.id, brand.id);
                 }));
-                return createListItem(displayLocationLabel(location), subtitle, actionsNode);
+                const item = createListItem(displayLocationLabel(location), subtitle, actionsNode);
+                item.classList.add("clickable");
+                item.addEventListener("click", async () => {
+                    state.activeSection = "locations";
+                    await actions.selectLocation(location.id);
+                });
+                return item;
             },
             "No locations yet."
         );

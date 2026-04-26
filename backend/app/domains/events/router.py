@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.events.schemas import (
     EventCreateRequest,
+    EventDetailResponse,
+    EventListResponse,
     EventResponse,
     EventUpdateRequest,
 )
@@ -28,29 +30,27 @@ async def create_event(
     return event
 
 
-@router.get("/{event_id}", response_model=EventResponse)
+@router.get("/{event_id}", response_model=EventDetailResponse)
 async def get_event(
     event_id: int,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
-) -> EventResponse:
+) -> EventDetailResponse:
     """Get an event by ID."""
     service = EventService(db)
-    return await service.get(event_id, current_user.id)
+    return await service.get_detail(event_id, current_user.id)
 
 
-@router.get("", response_model=list[EventResponse])
+@router.get("", response_model=list[EventListResponse])
 async def list_events(
     current_user: CurrentUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
-) -> list[EventResponse]:
+) -> list[EventListResponse]:
     """List all events for current user."""
     service = EventService(db)
-    from app.domains.events.repository import EventRepository
-    repo = EventRepository(db)
-    return await repo.list_by_user(current_user.id, skip, limit)
+    return await service.list_with_related(current_user.id, skip, limit)
 
 
 @router.put("/{event_id}", response_model=EventResponse)

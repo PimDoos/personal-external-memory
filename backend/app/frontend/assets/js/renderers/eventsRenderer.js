@@ -209,14 +209,17 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             (location) => {
                 const subtitle = [location.location_type || "", location.location || ""].filter(Boolean).join(" · ");
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
-                    state.activeSection = "locations";
-                    await actions.selectLocation(location.id);
-                }));
+                actionsNode.addEventListener("click", (e) => e.stopPropagation());
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeLocationFromEvent(location.id, event.id);
                 }));
-                return createListItem(displayLocationLabel(location), subtitle, actionsNode);
+                const item = createListItem(displayLocationLabel(location), subtitle, actionsNode);
+                item.classList.add("clickable");
+                item.addEventListener("click", async () => {
+                    state.activeSection = "locations";
+                    await actions.selectLocation(location.id);
+                });
+                return item;
             },
             "No locations yet."
         );
@@ -368,6 +371,65 @@ export function createEventsRenderer({ state, caches, actions, common }) {
         );
         section.appendChild(list);
         container.appendChild(section);
+
+        const circlesSection = createNode("section", { className: "subpanel" });
+        const associatedCircles = caches.eventCircles.get(event.id) || [];
+        const availableCircles = state.data.circles.filter(
+            (circle) => !associatedCircles.some((assoc) => assoc.id === circle.id)
+        );
+
+        const circlesForm = createNode("form", { className: "inline-form" });
+        const circleOptions = availableCircles.length
+            ? availableCircles.map((circle) => ({ value: circle.id, label: circle.name }))
+            : [{ value: "", label: "No available circles" }];
+
+        const circleSelect = createSelectNode(circleOptions, "", {
+            name: "circle_id",
+            disabled: !availableCircles.length,
+        });
+        circlesForm.appendChild(circleSelect);
+        circlesForm.appendChild(createButtonNode("Associate", "primary-button", null, {
+            type: "submit",
+            disabled: !availableCircles.length,
+        }));
+
+        circlesForm.addEventListener("submit", async (eventObj) => {
+            eventObj.preventDefault();
+            const values = createFormDataObject(circlesForm);
+            if (!values.circle_id) return;
+            await actions.associateCircleToEvent(Number(values.circle_id), event.id);
+            circlesForm.reset();
+        });
+
+        const { wrapper: circleFormWrapper, trigger: circleFormTrigger } = wrapCollapsible("+ Associate", circlesForm);
+        circlesSection.appendChild(
+            createNode("div", {
+                className: "panel-heading",
+                children: [createNode("h3", { text: "Associated Circles" }), circleFormTrigger],
+            })
+        );
+        circlesSection.appendChild(circleFormWrapper);
+
+        const circlesList = createNode("div", { className: "list" });
+        renderSimpleList(
+            circlesList,
+            associatedCircles,
+            (circle) => {
+                const actionsNode = createNode("div", { className: "list-actions" });
+                actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
+                    await actions.removeCircleFromEvent(circle.id, event.id);
+                }));
+                const item = createListItem(circle.name, circle.circle_type || "Social circle", actionsNode);
+                bindEntityNavigation(item, "circles", circle.id, async () => {
+                    state.activeSection = "circles";
+                    await actions.selectCircle(circle.id);
+                });
+                return item;
+            },
+            "No associated circles."
+        );
+        circlesSection.appendChild(circlesList);
+        container.appendChild(circlesSection);
     }
 
     function renderEvents() {

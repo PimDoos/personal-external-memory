@@ -4,7 +4,7 @@ import { createCombobox } from "../combobox.js";
 import { getAvatarInitials } from "../avatar.js";
 
 export function createPeopleRenderer({ state, caches, actions, common }) {
-    const { filtered, nameOfPerson, selectedPerson, createListItem, renderSimpleList } = common;
+    const { filtered, nameOfPerson, selectedPerson, createEventCard, createListItem, renderSimpleList } = common;
 
     function displayEventLabel(event) {
         return event.title || `Event #${event.id}`;
@@ -68,15 +68,47 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         return `${handler}${trimmedValue}`;
     }
 
+    function contactTypeOptions(currentValue = "") {
+        const entries = state.data.typeLists.contactInfoTypes || [];
+        const options = entries.map((entry) => ({
+            value: entry.name,
+            label: entry.display_name || entry.name,
+        }));
+
+        const normalizedCurrent = String(currentValue || "").trim();
+        if (normalizedCurrent && !options.some((option) => String(option.value).toLowerCase() === normalizedCurrent.toLowerCase())) {
+            options.unshift({ value: normalizedCurrent, label: normalizedCurrent });
+        }
+
+        if (!options.length) {
+            options.push({ value: "", label: "No contact types" });
+        }
+
+        return options;
+    }
+
+    function contactTypeDisplayLabel(typeEntry, contactType) {
+        if (typeEntry?.display_name) {
+            return typeEntry.display_name;
+        }
+        if (typeEntry?.name) {
+            return typeEntry.name;
+        }
+
+        // Legacy/internal values (e.g. social_media) should still be human-readable.
+        return String(contactType || "")
+            .replace(/[_-]+/g, " ")
+            .replace(/\b\w/g, (match) => match.toUpperCase())
+            .trim();
+    }
+
     function buildContactForm(personId) {
         const form = createNode("form", { className: "inline-form" });
-        const contactTypeOptions = state.data.typeLists.contactInfoTypes || [];
+        const contactTypes = state.data.typeLists.contactInfoTypes || [];
         const typeSelect = createSelectNode(
-            contactTypeOptions.length
-                ? contactTypeOptions.map((entry) => ({ value: entry.name, label: entry.display_name || entry.name }))
-                : [{ value: "", label: "No contact types" }],
-            contactTypeOptions[0]?.name || "",
-            { name: "contact_type", required: true, disabled: !contactTypeOptions.length }
+            contactTypeOptions(),
+            contactTypeOptions()[0]?.value || "",
+            { name: "contact_type", required: true, disabled: !contactTypes.length }
         );
         const valueInput = createNode("input", { attrs: { name: "value", required: true, placeholder: "Value" } });
 
@@ -97,13 +129,11 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
     function buildEditContactForm(contact) {
         const form = createNode("form", { className: "inline-form" });
-        const contactTypeOptions = state.data.typeLists.contactInfoTypes || [];
+        const contactTypes = state.data.typeLists.contactInfoTypes || [];
         const typeSelect = createSelectNode(
-            contactTypeOptions.length
-                ? contactTypeOptions.map((entry) => ({ value: entry.name, label: entry.display_name || entry.name }))
-                : [{ value: "", label: "No contact types" }],
+            contactTypeOptions(contact.contact_type || ""),
             contact.contact_type || "",
-            { name: "contact_type", required: true, disabled: !contactTypeOptions.length }
+            { name: "contact_type", required: true, disabled: !contactTypes.length }
         );
         const valueInput = createNode("input", {
             value: contact.value || "",
@@ -364,12 +394,26 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             attrs: { name: "notes", rows: "3" },
         });
 
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "First name" }), firstNameInput] }));
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "Last name" }), lastNameInput] }));
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "Birthday" }), birthDateInput] }));
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "Date of death" }), deathDateInput] }));
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "Notes" }), notesInput] }));
-        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
+        form.appendChild(createNode("label", {
+            className: "person-form__pair-item",
+            children: [createNode("span", { text: "First name" }), firstNameInput],
+        }));
+        form.appendChild(createNode("label", {
+            className: "person-form__pair-item",
+            children: [createNode("span", { text: "Last name" }), lastNameInput],
+        }));
+        form.appendChild(createNode("label", {
+            className: "person-form__pair-item",
+            children: [createNode("span", { text: "Birthday" }), birthDateInput],
+        }));
+        form.appendChild(createNode("label", {
+            className: "person-form__pair-item",
+            children: [createNode("span", { text: "Date of death" }), deathDateInput],
+        }));
+        form.appendChild(createNode("label", {
+            className: "person-form__notes",
+            children: [createNode("span", { text: "Notes" }), notesInput],
+        }));
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -434,6 +478,12 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             brandIds: [],
         };
 
+        const personEditForm = buildPersonEditForm(person);
+        personEditForm.classList.add("person-form", "person-form--detail");
+        const savePersonButton = createButtonNode("Save changes", "primary-button", () => {
+            personEditForm.requestSubmit();
+        }, { type: "button" });
+
         const overview = createNode("article", {
             className: `subpanel${person.date_of_death ? " person-card--deceased" : ""}`,
             children: [
@@ -441,12 +491,18 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                     className: "panel-heading",
                     children: [
                         createNode("h3", { text: "Person Details" }),
-                        createButtonNode("Delete", "danger-button", async () => {
-                            await actions.deletePerson(person.id);
+                        createNode("div", {
+                            className: "list-actions",
+                            children: [
+                                savePersonButton,
+                                createButtonNode("Delete", "danger-button", async () => {
+                                    await actions.deletePerson(person.id);
+                                }),
+                            ],
                         }),
                     ],
                 }),
-                buildPersonEditForm(person),
+                personEditForm,
                 createNode("p", {
                     className: "muted",
                     text: person.date_of_death
@@ -468,14 +524,15 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             contacts,
             (contact) => {
                 const actionsNode = createNode("div", { className: "list-actions" });
+                actionsNode.addEventListener("mousedown", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+                actionsNode.addEventListener("click", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
                 const typeEntry = findTypeByName(state.data.typeLists.contactInfoTypes || [], contact.contact_type);
-                const displayTypeName = typeEntry?.display_name || contact.contact_type;
+                const displayTypeName = contactTypeDisplayLabel(typeEntry, contact.contact_type);
                 const href = buildUriLink(typeEntry, contact.value);
-                if (href) {
-                    actionsNode.appendChild(createButtonNode("Open", "secondary-button", () => {
-                        window.open(href, "_blank", "noopener,noreferrer");
-                    }));
-                }
 
                 const editForm = buildEditContactForm(contact);
                 const editButton = createButtonNode("Edit", "secondary-button", () => {
@@ -492,7 +549,6 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                     editButton.style.display = "";
                     removeButton.style.display = "";
                 });
-                editForm.style.display = "none";
 
                 actionsNode.appendChild(editButton);
 
@@ -502,8 +558,27 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 actionsNode.appendChild(removeButton);
 
                 const item = createListItem(displayTypeName, contact.value, actionsNode);
+                if (href) {
+                    item.classList.add("clickable");
+                    item.addEventListener("click", () => {
+                        window.open(href, "_blank", "noopener,noreferrer");
+                    });
+                    item.addEventListener("auxclick", (eventObj) => {
+                        if (eventObj.button !== 1) {
+                            return;
+                        }
+                        eventObj.preventDefault();
+                        window.open(href, "_blank", "noopener,noreferrer");
+                    });
+                }
 
                 const editContainer = createNode("div", { attrs: { id: `contact-edit-${contact.id}` }, className: "hidden" });
+                editContainer.addEventListener("mousedown", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+                editContainer.addEventListener("click", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
                 editContainer.appendChild(editForm);
                 editContainer.appendChild(cancelButton);
                 item.appendChild(editContainer);
@@ -538,14 +613,17 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             (location) => {
                 const subtitleParts = [location.location_type || "", location.location || ""].filter(Boolean);
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Open", "secondary-button", async () => {
-                    state.activeSection = "locations";
-                    await actions.selectLocation(location.id);
-                }));
+                actionsNode.addEventListener("click", (e) => e.stopPropagation());
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeLocationFromPerson(location.id, person.id);
                 }));
-                return createListItem(displayLocationLabel(location), subtitleParts.join(" · "), actionsNode);
+                const item = createListItem(displayLocationLabel(location), subtitleParts.join(" · "), actionsNode);
+                item.classList.add("clickable");
+                item.addEventListener("click", async () => {
+                    state.activeSection = "locations";
+                    await actions.selectLocation(location.id);
+                });
+                return item;
             },
             "No locations yet."
         );
@@ -686,9 +764,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             eventsNode,
             associatedEvents,
             (event) => {
-                const eventStart = event.start_time || event.date;
-                const subtitle = eventStart ? `Event · ${formatDate(eventStart)}` : "Event";
-                const item = createListItem(displayEventLabel(event), subtitle);
+                const item = createEventCard(event);
                 bindEntityNavigation(item, "events", event.id, async () => {
                     state.activeSection = "events";
                     await actions.selectEvent(event.id);

@@ -50,3 +50,9 @@ class LocationAssociationResponse(BaseModel):
         """Pydantic config."""
 
         from_attributes = True
+
+
+class LocationDetailResponse(LocationResponse):
+    """Location detail payload with associations for detail rendering."""
+
+    associations: list[LocationAssociationResponse] = []

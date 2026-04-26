@@ -167,6 +167,12 @@ class SocialCircle(Base):
     members = relationship(
         "Person", secondary="circle_members", back_populates="social_circles"
     )
+    event_associations = relationship(
+        "SocialCircleAssociation",
+        back_populates="circle",
+        cascade="all, delete-orphan",
+        foreign_keys="SocialCircleAssociation.circle_id",
+    )
 
 
 # ===== CircleMember (association) =====
@@ -285,6 +291,25 @@ class Location(Base):
 
     # Relationships
     user = relationship("User", back_populates="locations")
+
+
+# ===== SocialCircleAssociation (association) =====
+class SocialCircleAssociation(Base):
+    """Association between SocialCircle and Event."""
+
+    __tablename__ = "social_circle_associations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    circle_id = Column(Integer, ForeignKey("social_circles.id"), nullable=False, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)
+
+    # Relationships
+    circle = relationship(
+        "SocialCircle",
+        back_populates="event_associations",
+        foreign_keys=[circle_id],
+    )
+    event = relationship("Event", foreign_keys=[event_id])
 
 
 # ===== LocationAssociation (association) =====

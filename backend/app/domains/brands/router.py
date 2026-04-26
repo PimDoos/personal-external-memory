@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.brands.schemas import (
     BrandCreateRequest,
+    BrandDetailResponse,
+    BrandListResponse,
     BrandResponse,
     BrandUpdateRequest,
 )
@@ -28,29 +30,27 @@ async def create_brand(
     return brand
 
 
-@router.get("/{brand_id}", response_model=BrandResponse)
+@router.get("/{brand_id}", response_model=BrandDetailResponse)
 async def get_brand(
     brand_id: int,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
-) -> BrandResponse:
+) -> BrandDetailResponse:
     """Get a brand by ID."""
     service = BrandService(db)
-    return await service.get(brand_id, current_user.id)
+    return await service.get_detail(brand_id, current_user.id)
 
 
-@router.get("", response_model=list[BrandResponse])
+@router.get("", response_model=list[BrandListResponse])
 async def list_brands(
     current_user: CurrentUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
-) -> list[BrandResponse]:
+) -> list[BrandListResponse]:
     """List all brands for current user."""
     service = BrandService(db)
-    from app.domains.brands.repository import BrandRepository
-    repo = BrandRepository(db)
-    return await repo.list_by_user(current_user.id, skip, limit)
+    return await service.list_with_related(current_user.id, skip, limit)
 
 
 @router.put("/{brand_id}", response_model=BrandResponse)

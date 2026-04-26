@@ -115,6 +115,7 @@ export const api = {
     },
     people: {
         list: () => request("/api/people"),
+        get: (id) => request(`/api/people/${id}`),
         create: (data) => request("/api/people", { method: "POST", ...jsonBody(data) }),
         update: (id, data) => request(`/api/people/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (id) => request(`/api/people/${id}`, { method: "DELETE" }),
@@ -143,15 +144,21 @@ export const api = {
     },
     circles: {
         list: () => request("/api/social-circles"),
+        get: (id) => request(`/api/social-circles/${id}`),
         create: (data) => request("/api/social-circles", { method: "POST", ...jsonBody(data) }),
         update: (id, data) => request(`/api/social-circles/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (id) => request(`/api/social-circles/${id}`, { method: "DELETE" }),
         members: (circleId) => request(`/api/associations/circle-members/${circleId}`),
         addMember: (data) => request("/api/associations/circle-members", { method: "POST", ...jsonBody(data) }),
         removeMember: (circleId, personId) => request(`/api/associations/circle-members/${circleId}/${personId}`, { method: "DELETE" }),
+        events: (circleId) => request(`/api/associations/circle-events/${circleId}`),
+        circlesForEvent: (eventId) => request(`/api/associations/circle-events/by-event/${eventId}`),
+        associateEvent: (data) => request("/api/associations/circle-events", { method: "POST", ...jsonBody(data) }),
+        removeEvent: (circleId, eventId) => request(`/api/associations/circle-events/${circleId}/${eventId}`, { method: "DELETE" }),
     },
     brands: {
         list: () => request("/api/brands"),
+        get: (id) => request(`/api/brands/${id}`),
         create: (data) => request("/api/brands", { method: "POST", ...jsonBody(data) }),
         update: (id, data) => request(`/api/brands/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (id) => request(`/api/brands/${id}`, { method: "DELETE" }),
@@ -162,6 +169,7 @@ export const api = {
     },
     events: {
         list: () => request("/api/events"),
+        get: (id) => request(`/api/events/${id}`),
         create: (data) => request("/api/events", { method: "POST", ...jsonBody(data) }),
         update: (id, data) => request(`/api/events/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (id) => request(`/api/events/${id}`, { method: "DELETE" }),
@@ -172,6 +180,7 @@ export const api = {
     },
     locations: {
         list: () => request("/api/locations"),
+        get: (id) => request(`/api/locations/${id}`),
         listForEntity: (entityType, entityId) => request(`/api/locations/entity/${entityType}/${entityId}`),
         associations: (locationId) => request(`/api/locations/${locationId}/associations`),
         create: (data) => request("/api/locations", { method: "POST", ...jsonBody(data) }),
