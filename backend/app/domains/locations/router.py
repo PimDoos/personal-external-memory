@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.locations.schemas import (
-    LocationAssociationResponse,
     LocationCreateRequest,
     LocationDetailResponse,
     LocationResponse,
@@ -52,17 +51,6 @@ async def get_location(
     )
 
 
-@router.get("/{location_id}/associations", response_model=list[LocationAssociationResponse])
-async def get_location_associations(
-    location_id: int,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-) -> list[LocationAssociationResponse]:
-    """Get all associations for a location."""
-    service = LocationService(db)
-    return await service.get_associations_for_location(location_id, current_user.id)
-
-
 @router.get("", response_model=list[LocationResponse])
 async def list_locations(
     current_user: CurrentUser,
@@ -73,18 +61,6 @@ async def list_locations(
     """List all locations for current user."""
     repo = LocationRepository(db)
     return await repo.list_by_user(current_user.id, skip, limit)
-
-
-@router.get("/entity/{entity_type}/{entity_id}", response_model=list[LocationResponse])
-async def list_locations_for_entity(
-    entity_type: str,
-    entity_id: int,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-) -> list[LocationResponse]:
-    """List all locations associated with an entity."""
-    service = LocationService(db)
-    return await service.list_for_entity(entity_type, entity_id, current_user.id)
 
 
 @router.put("/{location_id}", response_model=LocationResponse)

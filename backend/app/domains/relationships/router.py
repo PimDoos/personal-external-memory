@@ -44,32 +44,6 @@ async def list_relationships(
     return await repo.list_all(skip, limit)
 
 
-@router.get("/people/{person_id}", response_model=list[PersonRelationshipResponse])
-async def list_relationships_for_person(
-    person_id: int,
-    current_user: CurrentUser,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    db: AsyncSession = Depends(get_db),
-) -> list[PersonRelationshipResponse]:
-    """List all relationships for a specific person."""
-    from app.domains.relationships.repository import PersonRelationshipRepository
-    from sqlalchemy import select
-    from app.infrastructure.models import Person
-
-    # Verify person ownership
-    stmt = select(Person).where(
-        (Person.id == person_id) & (Person.user_id == current_user.id)
-    )
-    result = await db.execute(stmt)
-    if not result.scalar_one_or_none():
-        from app.infrastructure.exceptions import NotFoundError
-        raise NotFoundError("Person not found")
-
-    repo = PersonRelationshipRepository(db)
-    return await repo.list_for_person(person_id, skip, limit)
-
-
 @router.get("/{relationship_id}", response_model=PersonRelationshipResponse)
 async def get_relationship(
     relationship_id: int,

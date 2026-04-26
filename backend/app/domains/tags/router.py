@@ -3,13 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domains.tags.schemas import (
-    PersonTagAssociationRequest,
-    PersonTagResponse,
-    TagCreateRequest,
-    TagResponse,
-    TagUpdateRequest,
-)
+from app.domains.tags.schemas import PersonTagResponse, TagCreateRequest, TagResponse, TagUpdateRequest
 from app.domains.tags.service import TagService
 from app.infrastructure.database import get_db
 from app.infrastructure.dependencies import CurrentUser
@@ -42,29 +36,6 @@ async def list_tags(
     from app.domains.tags.repository import TagRepository
     repo = TagRepository(db)
     return await repo.list_by_user(current_user.id, skip, limit)
-
-
-@router.get("/people/{person_id}", response_model=list[TagResponse])
-async def list_tags_for_person(
-    person_id: int,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-) -> list[TagResponse]:
-    """List all tags for a person."""
-    from app.domains.tags.repository import PersonTagRepository
-    from sqlalchemy import select
-    from app.infrastructure.models import Person
-
-    stmt = select(Person).where(
-        (Person.id == person_id) & (Person.user_id == current_user.id)
-    )
-    result = await db.execute(stmt)
-    if not result.scalar_one_or_none():
-        from app.infrastructure.exceptions import NotFoundError
-        raise NotFoundError("Person not found")
-
-    repo = PersonTagRepository(db)
-    return await repo.list_tags_for_person(person_id)
 
 
 @router.get("/{tag_id}", response_model=TagResponse)
@@ -134,22 +105,5 @@ async def remove_tag_from_person(
     await service.remove_tag_from_person(person_id, tag_id, current_user.id)
     await db.commit()
     return {"message": "Tag removed from person successfully"}
-
-
-@router.get("/{tag_id}/people", response_model=list[int])
-async def list_people_with_tag(
-    tag_id: int,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-) -> list[int]:
-    """List all people with a specific tag."""
-    from app.domains.tags.repository import PersonTagRepository
-
-    # Verify tag ownership
-    service = TagService(db)
-    await service.get(tag_id, current_user.id)
-
-    repo = PersonTagRepository(db)
-    return await repo.list_people_with_tag(tag_id)
 
 
