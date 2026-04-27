@@ -79,7 +79,7 @@ export function createBrandsRenderer({ state, actions, common }) {
 
                 const personName = `${person.first_name} ${person.last_name || ""}`.trim();
                 const avatar = createNode("span", {
-                    className: "list-avatar list-avatar--person",
+                    className: "list-avatar",
                     text: getAvatarInitials(personName),
                     attrs: { title: personName, "aria-label": personName },
                 });
@@ -106,7 +106,7 @@ export function createBrandsRenderer({ state, actions, common }) {
 
         // Add member form
         if (availablePeople.length > 0) {
-            const form = createNode("form", { className: "form-grid stack compact-form" });
+            const form = createNode("form", { className: "form-grid compact-form" });
             const personOptions = availablePeople.map((person) => ({
                 value: person.id,
                 label: `${person.first_name} ${person.last_name || ""}`.trim(),
@@ -168,7 +168,7 @@ export function createBrandsRenderer({ state, actions, common }) {
     }
 
     function buildBrandEditForm(brand) {
-        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const form = createNode("form", { className: "form-grid compact-form" });
         const nameInput = createNode("input", {
             value: brand.name || "",
             attrs: { name: "name", required: true },

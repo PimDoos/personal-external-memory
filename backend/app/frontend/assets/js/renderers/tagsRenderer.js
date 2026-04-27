@@ -23,7 +23,7 @@ export function createTagsRenderer({ state, actions, common }) {
     }
 
     function buildTagEditForm(tag) {
-        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const form = createNode("form", { className: "form-grid compact-form" });
         const nameInput = createNode("input", {
             value: tag.name || "",
             attrs: { name: "name", required: true },

@@ -372,7 +372,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
     }
 
     function buildPersonEditForm(person) {
-        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const form = createNode("form", { className: "form-grid compact-form" });
         const firstNameInput = createNode("input", {
             value: person.first_name || "",
             attrs: { name: "first_name", required: true },
@@ -702,7 +702,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 }));
                 const counterpartName = nameOfPerson(counterpartId);
                 const avatar = createNode("span", {
-                    className: "list-avatar list-avatar--person",
+                    className: "list-avatar",
                     text: getAvatarInitials(counterpartName),
                     attrs: { title: counterpartName, "aria-label": counterpartName },
                 });
@@ -933,7 +933,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 });
                 const personName = `${person.first_name} ${person.last_name || ""}`.trim();
                 const avatar = createNode("span", {
-                    className: "list-avatar list-avatar--person",
+                    className: "list-avatar",
                     text: getAvatarInitials(personName),
                     attrs: { title: personName, "aria-label": personName },
                 });

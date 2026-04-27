@@ -58,7 +58,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
     }
 
     function buildEventEditForm(event) {
-        const form = createNode("form", { className: "form-grid stack compact-form event-form--detail" });
+        const form = createNode("form", { className: "form-grid compact-form event-form--detail" });
         const titleInput = createNode("input", {
             value: event.title || "",
             attrs: { name: "title", placeholder: "Birthday dinner, launch party" },
@@ -372,7 +372,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
                 }));
                 const participantName = nameOfPerson(participant.person_id);
                 const avatar = createNode("span", {
-                    className: "list-avatar list-avatar--person",
+                    className: "list-avatar",
                     text: getAvatarInitials(participantName),
                     attrs: { title: participantName, "aria-label": participantName },
                 });

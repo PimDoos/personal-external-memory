@@ -58,7 +58,7 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
     }
 
     function buildCircleEditForm(circle) {
-        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const form = createNode("form", { className: "form-grid compact-form" });
         const nameInput = createNode("input", {
             value: circle.name || "",
             attrs: { name: "name", required: true },
@@ -318,7 +318,7 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                 }));
                 const memberName = `${member.first_name} ${member.last_name || ""}`.trim();
                 const avatar = createNode("span", {
-                    className: "list-avatar list-avatar--person",
+                    className: "list-avatar",
                     text: getAvatarInitials(memberName),
                     attrs: { title: memberName, "aria-label": memberName },
                 });

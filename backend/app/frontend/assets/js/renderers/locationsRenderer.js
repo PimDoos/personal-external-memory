@@ -105,7 +105,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
     }
 
     function buildLocationEditForm(location) {
-        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const form = createNode("form", { className: "form-grid compact-form" });
 
         const labelInput = createNode("input", {
             value: location.label || "",

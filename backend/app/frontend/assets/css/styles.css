@@ -189,12 +189,8 @@ select {
 }
 
 .topbar-actions,
-.tabs,
-.nav-tabs,
-.stack,
-.list-item__row,
-.metric-grid,
-.split-grid {
+.stack {
+    display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
 }
@@ -256,13 +252,17 @@ select {
 .auth-panel,
 .compact-form,
 .detail-panel,
-.list,
-.nav-tabs,
 .form-grid {
+    display: grid;
     gap: 14px;
 }
 
+.form-grid {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .tabs {
+    display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
     margin-bottom: 12px;
@@ -304,8 +304,8 @@ select {
 }
 
 .nav-tabs {
-    margin-top: 18px;
     margin-top: 0;
+    display: grid;
     grid-template-columns: repeat(9, minmax(0, 1fr));
     gap: 10px;
 }
@@ -607,23 +607,23 @@ textarea {
     min-width: 0;
 }
 
-.list-avatar {
-    width: 36px;
-    height: 36px;
+.list-avatar,
+.dashboard-avatar {
     border-radius: 50%;
     border: 2px solid #15201e;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
-    font-weight: 700;
     color: #ffffff;
-    background: #2a3a36;
-    flex: 0 0 36px;
 }
 
-.list-avatar--person {
+.list-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+    font-weight: 700;
     background: #2a3a36;
+    flex: 0 0 36px;
 }
 
 .list-item h4,
@@ -675,15 +675,8 @@ textarea {
 .dashboard-avatar {
     width: 28px;
     height: 28px;
-    border-radius: 50%;
-    border: 2px solid #15201e;
     margin-left: -6px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     font-size: 10px;
-    font-weight: 700;
-    color: #ffffff;
     background: #2a3a36;
 }
 

@@ -115,7 +115,7 @@ export function createDashboardRenderer({ state, caches, actions, common }) {
             (item) => {
                 const personName = `${item.first_name} ${item.last_name || ""}`.trim();
                 const avatar = createNode("span", {
-                    className: "list-avatar list-avatar--person",
+                    className: "list-avatar",
                     text: getAvatarInitials(personName),
                     attrs: { title: personName, "aria-label": personName },
                 });
