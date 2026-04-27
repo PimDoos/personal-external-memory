@@ -58,7 +58,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
     }
 
     function buildEventEditForm(event) {
-        const form = createNode("form", { className: "form-grid stack compact-form" });
+        const form = createNode("form", { className: "form-grid stack compact-form event-form--detail" });
         const titleInput = createNode("input", {
             value: event.title || "",
             attrs: { name: "title", placeholder: "Birthday dinner, launch party" },
@@ -82,11 +82,26 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             attrs: { name: "notes", rows: "3" },
         });
 
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "Title" }), titleInput] }));
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "Type" }), eventTypeSelect] }));
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "Start" }), startInput] }));
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "End" }), endInput] }));
-        form.appendChild(createNode("label", { children: [createNode("span", { text: "Notes" }), notesInput] }));
+        form.appendChild(createNode("label", {
+            className: "event-form__title",
+            children: [createNode("span", { text: "Title" }), titleInput],
+        }));
+        form.appendChild(createNode("label", {
+            className: "event-form__type",
+            children: [createNode("span", { text: "Type" }), eventTypeSelect],
+        }));
+        form.appendChild(createNode("label", {
+            className: "event-form__start",
+            children: [createNode("span", { text: "Start" }), startInput],
+        }));
+        form.appendChild(createNode("label", {
+            className: "event-form__end",
+            children: [createNode("span", { text: "End" }), endInput],
+        }));
+        form.appendChild(createNode("label", {
+            className: "event-form__notes",
+            children: [createNode("span", { text: "Notes" }), notesInput],
+        }));
         form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
 
         form.addEventListener("submit", async (eventObj) => {
@@ -326,7 +341,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
         });
 
         const { wrapper: formWrapper, trigger: formTrigger } = wrapCollapsible("+ Add", form);
-        section.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Participants" }), formTrigger] }));
+        section.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Event" }), formTrigger] }));
         section.appendChild(formWrapper);
 
         const list = createNode("div", { className: "list" });
