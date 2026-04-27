@@ -124,6 +124,9 @@ The native frontend is now implemented and served directly by FastAPI.
 - Add sign-in with OpenID
 - Add user preferences
     - Dark mode: Auto, light or dark
+    - Me: Select person which represents the user
+    - Immich API key: To link people in Immich to people in PEM
+
 
 - Add profile pictures
     - People
@@ -140,3 +143,9 @@ The native frontend is now implemented and served directly by FastAPI.
     - People that were not alive at that time are not displayed
     - Relationships that were not active at that time are not displayed
     - Filter is optional. If not set, the topology view shows the current relationships.
+
+- Add Immich integration
+    - Link people in Immich to people in PEM
+    - Link photos and albums in Immich to people, social circles, brands, or events in PEM
+    - Display linked photos in the associated entity's details page
+    - Automatically use the profile picture in Immich as the profile picture in PEM if available
