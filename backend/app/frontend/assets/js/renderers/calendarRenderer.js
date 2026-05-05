@@ -179,10 +179,21 @@ export function createCalendarRenderer({ state, actions }) {
                 className: `calendar-cell${isToday ? " calendar-cell--today" : ""}`,
             });
 
-            cell.appendChild(createNode("span", {
+            const dayMeta = createNode("div", { className: "calendar-day-meta" });
+            dayMeta.appendChild(createNode("span", {
                 className: "calendar-day-num",
                 text: String(day),
             }));
+
+            const addButton = createButtonNode("+ Add", "ghost-button", async (e) => {
+                e.stopPropagation();
+                await actions.openEventCreateForDate(dayKey);
+            }, { type: "button" });
+            addButton.classList.add("calendar-day-add");
+            addButton.setAttribute("aria-label", `Add event on ${dayKey}`);
+            dayMeta.appendChild(addButton);
+
+            cell.appendChild(dayMeta);
 
             dayEvents.forEach((event) => {
                 const title = event.title || `Event #${event.id}`;

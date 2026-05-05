@@ -316,6 +316,29 @@ export function createAppController() {
         writeHashFromState();
     }
 
+    function dayKeyToLocalDateTime(dayKey) {
+        if (!dayKey) {
+            return "";
+        }
+        return `${dayKey}T00:00`;
+    }
+
+    function prefillEventCreateFormForDay(dayKey) {
+        const formNode = getNodeById("event-form");
+        if (!formNode) {
+            return;
+        }
+        const startInput = formNode.querySelector("input[name='start_time']");
+        const endInput = formNode.querySelector("input[name='end_time']");
+        const localDateTime = dayKeyToLocalDateTime(dayKey);
+        if (startInput) {
+            startInput.value = localDateTime;
+        }
+        if (endInput) {
+            endInput.value = localDateTime;
+        }
+    }
+
     function setAuthMessage(message) {
         refs.authMessage.innerText = message;
     }
@@ -1374,6 +1397,12 @@ export function createAppController() {
                 loadEventParticipants(eventId),
                 loadEventLocations(eventId),
             ]);
+        }),
+        openEventCreateForDate: async (dayKey) => withAction(async () => {
+            state.activeSection = "events";
+            resetSidebar("events");
+            state.sidebar.events = "create";
+            prefillEventCreateFormForDay(dayKey);
         }),
         openTagFromContext: async (tagId) => withAction(async () => {
             state.activeSection = "tags";

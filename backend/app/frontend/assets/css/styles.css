@@ -491,14 +491,45 @@ select {
     pointer-events: none;
 }
 
+.calendar-day-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
 .calendar-day-num {
     font-size: 0.8rem;
     font-weight: 700;
     color: var(--ink-soft);
-    align-self: flex-end;
     line-height: 1;
-    min-width: 1.4em;
-    text-align: right;
+    min-width: 1.2em;
+}
+
+.calendar-day-add {
+    border: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 0.72rem;
+    padding: 0;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, color 120ms ease;
+}
+
+.calendar-cell:hover .calendar-day-add,
+.calendar-day-add:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.calendar-day-add:hover,
+.calendar-day-add:focus-visible {
+    color: var(--accent);
+    text-decoration: underline;
 }
 
 .calendar-cell--today .calendar-day-num {
