@@ -29,6 +29,10 @@ class LocationResponse(BaseModel):
     location_type: Optional[str]
     label: Optional[str]
     location: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    geocode_status: Optional[str] = None
+    geocoded_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

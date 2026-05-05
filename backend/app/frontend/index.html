@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Personal External Memory</title>
     <link rel="stylesheet" href="/assets/css/styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 </head>
 <body>
     <div class="app-shell">
@@ -30,6 +31,7 @@
                 <button class="nav-button" data-section="types" data-label="Types" type="button">Types</button>
                 <button class="nav-button" data-section="topology" data-label="Topology" type="button">Topology</button>
                 <button class="nav-button" data-section="calendar" data-label="Calendar" type="button">Calendar</button>
+                <button class="nav-button" data-section="map" data-label="Map" type="button">Map</button>
                 <div class="user-chip">
                     <div class="user-chip__label">Signed in</div>
                     <strong id="user-email">-</strong>
@@ -256,12 +258,30 @@
                         <p class="muted">Click a node to open its detail view.</p>
                     </article>
                 </section>
+
+                <section class="view-section" id="section-map">
+                    <article class="panel map-panel">
+                        <div class="panel-heading">
+                            <h2>Map View</h2>
+                        </div>
+                        <div class="map-legend" aria-label="Map legend">
+                            <span class="map-legend__item"><span class="map-marker-icon map-marker--person" aria-hidden="true"></span> Person</span>
+                            <span class="map-legend__item"><span class="map-marker-icon map-marker--brand" aria-hidden="true"></span> Brand</span>
+                            <span class="map-legend__item"><span class="map-marker-icon map-marker--circle" aria-hidden="true"></span> Social circle</span>
+                            <span class="map-legend__item"><span class="map-marker-icon map-marker--event-only" aria-hidden="true"></span> Event</span>
+                            <span class="map-legend__item"><span class="map-marker-icon map-marker--fallback" aria-hidden="true"></span> Other</span>
+                        </div>
+                        <div id="map-canvas" class="map-canvas"></div>
+                        <div id="map-unmapped" class="map-unmapped muted"></div>
+                    </article>
+                </section>
             </section>
         </main>
     </div>
 
     <div class="toast" id="toast"></div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script type="module" src="/assets/js/app.js?v=20260423"></script>
 </body>
 </html>

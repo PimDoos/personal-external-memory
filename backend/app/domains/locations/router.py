@@ -39,12 +39,18 @@ async def get_location(
     """Get a location by ID."""
     service = LocationService(db)
     location = await service.get(location_id, current_user.id)
+    location = await service.ensure_geocoded_for_response(location)
+    await db.commit()
     associations = await service.get_associations_for_location(location_id, current_user.id)
     return LocationDetailResponse(
         id=location.id,
         location_type=location.location_type,
         label=location.label,
         location=location.location,
+        latitude=location.latitude,
+        longitude=location.longitude,
+        geocode_status=location.geocode_status,
+        geocoded_at=location.geocoded_at,
         created_at=location.created_at,
         updated_at=location.updated_at,
         associations=associations,
@@ -60,7 +66,12 @@ async def list_locations(
 ) -> list[LocationResponse]:
     """List all locations for current user."""
     repo = LocationRepository(db)
-    return await repo.list_by_user(current_user.id, skip, limit)
+    service = LocationService(db)
+    locations = await repo.list_by_user(current_user.id, skip, limit)
+    for location in locations:
+        await service.ensure_geocoded_for_response(location)
+    await db.commit()
+    return locations
 
 
 @router.put("/{location_id}", response_model=LocationResponse)

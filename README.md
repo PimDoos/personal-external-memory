@@ -133,11 +133,13 @@ The native frontend is now implemented and served directly by FastAPI.
     - Social Circles
 
 - Add a map view to visualize entities on a map
+    - Use an open source map library
     - Display the associated entities at their associated location
-    - Filter by entity type (people, brands, social circles, events)
+    - Different entities can be enabled or disabled in this view (people, brands, social circles, events)
     - If multiple entities are at the same location, they are displayed in a cluster, which can be clicked to show the individual entities
 
-- Add start and end date to relationships
+- Add start and end date to relationships (optional field)
+
 - Add point in time filter to topology view, to visualize the relationships at a specific point in time.
     - People that were not alive at that time are not displayed
     - Relationships that were not active at that time are not displayed
@@ -150,10 +152,7 @@ The native frontend is now implemented and served directly by FastAPI.
     - Automatically use the profile picture in Immich as the profile picture in PEM if available
 
 - Add calendar view
-    - Display events, birthdays and date of death in a calendar table format
-    - Monday is the first day of the week
     - Ability to filter events by people, social circles, tags or brands
-    - Clicking on an event shows the event details or associated entity details if it's a birthday or date of death
 
 - Add external entities
     - External entities are entities provided by external integrations

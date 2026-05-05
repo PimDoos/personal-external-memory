@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, Boolean
+from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -284,6 +284,10 @@ class Location(Base):
     location_type = Column(String(100), nullable=True)  # Home, Office, Other, etc.
     label = Column(String(255), nullable=True)
     location = Column(String(500), nullable=False)  # Address or coordinates
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    geocode_status = Column(String(32), nullable=True)
+    geocoded_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False

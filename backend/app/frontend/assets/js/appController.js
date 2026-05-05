@@ -7,7 +7,7 @@ import { toIsoDateTime } from "./ui.js";
 export function createAppController() {
     const TOKEN_REFRESH_EARLY_MS = 60 * 1000;
     const TOKEN_REFRESH_FALLBACK_MS = 5 * 60 * 1000;
-    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "locations", "types", "topology", "calendar"]);
+    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "locations", "types", "topology", "calendar", "map"]);
     const ENTITY_KEY_BY_SECTION = {
         people: "personId",
         circles: "circleId",
@@ -1311,25 +1311,25 @@ export function createAppController() {
         }),
         addEventParticipant: async (eventId, personId, role) => withAction(async () => {
             await api.events.addParticipant({ event_id: eventId, person_id: personId, role });
-            await loadEventParticipants(eventId);
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
             await refreshTopologyData();
+            await loadEventLocations(eventId);
             showToast("Participant added.");
         }),
         changeEventRole: async (eventId, personId, role) => withAction(async () => {
             await api.events.updateParticipantRole(eventId, personId, role);
-            await loadEventParticipants(eventId);
+            await loadEventLocations(eventId);
             showToast("Role updated.");
         }),
         removeEventParticipant: async (eventId, personId) => withAction(async () => {
             await api.events.removeParticipant(eventId, personId);
-            await loadEventParticipants(eventId);
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
             await refreshTopologyData();
+            await loadEventLocations(eventId);
             showToast("Participant removed.");
         }),
         updateEvent: async (eventId, payload) => withAction(async () => {

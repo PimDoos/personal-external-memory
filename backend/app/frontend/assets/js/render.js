@@ -9,6 +9,7 @@ import { createLocationsRenderer } from "./renderers/locationsRenderer.js";
 import { createTypesRenderer } from "./renderers/typesRenderer.js";
 import { createTopologyRenderer } from "./renderers/topologyRenderer.js";
 import { createCalendarRenderer } from "./renderers/calendarRenderer.js";
+import { createMapRenderer } from "./renderers/mapRenderer.js";
 
 export function createRenderer(ctx) {
     const {
@@ -30,6 +31,7 @@ export function createRenderer(ctx) {
     const { renderTypes } = createTypesRenderer({ state, actions });
     const { renderTopology } = createTopologyRenderer({ state, caches, actions });
     const { renderCalendar } = createCalendarRenderer({ state, actions });
+    const { renderMap } = createMapRenderer({ state, actions });
 
     function renderAll() {
         common.setAuthShell();
@@ -47,6 +49,7 @@ export function createRenderer(ctx) {
         renderTypes();
         renderTopology();
         renderCalendar();
+        renderMap();
     }
 
     return {

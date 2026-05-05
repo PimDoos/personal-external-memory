@@ -279,6 +279,10 @@ async def _apply_sqlite_migrations(connection) -> None:
     await add_column_if_missing("events", "event_type", "VARCHAR(100)")
     await add_column_if_missing("social_circles", "circle_type", "VARCHAR(100)")
     await add_column_if_missing("people", "date_of_death", "DATE")
+    await add_column_if_missing("locations", "latitude", "FLOAT")
+    await add_column_if_missing("locations", "longitude", "FLOAT")
+    await add_column_if_missing("locations", "geocode_status", "VARCHAR(32)")
+    await add_column_if_missing("locations", "geocoded_at", "DATETIME")
     
     # Ensure social_circle_associations table exists
     table_check_result = await connection.execute(text(

@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # Geocoding (Nominatim)
+    NOMINATIM_BASE_URL: str = "https://nominatim.openstreetmap.org"
+    NOMINATIM_CONTACT_EMAIL: str = ""
+    NOMINATIM_MIN_INTERVAL_SECONDS: float = 1.0
+
     # Optional integrations
     GOOGLE_CALENDAR_API_KEY: Optional[str] = None
     OUTLOOK_API_KEY: Optional[str] = None

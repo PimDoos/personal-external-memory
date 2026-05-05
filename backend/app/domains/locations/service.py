@@ -1,8 +1,12 @@
 """Locations domain - business logic."""
 
+from datetime import datetime, timedelta
+import re
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domains.locations.geocoding import NominatimGeocoder
 from app.domains.locations.schemas import LocationCreateRequest, LocationUpdateRequest
 from app.infrastructure.models import (
     Brand,
@@ -75,6 +79,105 @@ class LocationService:
         normalized = str(label).strip()
         return normalized or None
 
+    @staticmethod
+    def _is_valid_geocode(latitude: float | None, longitude: float | None) -> bool:
+        if latitude is None or longitude is None:
+            return False
+        return abs(float(latitude)) <= 90 and abs(float(longitude)) <= 180
+
+    @staticmethod
+    def _parse_coordinates(value: str | None) -> tuple[float, float] | None:
+        normalized = str(value or "").strip()
+        if not normalized:
+            return None
+
+        point_match = re.match(r"^POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)$", normalized, flags=re.IGNORECASE)
+        if point_match:
+            lon = float(point_match.group(1))
+            lat = float(point_match.group(2))
+            if abs(lat) <= 90 and abs(lon) <= 180:
+                return lat, lon
+
+        number_matches = re.findall(r"-?\d+(?:\.\d+)?", normalized)
+        if len(number_matches) < 2:
+            return None
+
+        first = float(number_matches[0])
+        second = float(number_matches[1])
+
+        first_can_be_lat = abs(first) <= 90
+        first_can_be_lon = abs(first) <= 180
+        second_can_be_lat = abs(second) <= 90
+        second_can_be_lon = abs(second) <= 180
+
+        if first_can_be_lat and second_can_be_lon:
+            return first, second
+        if first_can_be_lon and second_can_be_lat:
+            return second, first
+
+        return None
+
+    @staticmethod
+    def _is_geocodable_address(value: str | None) -> bool:
+        normalized = str(value or "").strip()
+        if not normalized:
+            return False
+        return bool(re.search(r"[A-Za-z]", normalized))
+
+    async def _resolve_geocode_if_needed(self, location: Location, force_refresh: bool = False) -> bool:
+        """Resolve and persist geocode on the location when missing or invalid.
+
+        Returns True when the location object was modified.
+        """
+        if not force_refresh and self._is_valid_geocode(location.latitude, location.longitude):
+            return False
+
+        now = datetime.utcnow()
+
+        # Avoid repeatedly geocoding addresses that recently failed.
+        if (
+            not force_refresh
+            and location.geocode_status == "not_found"
+            and location.geocoded_at is not None
+            and now - location.geocoded_at < timedelta(hours=24)
+        ):
+            return False
+
+        parsed = self._parse_coordinates(location.location)
+        if parsed is not None:
+            location.latitude, location.longitude = parsed
+            location.geocode_status = "coordinate_input"
+            location.geocoded_at = now
+            return True
+
+        if not self._is_geocodable_address(location.location):
+            location.latitude = None
+            location.longitude = None
+            location.geocode_status = "invalid_input"
+            location.geocoded_at = now
+            return True
+
+        geocoded = await NominatimGeocoder.geocode(location.location)
+        if geocoded is None:
+            location.latitude = None
+            location.longitude = None
+            location.geocode_status = "not_found"
+            location.geocoded_at = now
+            return True
+
+        location.latitude, location.longitude = geocoded
+        location.geocode_status = "nominatim"
+        location.geocoded_at = now
+        return True
+
+    async def ensure_geocoded_for_response(self, location: Location) -> Location:
+        """Ensure location has a persisted valid geocode before API response."""
+        changed = await self._resolve_geocode_if_needed(location, force_refresh=False)
+        if changed:
+            await self.session.flush()
+            await self.session.refresh(location)
+        return location
+
     async def _ensure_entity_owned(self, entity_type: str, entity_id: int, user_id: int) -> None:
         """Validate that an association target exists and belongs to the user."""
         model = ENTITY_MODEL_BY_TYPE.get(entity_type)
@@ -99,6 +202,7 @@ class LocationService:
             location=data.location,
         )
         self.session.add(location)
+        await self._resolve_geocode_if_needed(location, force_refresh=True)
         await self.session.flush()
         await self.session.refresh(location)
         return location
@@ -131,6 +235,15 @@ class LocationService:
 
         for key, value in update_data.items():
             setattr(location, key, value)
+
+        if "location" in update_data:
+            location.latitude = None
+            location.longitude = None
+            location.geocode_status = None
+            location.geocoded_at = None
+
+        if "location" in update_data or not self._is_valid_geocode(location.latitude, location.longitude):
+            await self._resolve_geocode_if_needed(location, force_refresh=True)
 
         await self.session.flush()
         await self.session.refresh(location)
