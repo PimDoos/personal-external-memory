@@ -341,7 +341,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
         });
 
         const { wrapper: formWrapper, trigger: formTrigger } = wrapCollapsible("+ Add", form);
-        section.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Event" }), formTrigger] }));
+        section.appendChild(createNode("div", { className: "panel-heading", children: [createNode("h3", { text: "Participants" }), formTrigger] }));
         section.appendChild(formWrapper);
 
         const list = createNode("div", { className: "list" });

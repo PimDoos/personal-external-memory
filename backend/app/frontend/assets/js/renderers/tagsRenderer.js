@@ -1,7 +1,60 @@
-import { clearNodeChildren, createButtonNode, createFormDataObject, createNode } from "../dom.js";
+import {
+    clearNodeChildren,
+    createButtonNode,
+    createFormDataObject,
+    createNode,
+    createSelectNode,
+    wrapCollapsible,
+} from "../dom.js";
 
-export function createTagsRenderer({ state, actions, common }) {
+export function createTagsRenderer({ state, caches, actions, common }) {
     const { filtered, createListItem, renderSimpleList } = common;
+
+    function personDisplayName(person) {
+        return `${person.first_name} ${person.last_name || ""}`.trim() || `Person #${person.id}`;
+    }
+
+    function tagsForPerson(person) {
+        const cachedTags = caches.personTags.get(person.id);
+        if (Array.isArray(cachedTags) && cachedTags.length) {
+            return cachedTags;
+        }
+        return Array.isArray(person.tags) ? person.tags : [];
+    }
+
+    function buildAssociateEntityForm(tagId, associatedPeople) {
+        const associatedIds = new Set(associatedPeople.map((person) => person.id));
+        const availablePeople = state.data.people
+            .filter((person) => !associatedIds.has(person.id))
+            .sort((left, right) => personDisplayName(left).localeCompare(personDisplayName(right), undefined, { sensitivity: "base" }));
+
+        const form = createNode("form", { className: "inline-form" });
+        const personOptions = availablePeople.length
+            ? availablePeople.map((person) => ({ value: person.id, label: personDisplayName(person) }))
+            : [{ value: "", label: "No people available" }];
+
+        const peopleSelect = createSelectNode(personOptions, "", {
+            name: "person_id",
+            disabled: !availablePeople.length,
+        });
+
+        form.appendChild(peopleSelect);
+        form.appendChild(createButtonNode("Associate", "primary-button", null, {
+            type: "submit",
+            disabled: !availablePeople.length,
+        }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const values = createFormDataObject(form);
+            if (!values.person_id) {
+                return;
+            }
+            await actions.assignTagToPerson(tagId, Number(values.person_id));
+        });
+
+        return form;
+    }
 
     function bindEntityNavigation(item, section, entityId, onPrimaryOpen) {
         item.addEventListener("click", async (event) => {
@@ -85,6 +138,10 @@ export function createTagsRenderer({ state, actions, common }) {
 
         clearNodeChildren(container);
         container.className = "detail-grid";
+        const associatedPeople = state.data.people
+            .filter((person) => tagsForPerson(person).some((tagSummary) => tagSummary.id === tag.id))
+            .sort((left, right) => personDisplayName(left).localeCompare(personDisplayName(right), undefined, { sensitivity: "base" }));
+
         container.appendChild(createNode("article", {
             className: "subpanel",
             children: [
@@ -100,6 +157,47 @@ export function createTagsRenderer({ state, actions, common }) {
                 buildTagEditForm(tag),
             ],
         }));
+
+        const associatedSection = createNode("section", { className: "subpanel" });
+        const { wrapper: associateFormWrapper, trigger: associateFormTrigger } = wrapCollapsible(
+            "+ Associate",
+            buildAssociateEntityForm(tag.id, associatedPeople)
+        );
+
+        associatedSection.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [
+                createNode("h3", { text: "Associated Entities" }),
+                associateFormTrigger,
+            ],
+        }));
+        associatedSection.appendChild(associateFormWrapper);
+
+        const associationsList = createNode("div", { className: "list" });
+        renderSimpleList(
+            associationsList,
+            associatedPeople,
+            (person) => {
+                const actionsNode = createNode("div", { className: "list-actions" });
+                actionsNode.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                });
+                actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
+                    await actions.removeTagFromPerson(tag.id, person.id);
+                }));
+
+                const item = createListItem(personDisplayName(person), "person", actionsNode);
+                item.classList.add("clickable");
+                bindEntityNavigation(item, "people", person.id, async () => {
+                    await actions.openPersonFromContext(person.id);
+                });
+                return item;
+            },
+            "No associated entities."
+        );
+
+        associatedSection.appendChild(associationsList);
+        container.appendChild(associatedSection);
     }
 
     function renderTags() {

@@ -3,6 +3,10 @@ export const state = {
     refreshToken: window.localStorage.getItem("pem.refreshToken") || "",
     email: window.localStorage.getItem("pem.userEmail") || "",
     activeSection: "dashboard",
+    calendarView: {
+        year: new Date().getFullYear(),
+        month: new Date().getMonth(),
+    },
     filters: {
         people: "",
         circles: "",

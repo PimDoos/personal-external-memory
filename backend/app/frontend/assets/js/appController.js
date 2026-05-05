@@ -7,7 +7,7 @@ import { toIsoDateTime } from "./ui.js";
 export function createAppController() {
     const TOKEN_REFRESH_EARLY_MS = 60 * 1000;
     const TOKEN_REFRESH_FALLBACK_MS = 5 * 60 * 1000;
-    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "locations", "types", "topology"]);
+    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "locations", "types", "topology", "calendar"]);
     const ENTITY_KEY_BY_SECTION = {
         people: "personId",
         circles: "circleId",
@@ -1365,6 +1365,15 @@ export function createAppController() {
             state.activeSection = "brands";
             state.selected.brandId = brandId;
             state.sidebar.brands = "detail";
+        }),
+        openEventFromContext: async (eventId) => withAction(async () => {
+            state.activeSection = "events";
+            state.selected.eventId = eventId;
+            state.sidebar.events = "detail";
+            await Promise.all([
+                loadEventParticipants(eventId),
+                loadEventLocations(eventId),
+            ]);
         }),
         openTagFromContext: async (tagId) => withAction(async () => {
             state.activeSection = "tags";

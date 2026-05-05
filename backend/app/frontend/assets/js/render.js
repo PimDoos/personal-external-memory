@@ -8,6 +8,7 @@ import { createTagsRenderer } from "./renderers/tagsRenderer.js";
 import { createLocationsRenderer } from "./renderers/locationsRenderer.js";
 import { createTypesRenderer } from "./renderers/typesRenderer.js";
 import { createTopologyRenderer } from "./renderers/topologyRenderer.js";
+import { createCalendarRenderer } from "./renderers/calendarRenderer.js";
 
 export function createRenderer(ctx) {
     const {
@@ -24,10 +25,11 @@ export function createRenderer(ctx) {
     const { renderCircles } = createCirclesRenderer({ state, caches, actions, common });
     const { renderBrands } = createBrandsRenderer({ state, caches, actions, common });
     const { renderEvents } = createEventsRenderer({ state, caches, actions, common });
-    const { renderTags } = createTagsRenderer({ state, actions, common });
+    const { renderTags } = createTagsRenderer({ state, caches, actions, common });
     const { renderLocations } = createLocationsRenderer({ state, caches, actions, common });
     const { renderTypes } = createTypesRenderer({ state, actions });
     const { renderTopology } = createTopologyRenderer({ state, caches, actions });
+    const { renderCalendar } = createCalendarRenderer({ state, actions });
 
     function renderAll() {
         common.setAuthShell();
@@ -44,6 +46,7 @@ export function createRenderer(ctx) {
         renderLocations();
         renderTypes();
         renderTopology();
+        renderCalendar();
     }
 
     return {

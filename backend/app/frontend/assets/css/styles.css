@@ -306,7 +306,7 @@ select {
 .nav-tabs {
     margin-top: 0;
     display: grid;
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-columns: repeat(10, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -409,6 +409,122 @@ select {
     gap: 18px;
     align-items: start;
 }
+
+.types-list {
+    --types-list-item-height: 73px;
+    max-height: calc((var(--types-list-item-height) * 4) + 16px);
+    overflow-y: auto;
+}
+
+.types-list .list-item {
+    min-height: var(--types-list-item-height);
+}
+
+/* ===== Calendar ===== */
+
+.calendar-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.calendar-month-label {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    margin: 0;
+    flex: 1;
+    text-align: center;
+}
+
+.calendar-nav-btn {
+    font-size: 1.3rem;
+    line-height: 1;
+    padding: 8px 14px;
+}
+
+.calendar-today-btn {
+    margin-left: auto;
+    padding: 8px 14px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.calendar-grid--body {
+    margin-top: 4px;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+    padding: 6px 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.calendar-cell {
+    min-height: 100px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    padding: 6px;
+    background: var(--surface-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden;
+}
+
+.calendar-cell--today {
+    border-color: var(--accent-soft-line);
+    background: var(--accent-soft);
+}
+
+.calendar-cell--empty {
+    background: transparent;
+    border-color: transparent;
+    pointer-events: none;
+}
+
+.calendar-day-num {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+    align-self: flex-end;
+    line-height: 1;
+    min-width: 1.4em;
+    text-align: right;
+}
+
+.calendar-cell--today .calendar-day-num {
+    color: var(--accent);
+}
+
+.calendar-event-pill {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-soft-line);
+    border-radius: 6px;
+    padding: 3px 7px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--ink);
+    transition: background 140ms ease;
+    line-height: 1.4;
+}
+
+.calendar-event-pill:hover {
+    background: var(--accent-soft-line);
+}
+
+/* ===== /Calendar ===== */
 
 .topology-panel {
     display: grid;
@@ -558,7 +674,7 @@ textarea {
 .list {
     display: grid;
     gap: 12px;
-    max-height: 520px;
+    max-height: 430px;
     overflow: auto;
     border: 1px solid var(--line);
     border-radius: var(--radius-small);
