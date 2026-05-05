@@ -1115,6 +1115,27 @@ export function createAppController() {
             await refreshTopologyData();
             showToast("Relationship created.");
         }),
+        updateRelationship: async (relationshipId, payload, personId1, personId2, shouldSwapDirection = false) => withAction(async () => {
+            if (shouldSwapDirection) {
+                await api.relationships.remove(relationshipId);
+                await api.relationships.create({
+                    person_id_1: personId2,
+                    person_id_2: personId1,
+                    relationship_type: payload.relationship_type,
+                    notes: payload.notes ?? undefined,
+                });
+            } else {
+                await api.relationships.update(relationshipId, payload);
+            }
+            const personIdsToRefresh = new Set([personId1, personId2, state.selected.personId]);
+            await Promise.all(
+                [...personIdsToRefresh]
+                    .filter((personId) => Number.isInteger(personId))
+                    .map((personId) => loadPersonCaches(personId))
+            );
+            await refreshTopologyData();
+            showToast("Relationship updated.");
+        }),
         deleteRelationship: async (relationshipId, personId) => withAction(async () => {
             await api.relationships.remove(relationshipId);
                 if (state.selected.personId) {

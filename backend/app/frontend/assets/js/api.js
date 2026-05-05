@@ -136,6 +136,7 @@ export const api = {
     relationships: {
         list: () => request("/api/relationships"),
         create: (data) => request("/api/relationships", { method: "POST", ...jsonBody(data) }),
+        update: (id, data) => request(`/api/relationships/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (id) => request(`/api/relationships/${id}`, { method: "DELETE" }),
     },
     circles: {

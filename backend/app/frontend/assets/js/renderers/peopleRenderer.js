@@ -371,6 +371,86 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         return form;
     }
 
+    function buildEditRelationshipForm(relationship, personId) {
+        const form = createNode("form", { className: "inline-form" });
+        const relationshipTypes = state.data.typeLists.relationshipTypes || [];
+        const relationInput = createSelectNode(
+            relationshipTypes.length
+                ? relationshipTypes.map((entry) => ({ value: entry.name, label: `${entry.emoji || ""} ${entry.name}`.trim() }))
+                : [{ value: relationship.relationship_type || "", label: relationship.relationship_type || "No relationship types" }],
+            relationship.relationship_type || "",
+            {
+                name: "relationship_type",
+                required: true,
+                disabled: !relationshipTypes.length,
+            }
+        );
+        const perspectiveSelect = createNode("select", { attrs: { name: "perspective" } });
+        perspectiveSelect.style.display = "none";
+
+        function updatePerspectiveOptions() {
+            const selectedType = relationshipTypes.find((t) => t.name === relationInput.value);
+            const leftLabel = selectedType?.left_label || "";
+            const rightLabel = selectedType?.right_label || "";
+            const isAsymmetric = leftLabel && rightLabel && leftLabel !== rightLabel;
+
+            perspectiveSelect.style.display = isAsymmetric ? "" : "none";
+            perspectiveSelect.innerHTML = "";
+
+            if (isAsymmetric) {
+                const leftOption = document.createElement("option");
+                leftOption.value = "left";
+                leftOption.textContent = leftLabel;
+                const rightOption = document.createElement("option");
+                rightOption.value = "right";
+                rightOption.textContent = rightLabel;
+                perspectiveSelect.appendChild(leftOption);
+                perspectiveSelect.appendChild(rightOption);
+
+                const currentPerspective = relationship.person_id_1 === personId ? "left" : "right";
+                perspectiveSelect.value = currentPerspective;
+            }
+        }
+
+        relationInput.addEventListener("change", updatePerspectiveOptions);
+        updatePerspectiveOptions();
+
+        const notesInput = createNode("input", {
+            value: relationship.notes || "",
+            attrs: {
+                name: "notes",
+                placeholder: "Optional note",
+            },
+        });
+
+        form.appendChild(relationInput);
+        form.appendChild(perspectiveSelect);
+        form.appendChild(notesInput);
+        form.appendChild(createButtonNode("Save", "primary-button", null, { type: "submit" }));
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = createFormDataObject(form);
+            const currentPerspective = relationship.person_id_1 === personId ? "left" : "right";
+            const hasPerspectiveChoice = perspectiveSelect.style.display !== "none";
+            const shouldSwapDirection = hasPerspectiveChoice
+                && payload.perspective
+                && payload.perspective !== currentPerspective;
+            await actions.updateRelationship(
+                relationship.id,
+                {
+                    relationship_type: payload.relationship_type || relationship.relationship_type,
+                    notes: payload.notes === "" ? null : payload.notes,
+                },
+                relationship.person_id_1,
+                relationship.person_id_2,
+                shouldSwapDirection,
+            );
+        });
+
+        return form;
+    }
+
     function buildPersonEditForm(person) {
         const form = createNode("form", { className: "form-grid compact-form" });
         const firstNameInput = createNode("input", {
@@ -697,9 +777,33 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 ].filter(Boolean);
                 const subtitle = subtitleParts.join(" · ");
                 const actionsNode = createNode("div", { className: "list-actions" });
-                actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
+                actionsNode.addEventListener("mousedown", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+                actionsNode.addEventListener("click", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+
+                const removeButton = createButtonNode("Remove", "danger-button", async () => {
                     await actions.deleteRelationship(relationship.id, person.id);
-                }));
+                });
+                const editButton = createButtonNode("Edit", "secondary-button", () => {
+                    const editContainer = document.getElementById(`relationship-edit-${relationship.id}`);
+                    if (!editContainer) return;
+                    editContainer.classList.remove("hidden");
+                    editButton.style.display = "none";
+                    removeButton.style.display = "none";
+                });
+                const cancelButton = createButtonNode("Cancel", "secondary-button", () => {
+                    const editContainer = document.getElementById(`relationship-edit-${relationship.id}`);
+                    if (!editContainer) return;
+                    editContainer.classList.add("hidden");
+                    editButton.style.display = "";
+                    removeButton.style.display = "";
+                });
+
+                actionsNode.appendChild(editButton);
+                actionsNode.appendChild(removeButton);
                 const counterpartName = nameOfPerson(counterpartId);
                 const avatar = createNode("span", {
                     className: "list-avatar",
@@ -707,6 +811,18 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                     attrs: { title: counterpartName, "aria-label": counterpartName },
                 });
                 const item = createListItem(counterpartName, subtitle, actionsNode, avatar);
+
+                const editContainer = createNode("div", { attrs: { id: `relationship-edit-${relationship.id}` }, className: "hidden" });
+                editContainer.addEventListener("mousedown", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+                editContainer.addEventListener("click", (eventObj) => {
+                    eventObj.stopPropagation();
+                });
+                editContainer.appendChild(buildEditRelationshipForm(relationship, person.id));
+                editContainer.appendChild(cancelButton);
+                item.appendChild(editContainer);
+
                 item.classList.add("clickable");
                 bindEntityNavigation(item, "people", counterpartId, async () => {
                     await actions.openPersonFromContext(counterpartId);

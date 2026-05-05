@@ -77,6 +77,46 @@ export function createCalendarRenderer({ state, actions }) {
         return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     }
 
+    function buildPersonOccasionsByDayMap() {
+        const { year, month } = state.calendarView;
+        const calendarMonth = month + 1; // 1-based
+        const map = new Map();
+
+        (state.data.people || []).forEach((person) => {
+            const name = [person.first_name, person.last_name].filter(Boolean).join(" ");
+
+            if (person.birth_date) {
+                const m = String(person.birth_date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (m) {
+                    const originYear = Number(m[1]);
+                    const bMonth = Number(m[2]);
+                    const bDay = Number(m[3]);
+                    if (bMonth === calendarMonth && year >= originYear) {
+                        const key = buildDayKey(year, month, bDay);
+                        if (!map.has(key)) map.set(key, []);
+                        map.get(key).push({ type: "birthday", name, year: originYear, personId: person.id });
+                    }
+                }
+            }
+
+            if (person.date_of_death) {
+                const m = String(person.date_of_death).match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (m) {
+                    const originYear = Number(m[1]);
+                    const dMonth = Number(m[2]);
+                    const dDay = Number(m[3]);
+                    if (dMonth === calendarMonth && year >= originYear) {
+                        const key = buildDayKey(year, month, dDay);
+                        if (!map.has(key)) map.set(key, []);
+                        map.get(key).push({ type: "death", name, year: originYear, personId: person.id });
+                    }
+                }
+            }
+        });
+
+        return map;
+    }
+
     function formatEventTime(event) {
         const timeStr = event.start_time || event.date;
         if (!timeStr) {
@@ -161,6 +201,7 @@ export function createCalendarRenderer({ state, actions }) {
         const trailingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
 
         const eventsByDay = buildEventsByDayMap();
+        const occasionsByDay = buildPersonOccasionsByDayMap();
 
         const bodyGrid = createNode("div", { className: "calendar-grid calendar-grid--body" });
 
@@ -174,6 +215,7 @@ export function createCalendarRenderer({ state, actions }) {
             const dayKey = buildDayKey(year, month, day);
             const isToday = dayKey === todayKey;
             const dayEvents = eventsByDay.get(dayKey) || [];
+            const dayOccasions = occasionsByDay.get(dayKey) || [];
 
             const cell = createNode("div", {
                 className: `calendar-cell${isToday ? " calendar-cell--today" : ""}`,
@@ -194,6 +236,28 @@ export function createCalendarRenderer({ state, actions }) {
             dayMeta.appendChild(addButton);
 
             cell.appendChild(dayMeta);
+
+            dayOccasions.forEach((occasion) => {
+                const label = occasion.type === "birthday"
+                    ? `\u{1F973} ${occasion.name} (${occasion.year})`
+                    : `\u{1FAA6} ${occasion.name} (${occasion.year})`;
+                const pill = createNode("div", {
+                    className: `calendar-occasion-pill calendar-occasion-pill--${occasion.type}`,
+                    text: label,
+                    attrs: { title: label, role: "button", tabindex: "0" },
+                });
+                pill.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    await actions.openPersonFromContext(occasion.personId);
+                });
+                pill.addEventListener("keydown", async (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        await actions.openPersonFromContext(occasion.personId);
+                    }
+                });
+                cell.appendChild(pill);
+            });
 
             dayEvents.forEach((event) => {
                 const title = event.title || `Event #${event.id}`;

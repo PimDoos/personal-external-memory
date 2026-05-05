@@ -536,6 +536,34 @@ select {
     color: var(--accent);
 }
 
+.calendar-occasion-pill {
+    border-radius: 6px;
+    padding: 3px 7px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+    color: var(--ink);
+    cursor: pointer;
+    transition: opacity 140ms ease;
+}
+
+.calendar-occasion-pill:hover {
+    opacity: 0.75;
+}
+
+.calendar-occasion-pill--birthday {
+    background: light-dark(rgba(234, 179, 8, 0.15), rgba(234, 179, 8, 0.22));
+    border: 1px solid light-dark(rgba(234, 179, 8, 0.45), rgba(234, 179, 8, 0.55));
+}
+
+.calendar-occasion-pill--death {
+    background: light-dark(rgba(100, 116, 139, 0.1), rgba(148, 163, 184, 0.15));
+    border: 1px solid light-dark(rgba(100, 116, 139, 0.3), rgba(148, 163, 184, 0.35));
+    color: var(--ink-soft);
+}
+
 .calendar-event-pill {
     background: var(--accent-soft);
     border: 1px solid var(--accent-soft-line);
