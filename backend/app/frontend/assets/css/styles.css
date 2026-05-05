@@ -742,9 +742,23 @@ select {
     gap: 10px;
 }
 
-.topology-filters label {
+.topology-filters label:not(.topology-filter-checkbox) {
     display: grid;
     gap: 6px;
+}
+
+.topology-filter-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 28px;
+    justify-self: start;
+}
+
+.topology-filter-checkbox input {
+    width: auto;
+    margin: 0;
+    padding: 0;
 }
 
 .topology-legend {

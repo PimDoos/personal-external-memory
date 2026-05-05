@@ -28,10 +28,11 @@ export const state = {
         relationshipType: "",
         socialCircleId: "",
         brandId: "",
+        showDeceased: true,
         edgeVisibility: {
             relationship: true,
             affiliation: true,
-            membership: true,
+            socialCircles: true,
         },
     },
     sidebar: {

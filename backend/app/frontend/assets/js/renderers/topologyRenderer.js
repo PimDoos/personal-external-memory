@@ -443,9 +443,15 @@ export function createTopologyRenderer({ state, caches, actions }) {
         const socialCircleIdFilter = Number(state.topologyFilters.socialCircleId || 0);
         const brandIdFilter = Number(state.topologyFilters.brandId || 0);
         const edgeVisibility = state.topologyFilters.edgeVisibility || {};
+        const showSocialCircles = edgeVisibility.socialCircles !== false;
         const hasEdgeVisibilityFilter = Object.values(edgeVisibility).some((isVisible) => isVisible === false);
 
-        let filteredEdges = graph.edges.filter((edge) => edgeVisibility[edge.type] !== false);
+        let filteredEdges = graph.edges.filter((edge) => {
+            if (edge.type === "membership") {
+                return showSocialCircles;
+            }
+            return edgeVisibility[edge.type] !== false;
+        });
 
         if (relationshipTypeFilter) {
             filteredEdges = filteredEdges.filter((edge) => {
@@ -487,7 +493,12 @@ export function createTopologyRenderer({ state, caches, actions }) {
             nodeIds.add(edge.target);
         });
 
-        const filteredNodes = graph.nodes.filter((node) => nodeIds.has(node.id));
+        const filteredNodes = graph.nodes.filter((node) => {
+            if (!showSocialCircles && node.entity === "circle") {
+                return false;
+            }
+            return nodeIds.has(node.id);
+        });
 
         return {
             nodes: decorateNodesWithConnectionCounts(filteredNodes, filteredEdges),
@@ -651,8 +662,8 @@ export function createTopologyRenderer({ state, caches, actions }) {
         legend.innerHTML = "";
         [
             { key: "relationship", label: "Relationships" },
-            { key: "affiliation", label: "Affiliations" },
-            { key: "membership", label: "Social Circle Memberships" },
+            { key: "affiliation", label: "Brands" },
+            { key: "socialCircles", label: "Social Circles", color: EDGE_COLORS.membership },
         ].forEach((entry) => {
             const isVisible = state.topologyFilters.edgeVisibility?.[entry.key] !== false;
             const item = createNode("button", {
@@ -661,7 +672,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
             });
             const swatch = createNode("span", { className: "topology-legend__swatch" });
             const label = createNode("span", { className: "topology-legend__label", text: entry.label });
-            swatch.style.backgroundColor = EDGE_COLORS[entry.key];
+            swatch.style.backgroundColor = entry.color || EDGE_COLORS[entry.key];
             item.appendChild(swatch);
             item.appendChild(label);
             item.addEventListener("click", () => {
@@ -670,29 +681,6 @@ export function createTopologyRenderer({ state, caches, actions }) {
             });
             legend.appendChild(item);
         });
-
-        const circleItem = createNode("div", { className: "topology-legend__item topology-legend__item--static" });
-        const circleSwatch = createNode("span", { className: "topology-legend__swatch" });
-        circleSwatch.style.backgroundColor = "#8b5f9f";
-        circleItem.appendChild(circleSwatch);
-        circleItem.appendChild(createNode("span", { className: "topology-legend__label", text: "Social Circles" }));
-        legend.appendChild(circleItem);
-
-        const showDeceased = state.topologyFilters.showDeceased !== false;
-        const deceasedItem = createNode("button", {
-            className: `topology-legend__item${showDeceased ? "" : " topology-legend__item--disabled"}`,
-            attrs: { type: "button" },
-        });
-        const deceasedSwatch = createNode("span", { className: "topology-legend__swatch" });
-        deceasedSwatch.style.backgroundColor = "#999";
-        const deceasedLabel = createNode("span", { className: "topology-legend__label", text: "Show Deceased" });
-        deceasedItem.appendChild(deceasedSwatch);
-        deceasedItem.appendChild(deceasedLabel);
-        deceasedItem.addEventListener("click", () => {
-            state.topologyFilters.showDeceased = !showDeceased;
-            renderTopology();
-        });
-        legend.appendChild(deceasedItem);
     }
 
     function drawGraph(graph) {
@@ -1041,6 +1029,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
         const relationSelect = document.getElementById("topology-filter-relationship-type");
         const circleSelect = document.getElementById("topology-filter-circle");
         const brandSelect = document.getElementById("topology-filter-brand");
+        const showDeceasedCheckbox = document.getElementById("topology-filter-show-deceased");
 
         [
             [relationSelect, "relationshipType"],
@@ -1055,14 +1044,22 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 renderTopology();
             });
         });
+
+        if (showDeceasedCheckbox) {
+            showDeceasedCheckbox.addEventListener("change", () => {
+                state.topologyFilters.showDeceased = showDeceasedCheckbox.checked;
+                renderTopology();
+            });
+        }
     }
 
     function syncFilterOptions() {
         const relationSelect = document.getElementById("topology-filter-relationship-type");
         const circleSelect = document.getElementById("topology-filter-circle");
         const brandSelect = document.getElementById("topology-filter-brand");
+        const showDeceasedCheckbox = document.getElementById("topology-filter-show-deceased");
 
-        if (!relationSelect || !circleSelect || !brandSelect) {
+        if (!relationSelect || !circleSelect || !brandSelect || !showDeceasedCheckbox) {
             return;
         }
 
@@ -1110,6 +1107,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
         relationSelect.value = state.topologyFilters.relationshipType || "";
         circleSelect.value = state.topologyFilters.socialCircleId || "";
         brandSelect.value = state.topologyFilters.brandId || "";
+        showDeceasedCheckbox.checked = state.topologyFilters.showDeceased !== false;
     }
 
     function renderTopology() {
