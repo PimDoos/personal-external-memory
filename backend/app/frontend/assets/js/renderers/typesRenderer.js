@@ -1,4 +1,4 @@
-import { createButtonNode, clearNodeChildren, createNode, createFormDataObject } from "../dom.js";
+import { createButtonNode, clearNodeChildren, createNode, createFormDataObject, wrapCollapsible } from "../dom.js";
 
 const CATEGORY_CONFIG = [
     { key: "contactInfoTypes", category: "contact-info", label: "Contact Info Types", panelId: "types-panel-contact-info", fields: ["name", "uri_handler"] },
@@ -19,14 +19,6 @@ const FIELD_LABELS = {
 };
 
 export function createTypesRenderer({ state, actions }) {
-    function matchesFilter(entry, needle) {
-        if (!needle) {
-            return true;
-        }
-        return [entry.name, entry.uri_handler, entry.left_label, entry.right_label, entry.emoji]
-            .some((value) => String(value || "").toLowerCase().includes(needle));
-    }
-
     function buildTypeEditor(config, entry) {
         const form = createNode("form", { className: "inline-form" });
 
@@ -58,19 +50,14 @@ export function createTypesRenderer({ state, actions }) {
         return form;
     }
 
-    function renderCategoryPanel(config, needle) {
+    function renderCategoryPanel(config) {
         const panel = document.getElementById(config.panelId);
         if (!panel) {
             return;
         }
 
         clearNodeChildren(panel);
-        const entries = (state.data.typeLists[config.key] || []).filter((entry) => matchesFilter(entry, needle));
-
-        panel.appendChild(createNode("div", {
-            className: "panel-heading",
-            children: [createNode("h3", { text: config.label })],
-        }));
+        const entries = state.data.typeLists[config.key] || [];
 
         const createForm = createNode("form", { className: "inline-form" });
         config.fields.forEach((field) => {
@@ -82,7 +69,7 @@ export function createTypesRenderer({ state, actions }) {
                 },
             }));
         });
-        createForm.appendChild(createButtonNode("Add", "primary-button", null, { type: "submit" }));
+        createForm.appendChild(createButtonNode("Create", "primary-button", null, { type: "submit" }));
 
         createForm.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -96,9 +83,17 @@ export function createTypesRenderer({ state, actions }) {
             createForm.reset();
         });
 
-        panel.appendChild(createForm);
+        const { wrapper: createFormWrapper, trigger: createFormTrigger } = wrapCollapsible("Add", createForm);
+        panel.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [
+                createNode("h3", { text: config.label }),
+                createFormTrigger,
+            ],
+        }));
+        panel.appendChild(createFormWrapper);
 
-        const list = createNode("div", { className: "list" });
+        const list = createNode("div", { className: "list types-list" });
         if (!entries.length) {
             list.appendChild(createNode("div", { className: "empty-state", text: "No entries yet." }));
         } else {
@@ -137,9 +132,8 @@ export function createTypesRenderer({ state, actions }) {
             return;
         }
 
-        const needle = (state.filters.types || "").trim().toLowerCase();
         CATEGORY_CONFIG.forEach((config) => {
-            renderCategoryPanel(config, needle);
+            renderCategoryPanel(config);
         });
     }
 

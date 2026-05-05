@@ -127,7 +127,6 @@ The native frontend is now implemented and served directly by FastAPI.
     - Me: Select person which represents the user
     - Immich API key: To link people in Immich to people in PEM
 
-
 - Add profile pictures
     - People
     - Brands
@@ -149,3 +148,18 @@ The native frontend is now implemented and served directly by FastAPI.
     - Link photos and albums in Immich to people, social circles, brands, or events in PEM
     - Display linked photos in the associated entity's details page
     - Automatically use the profile picture in Immich as the profile picture in PEM if available
+
+- Add calendar view
+    - Display events, birthdays and date of death in a calendar table format
+    - Monday is the first day of the week
+    - Ability to filter events by people, social circles, tags or brands
+    - Clicking on an event shows the event details or associated entity details if it's a birthday or date of death
+
+- Add external entities
+    - External entities are entities provided by external integrations
+    - Examples:
+        - Photos from Immich
+        - Entities from Home Assistant
+    - External entities are read-only and cannot be edited in PEM
+    - External entities can be associated with internal entities (people, social circles, brands, events) to enrich their information
+    - The integration can specify to which internal entity type(s) the external entity can be associated with.
