@@ -1430,6 +1430,21 @@ export function createAppController() {
             state.selected.tagId = tagId;
             state.sidebar.tags = "detail";
         }),
+        openMapAtCoordinates: async ({ lat, lon, zoom = 16 }) => withAction(async () => {
+            const nextLat = Number(lat);
+            const nextLon = Number(lon);
+            const nextZoom = Number(zoom);
+            if (!Number.isFinite(nextLat) || !Number.isFinite(nextLon)) {
+                return;
+            }
+
+            state.activeSection = "map";
+            state.mapView.focusTarget = {
+                lat: nextLat,
+                lon: nextLon,
+                zoom: Number.isFinite(nextZoom) ? nextZoom : 16,
+            };
+        }),
         deleteTag: async (tagId) => withAction(async () => {
             await api.tags.remove(tagId);
             if (state.selected.tagId === tagId) {

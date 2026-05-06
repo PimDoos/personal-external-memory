@@ -61,6 +61,13 @@ export function createMapRenderer({ state, actions }) {
     const locationAssociationSummaryCache = new Map();
     const locationAssociationSummaryInFlight = new Map();
     let rerenderQueued = false;
+    const legendItems = [
+        { key: "person", label: "Person", className: "map-marker--person" },
+        { key: "brand", label: "Brand", className: "map-marker--brand" },
+        { key: "circle", label: "Social circle", className: "map-marker--circle" },
+        { key: "eventOnly", label: "Event", className: "map-marker--event-only" },
+        { key: "fallback", label: "Other", className: "map-marker--fallback" },
+    ];
 
     function computeLocationDetailCacheVersion() {
         const eventSignature = (state.data.events || [])
@@ -98,6 +105,19 @@ export function createMapRenderer({ state, actions }) {
             rerenderQueued = false;
             renderMap();
         }, 0);
+    }
+
+    function getLegendFilters() {
+        if (!state.mapView.legendFilters) {
+            state.mapView.legendFilters = {
+                person: true,
+                brand: true,
+                circle: true,
+                eventOnly: true,
+                fallback: true,
+            };
+        }
+        return state.mapView.legendFilters;
     }
 
     function prefersDarkScheme() {
@@ -362,6 +382,43 @@ export function createMapRenderer({ state, actions }) {
         return "Unassociated";
     }
 
+    function getMarkerRuleKey(summary) {
+        if (summary?.hasPerson) {
+            return "person";
+        }
+        if (summary?.hasBrand) {
+            return "brand";
+        }
+        if (summary?.hasCircle) {
+            return "circle";
+        }
+        if (summary?.hasEvent) {
+            return "eventOnly";
+        }
+        return "fallback";
+    }
+
+    function selectMarkerRule(summary, filters) {
+        const candidates = [];
+        if (summary?.hasPerson) {
+            candidates.push("person");
+        }
+        if (summary?.hasBrand) {
+            candidates.push("brand");
+        }
+        if (summary?.hasCircle) {
+            candidates.push("circle");
+        }
+        if (summary?.hasEvent) {
+            candidates.push("eventOnly");
+        }
+        if (!candidates.length) {
+            candidates.push("fallback");
+        }
+
+        return candidates.find((key) => Boolean(filters[key])) || null;
+    }
+
     async function ensureLocationAssociationSummary(locationId) {
         if (locationAssociationSummaryCache.has(locationId)) {
             return locationAssociationSummaryCache.get(locationId);
@@ -403,16 +460,130 @@ export function createMapRenderer({ state, actions }) {
         });
     }
 
+    function buildMarkerIconFromRule(ruleKey) {
+        const colorClassByRule = {
+            person: "map-marker--person",
+            brand: "map-marker--brand",
+            circle: "map-marker--circle",
+            eventOnly: "map-marker--event-only",
+            fallback: "map-marker--fallback",
+        };
+        const colorLabelByRule = {
+            person: "Has people",
+            brand: "Has brands",
+            circle: "Has circles",
+            eventOnly: "Only events",
+            fallback: "Unassociated",
+        };
+        const colorClass = colorClassByRule[ruleKey] || "map-marker--fallback";
+        const colorLabel = colorLabelByRule[ruleKey] || "Unassociated";
+        return window.L.divIcon({
+            className: "map-marker-icon-wrapper",
+            html: `<span class="map-marker-icon ${colorClass}" title="${escapeHtml(colorLabel)}" aria-label="${escapeHtml(colorLabel)}"></span>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+            popupAnchor: [0, -10],
+        });
+    }
+
+    function renderLegend(legendNode) {
+        clearNodeChildren(legendNode);
+        const filters = getLegendFilters();
+
+        legendItems.forEach((item) => {
+            const isActive = Boolean(filters[item.key]);
+            const button = createNode("button", {
+                className: `map-legend__item${isActive ? "" : " is-inactive"}`,
+                attrs: {
+                    type: "button",
+                    "aria-pressed": String(isActive),
+                    title: isActive ? `Hide ${item.label}` : `Show ${item.label}`,
+                },
+                children: [
+                    createNode("span", {
+                        className: `map-marker-icon ${item.className}`,
+                        attrs: { "aria-hidden": "true" },
+                    }),
+                    createNode("span", { text: item.label }),
+                ],
+            });
+
+            button.addEventListener("click", () => {
+                filters[item.key] = !filters[item.key];
+                renderMap();
+            });
+
+            legendNode.appendChild(button);
+        });
+    }
+
+    function displayLocationLabel(location) {
+        return location.label || location.location || `Location #${location.id}`;
+    }
+
+    function renderUnmappedLocationsPanel(unmappedNode, unmappedLocations) {
+        clearNodeChildren(unmappedNode);
+
+        if (!unmappedLocations.length) {
+            return;
+        }
+
+        const panel = createNode("details", { className: "map-unmapped-panel" });
+        const locationCount = unmappedLocations.length;
+        const summaryLabel = `${locationCount} location${locationCount === 1 ? "" : "s"} not shown`;
+
+        const summary = createNode("summary", {
+            className: "map-unmapped-panel__summary",
+            children: [
+                createNode("span", { className: "map-unmapped-panel__title", text: summaryLabel }),
+                createNode("span", { className: "map-unmapped-panel__chevron", text: "˅", attrs: { "aria-hidden": "true" } }),
+            ],
+        });
+        panel.appendChild(summary);
+
+        const list = createNode("ul", { className: "map-unmapped-panel__list" });
+        unmappedLocations
+            .slice()
+            .sort((left, right) => {
+                return displayLocationLabel(left).localeCompare(displayLocationLabel(right), undefined, {
+                    sensitivity: "base",
+                });
+            })
+            .forEach((location) => {
+                const button = createNode("button", {
+                    className: "map-unmapped-panel__link",
+                    text: displayLocationLabel(location),
+                    attrs: { type: "button" },
+                });
+                button.addEventListener("click", async () => {
+                    state.activeSection = "locations";
+                    await actions.selectLocation(location.id);
+                });
+
+                const listItem = createNode("li", {
+                    children: [button],
+                });
+                list.appendChild(listItem);
+            });
+
+        panel.appendChild(list);
+        unmappedNode.appendChild(panel);
+    }
+
     function renderMap() {
         const canvas = document.getElementById("map-canvas");
         const unmappedNode = document.getElementById("map-unmapped");
-        if (!canvas || !unmappedNode) {
+        const legendNode = document.querySelector(".map-legend");
+        if (!canvas || !unmappedNode || !legendNode) {
             return;
         }
+
+        renderLegend(legendNode);
 
         refreshLocationDetailCacheIfNeeded();
 
         if (!window.L) {
+            clearNodeChildren(unmappedNode);
             unmappedNode.textContent = "Map library failed to load.";
             clearNodeChildren(canvas);
             canvas.appendChild(createNode("div", { className: "empty-state", text: "Map is unavailable." }));
@@ -430,6 +601,7 @@ export function createMapRenderer({ state, actions }) {
 
         const plottable = [];
         const unmapped = [];
+        const filters = getLegendFilters();
         state.data.locations.forEach((location) => {
             const coords = (Number.isFinite(location.latitude) && Number.isFinite(location.longitude))
                 ? { lat: Number(location.latitude), lon: Number(location.longitude) }
@@ -438,14 +610,21 @@ export function createMapRenderer({ state, actions }) {
                 unmapped.push(location);
                 return;
             }
-            plottable.push({ location, coords });
+
+            const summary = locationAssociationSummaryCache.get(location.id) || summarizeAssociationTypes([]);
+            const markerRule = selectMarkerRule(summary, filters);
+            if (!markerRule) {
+                return;
+            }
+
+            plottable.push({ location, coords, markerRule });
         });
 
-        plottable.forEach(({ location, coords }) => {
+        plottable.forEach(({ location, coords, markerRule }) => {
             const title = location.label || location.location || `Location #${location.id}`;
             const type = location.location_type || "Unknown";
             const marker = window.L.marker([coords.lat, coords.lon], {
-                icon: buildMarkerIcon(location.id),
+                icon: buildMarkerIconFromRule(markerRule),
             });
 
             if (!locationAssociationSummaryCache.has(location.id)) {
@@ -495,14 +674,22 @@ export function createMapRenderer({ state, actions }) {
         if (plottable.length) {
             const bounds = window.L.latLngBounds(plottable.map((entry) => [entry.coords.lat, entry.coords.lon]));
             map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
-            unmappedNode.textContent = unmapped.length
-                ? `${unmapped.length} location(s) not shown: add coordinates like "52.3676, 4.9041".`
-                : "";
+            renderUnmappedLocationsPanel(unmappedNode, unmapped);
         } else {
             map.setView([20, 0], 2);
-            unmappedNode.textContent = state.data.locations.length
-                ? "No mappable coordinates found. Use formats like \"52.3676, 4.9041\" or \"POINT(4.9041 52.3676)\"."
-                : "No locations yet.";
+            if (state.data.locations.length) {
+                renderUnmappedLocationsPanel(unmappedNode, unmapped);
+            } else {
+                clearNodeChildren(unmappedNode);
+                unmappedNode.textContent = "No locations yet.";
+            }
+        }
+
+        const focusTarget = state.mapView?.focusTarget;
+        if (focusTarget && Number.isFinite(focusTarget.lat) && Number.isFinite(focusTarget.lon)) {
+            const zoom = Number.isFinite(focusTarget.zoom) ? focusTarget.zoom : 16;
+            map.setView([focusTarget.lat, focusTarget.lon], zoom);
+            state.mapView.focusTarget = null;
         }
 
         if (state.activeSection === "map") {

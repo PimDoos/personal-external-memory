@@ -4,6 +4,63 @@ import { formatDateTime } from "../ui.js";
 export function createLocationsRenderer({ state, caches, actions, common }) {
     const { filtered, createEventCard, createListItem, renderSimpleList } = common;
 
+    function parseCoordinates(rawLocation) {
+        const value = String(rawLocation || "").trim();
+        if (!value) {
+            return null;
+        }
+
+        const wktPoint = value.match(/^POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)$/i);
+        if (wktPoint) {
+            const lon = Number(wktPoint[1]);
+            const lat = Number(wktPoint[2]);
+            if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+                return { lat, lon };
+            }
+        }
+
+        const matches = value.match(/-?\d+(?:\.\d+)?/g);
+        if (!matches || matches.length < 2) {
+            return null;
+        }
+
+        const first = Number(matches[0]);
+        const second = Number(matches[1]);
+        if (!Number.isFinite(first) || !Number.isFinite(second)) {
+            return null;
+        }
+
+        const firstCanBeLat = Math.abs(first) <= 90;
+        const firstCanBeLon = Math.abs(first) <= 180;
+        const secondCanBeLat = Math.abs(second) <= 90;
+        const secondCanBeLon = Math.abs(second) <= 180;
+
+        if (firstCanBeLat && secondCanBeLon) {
+            return { lat: first, lon: second };
+        }
+        if (firstCanBeLon && secondCanBeLat) {
+            return { lat: second, lon: first };
+        }
+
+        return null;
+    }
+
+    function inferLocationCoordinates(location) {
+        const lat = Number(location.latitude);
+        const lon = Number(location.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+            return { lat, lon };
+        }
+        return parseCoordinates(location.location);
+    }
+
+    function formatCoordinates(coords) {
+        if (!coords) {
+            return "unable to resolve coordinates";
+        }
+        return `${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`;
+    }
+
     function displayLocationLabel(location) {
         return location.label || location.location || "(unnamed location)";
     }
@@ -106,6 +163,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
 
     function buildLocationEditForm(location) {
         const form = createNode("form", { className: "form-grid compact-form" });
+        const inferredCoordinates = inferLocationCoordinates(location);
 
         const labelInput = createNode("input", {
             value: location.label || "",
@@ -127,6 +185,34 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
             children: [
                 createNode("span", { text: "Address or Coordinates" }),
                 locationInput,
+            ],
+        }));
+
+        const mapButton = createNode("button", {
+            className: "secondary-button",
+            text: "Show on map",
+            attrs: { type: "button" },
+        });
+        mapButton.disabled = !inferredCoordinates;
+        mapButton.addEventListener("click", async () => {
+            if (!inferredCoordinates) {
+                return;
+            }
+            await actions.openMapAtCoordinates({
+                lat: inferredCoordinates.lat,
+                lon: inferredCoordinates.lon,
+                zoom: 16,
+            });
+        });
+
+        form.appendChild(createNode("div", {
+            className: "location-coordinates-row",
+            children: [
+                createNode("p", {
+                    className: "muted",
+                    text: `Inferred coordinates: ${formatCoordinates(inferredCoordinates)}`,
+                }),
+                mapButton,
             ],
         }));
 

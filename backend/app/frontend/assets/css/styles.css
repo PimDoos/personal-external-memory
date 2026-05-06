@@ -611,6 +611,23 @@ select {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 6px 10px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.map-legend__item:hover,
+.map-legend__item:focus-visible {
+    border-color: var(--accent-soft-line);
+    background: var(--accent-soft);
+}
+
+.map-legend__item.is-inactive {
+    opacity: 0.55;
 }
 
 .map-canvas {
@@ -623,6 +640,79 @@ select {
 
 .map-unmapped {
     min-height: 1.2rem;
+}
+
+.map-unmapped-panel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    background: var(--surface-soft);
+    overflow: hidden;
+}
+
+.map-unmapped-panel__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+
+.map-unmapped-panel__summary::-webkit-details-marker {
+    display: none;
+}
+
+.map-unmapped-panel__title {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+}
+
+.map-unmapped-panel__chevron {
+    color: var(--ink-soft);
+    transition: transform 140ms ease;
+}
+
+.map-unmapped-panel[open] .map-unmapped-panel__chevron {
+    transform: rotate(180deg);
+}
+
+.map-unmapped-panel__list {
+    margin: 0;
+    padding: 0 10px 10px;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+}
+
+.map-unmapped-panel__link {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-strong);
+    color: var(--ink);
+    text-align: left;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+}
+
+.map-unmapped-panel__link:hover,
+.map-unmapped-panel__link:focus-visible {
+    border-color: var(--accent-soft-line);
+    background: var(--accent-soft);
+}
+
+.location-coordinates-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.location-coordinates-row .muted {
+    margin: 0;
 }
 
 .map-marker-icon-wrapper {

@@ -24,6 +24,16 @@ export const state = {
         tagId: null,
         locationId: null,
     },
+    mapView: {
+        focusTarget: null,
+        legendFilters: {
+            person: true,
+            brand: true,
+            circle: true,
+            eventOnly: true,
+            fallback: true,
+        },
+    },
     topologyFilters: {
         relationshipType: "",
         socialCircleId: "",
