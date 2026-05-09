@@ -9,14 +9,16 @@ class PersonRelationshipCreateRequest(BaseModel):
 
     person_id_1: int
     person_id_2: int
-    relationship_type: str  # family, friend, colleague, etc.
+    relationship_type_id: Optional[int] = None  # FK to ManagedType
+    relationship_type: Optional[str] = None  # DEPRECATED: for migration only
     notes: Optional[str] = None
 
 
 class PersonRelationshipUpdateRequest(BaseModel):
     """Update person relationship request."""
 
-    relationship_type: Optional[str] = None
+    relationship_type_id: Optional[int] = None
+    relationship_type: Optional[str] = None  # DEPRECATED: for migration only
     notes: Optional[str] = None
 
 
@@ -26,8 +28,10 @@ class PersonRelationshipResponse(BaseModel):
     id: int
     person_id_1: int
     person_id_2: int
-    relationship_type: str
+    relationship_type_id: Optional[int]
+    relationship_type: Optional[str]
     notes: Optional[str]
+    type_entry: Optional[dict] = None  # Populated with ManagedType details
 
     class Config:
         """Pydantic config."""

@@ -63,11 +63,31 @@ class PersonRelationshipService:
         if existing:
             raise ConflictError("Relationship already exists between these people")
 
-        # Create relationship
+        # Determine relationship_type_id
+        relationship_type_id = data.relationship_type_id
+        relationship_type_name = data.relationship_type
+        if not relationship_type_id and relationship_type_name:
+            from app.infrastructure.models import ManagedType
+            stmt = select(ManagedType).where(
+                (ManagedType.category == "relationship") & (ManagedType.name.ilike(relationship_type_name))
+            )
+            result = await self.session.execute(stmt)
+            type_entry = result.scalar_one_or_none()
+            if not type_entry:
+                raise NotFoundError(f"Relationship type '{relationship_type_name}' not found")
+            relationship_type_id = type_entry.id
+        # Optionally, fetch name for legacy field
+        if relationship_type_id and not relationship_type_name:
+            from app.infrastructure.models import ManagedType
+            stmt = select(ManagedType).where(ManagedType.id == relationship_type_id)
+            result = await self.session.execute(stmt)
+            type_entry = result.scalar_one_or_none()
+            relationship_type_name = type_entry.name if type_entry else None
         relationship = PersonRelationship(
             person_id_1=data.person_id_1,
             person_id_2=data.person_id_2,
-            relationship_type=data.relationship_type,
+            relationship_type_id=relationship_type_id,
+            relationship_type=relationship_type_name or "",
             notes=data.notes,
         )
         self.session.add(relationship)
@@ -101,8 +121,30 @@ class PersonRelationshipService:
         relationship = await self.get(relationship_id, user_id)
 
         update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(relationship, key, value)
+        # Handle type update logic
+        if "relationship_type_id" in update_data and update_data["relationship_type_id"]:
+            relationship.relationship_type_id = update_data["relationship_type_id"]
+            # Optionally update legacy name field
+            from app.infrastructure.models import ManagedType
+            stmt = select(ManagedType).where(ManagedType.id == update_data["relationship_type_id"])
+            result = await self.session.execute(stmt)
+            type_entry = result.scalar_one_or_none()
+            relationship.relationship_type = type_entry.name if type_entry else None
+        elif "relationship_type" in update_data and update_data["relationship_type"]:
+            # Resolve type by name
+            from app.infrastructure.models import ManagedType
+            stmt = select(ManagedType).where(
+                (ManagedType.category == "relationship") & (ManagedType.name.ilike(update_data["relationship_type"]))
+            )
+            result = await self.session.execute(stmt)
+            type_entry = result.scalar_one_or_none()
+            if not type_entry:
+                raise NotFoundError(f"Relationship type '{update_data['relationship_type']}' not found")
+            relationship.relationship_type_id = type_entry.id
+            relationship.relationship_type = type_entry.name
+        # Other fields
+        if "notes" in update_data:
+            relationship.notes = update_data["notes"]
 
         await self.session.flush()
         await self.session.refresh(relationship)

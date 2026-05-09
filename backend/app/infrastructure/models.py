@@ -132,7 +132,9 @@ class PersonRelationship(Base):
     id = Column(Integer, primary_key=True, index=True)
     person_id_1 = Column(Integer, ForeignKey("people.id"), nullable=False, index=True)
     person_id_2 = Column(Integer, ForeignKey("people.id"), nullable=False, index=True)
-    relationship_type = Column(String(100), nullable=False)  # family, friend, colleague, etc.
+    relationship_type = Column(String(100), nullable=False)  # DEPRECATED: will be removed after migration
+    relationship_type_id = Column(Integer, ForeignKey("managed_types.id", ondelete="SET NULL"), nullable=True)
+    type_entry = relationship("ManagedType", foreign_keys=[relationship_type_id])
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 

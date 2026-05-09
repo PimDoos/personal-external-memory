@@ -1,6 +1,7 @@
 """Relationships domain - API routes."""
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.relationships.schemas import (
@@ -15,6 +16,13 @@ from app.infrastructure.dependencies import CurrentUser
 router = APIRouter()
 
 
+def _orm_to_dict(obj) -> dict:
+    """Convert SQLAlchemy ORM object to dict, excluding internal state."""
+    if obj is None:
+        return None
+    return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+
+
 @router.post("", response_model=PersonRelationshipResponse)
 async def create_relationship(
     request: PersonRelationshipCreateRequest,
@@ -25,7 +33,17 @@ async def create_relationship(
     service = PersonRelationshipService(db)
     relationship = await service.create(current_user.id, request)
     await db.commit()
-    return relationship
+    # Populate type_entry for response
+    type_entry = None
+    if relationship.relationship_type_id:
+        from app.infrastructure.models import ManagedType
+        stmt = select(ManagedType).where(ManagedType.id == relationship.relationship_type_id)
+        result = await db.execute(stmt)
+        type_entry = result.scalar_one_or_none()
+    resp_data = _orm_to_dict(relationship)
+    resp_data["type_entry"] = _orm_to_dict(type_entry) if type_entry else None
+    resp = PersonRelationshipResponse.model_validate(resp_data)
+    return resp
 
 
 @router.get("", response_model=list[PersonRelationshipResponse])
@@ -41,7 +59,22 @@ async def list_relationships(
     repo = PersonRelationshipRepository(db)
     # This is a simplified view - in production, you might want to filter by specific people
     # For now, we return relationships but could add person_id filter
-    return await repo.list_all(skip, limit)
+    relationships = await repo.list_all(skip, limit)
+    # Populate type_entry for each
+    from app.infrastructure.models import ManagedType
+    type_ids = {r.relationship_type_id for r in relationships if r.relationship_type_id}
+    type_map = {}
+    if type_ids:
+        stmt = select(ManagedType).where(ManagedType.id.in_(type_ids))
+        result = await db.execute(stmt)
+        for entry in result.scalars():
+            type_map[entry.id] = entry
+    resp = []
+    for r in relationships:
+        resp_data = _orm_to_dict(r)
+        resp_data["type_entry"] = _orm_to_dict(type_map.get(r.relationship_type_id)) if r.relationship_type_id in type_map else None
+        resp.append(PersonRelationshipResponse.model_validate(resp_data))
+    return resp
 
 
 @router.get("/{relationship_id}", response_model=PersonRelationshipResponse)
@@ -52,7 +85,17 @@ async def get_relationship(
 ) -> PersonRelationshipResponse:
     """Get a relationship by ID."""
     service = PersonRelationshipService(db)
-    return await service.get(relationship_id, current_user.id)
+    relationship = await service.get(relationship_id, current_user.id)
+    type_entry = None
+    if relationship.relationship_type_id:
+        from app.infrastructure.models import ManagedType
+        stmt = select(ManagedType).where(ManagedType.id == relationship.relationship_type_id)
+        result = await db.execute(stmt)
+        type_entry = result.scalar_one_or_none()
+    resp_data = _orm_to_dict(relationship)
+    resp_data["type_entry"] = _orm_to_dict(type_entry) if type_entry else None
+    resp = PersonRelationshipResponse.model_validate(resp_data)
+    return resp
 
 
 @router.put("/{relationship_id}", response_model=PersonRelationshipResponse)
@@ -66,7 +109,16 @@ async def update_relationship(
     service = PersonRelationshipService(db)
     relationship = await service.update(relationship_id, current_user.id, request)
     await db.commit()
-    return relationship
+    type_entry = None
+    if relationship.relationship_type_id:
+        from app.infrastructure.models import ManagedType
+        stmt = select(ManagedType).where(ManagedType.id == relationship.relationship_type_id)
+        result = await db.execute(stmt)
+        type_entry = result.scalar_one_or_none()
+    resp_data = _orm_to_dict(relationship)
+    resp_data["type_entry"] = _orm_to_dict(type_entry) if type_entry else None
+    resp = PersonRelationshipResponse.model_validate(resp_data)
+    return resp
 
 
 @router.delete("/{relationship_id}")

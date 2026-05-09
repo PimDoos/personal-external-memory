@@ -1,5 +1,6 @@
 """FastAPI application factory and setup."""
 
+import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -17,6 +18,7 @@ from app.infrastructure.exceptions import (
     UnauthorizedError,
     ValidationError,
 )
+from app.infrastructure.migrations import run_migrations
 
 
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
@@ -27,6 +29,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
     print("Starting up Personal External Memory Backend...")
+    try:
+        print("Running database migrations...")
+        await run_migrations()
+    except Exception as e:
+        print(f"Warning: Migration failed: {e}")
     await init_db()
     yield
     # Shutdown

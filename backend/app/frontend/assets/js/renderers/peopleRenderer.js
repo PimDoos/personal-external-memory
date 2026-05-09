@@ -293,11 +293,11 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         const relationshipTypes = state.data.typeLists.relationshipTypes || [];
         const relationInput = createSelectNode(
             relationshipTypes.length
-                ? relationshipTypes.map((entry) => ({ value: entry.name, label: `${entry.emoji || ""} ${entry.name}`.trim() }))
+                ? relationshipTypes.map((entry) => ({ value: String(entry.id), label: `${entry.emoji || ""} ${entry.name}`.trim() }))
                 : [{ value: "", label: "No relationship types" }],
-            relationshipTypes[0]?.name || "",
+            relationshipTypes[0]?.id ? String(relationshipTypes[0].id) : "",
             {
-                name: "relationship_type",
+                name: "relationship_type_id",
                 required: true,
                 disabled: !relationshipTypes.length,
             }
@@ -308,7 +308,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         perspectiveSelect.style.display = "none";
 
         function updatePerspectiveOptions() {
-            const selectedType = relationshipTypes.find((t) => t.name === relationInput.value);
+            const selectedType = relationshipTypes.find((t) => String(t.id) === String(relationInput.value));
             const leftLabel = selectedType?.left_label || "";
             const rightLabel = selectedType?.right_label || "";
             const isAsymmetric = leftLabel && rightLabel && leftLabel !== rightLabel;
@@ -355,13 +355,11 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             if (!payload.person_id_2) {
                 return;
             }
-
-            // Determine id_1/id_2 based on perspective for asymmetric types
             const isRightPerspective = perspectiveSelect.style.display !== "none" && payload.perspective === "right";
             await actions.addRelationship({
                 person_id_1: isRightPerspective ? Number(payload.person_id_2) : personId,
                 person_id_2: isRightPerspective ? personId : Number(payload.person_id_2),
-                relationship_type: payload.relationship_type,
+                relationship_type_id: Number(payload.relationship_type_id),
                 notes: payload.notes || undefined,
             });
             form.reset();
@@ -376,11 +374,11 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         const relationshipTypes = state.data.typeLists.relationshipTypes || [];
         const relationInput = createSelectNode(
             relationshipTypes.length
-                ? relationshipTypes.map((entry) => ({ value: entry.name, label: `${entry.emoji || ""} ${entry.name}`.trim() }))
-                : [{ value: relationship.relationship_type || "", label: relationship.relationship_type || "No relationship types" }],
-            relationship.relationship_type || "",
+                ? relationshipTypes.map((entry) => ({ value: String(entry.id), label: `${entry.emoji || ""} ${entry.name}`.trim() }))
+                : [{ value: relationship.relationship_type_id || "", label: relationship.type_entry?.name || relationship.relationship_type || "No relationship types" }],
+            String(relationship.relationship_type_id || ""),
             {
-                name: "relationship_type",
+                name: "relationship_type_id",
                 required: true,
                 disabled: !relationshipTypes.length,
             }
@@ -389,7 +387,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         perspectiveSelect.style.display = "none";
 
         function updatePerspectiveOptions() {
-            const selectedType = relationshipTypes.find((t) => t.name === relationInput.value);
+            const selectedType = relationshipTypes.find((t) => String(t.id) === String(relationInput.value));
             const leftLabel = selectedType?.left_label || "";
             const rightLabel = selectedType?.right_label || "";
             const isAsymmetric = leftLabel && rightLabel && leftLabel !== rightLabel;
@@ -439,7 +437,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             await actions.updateRelationship(
                 relationship.id,
                 {
-                    relationship_type: payload.relationship_type || relationship.relationship_type,
+                    relationship_type_id: Number(payload.relationship_type_id) || relationship.relationship_type_id,
                     notes: payload.notes === "" ? null : payload.notes,
                 },
                 relationship.person_id_1,
@@ -767,10 +765,10 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 const counterpartId = relationship.person_id_1 === person.id
                     ? relationship.person_id_2
                     : relationship.person_id_1;
-                const typeEntry = findTypeByName(state.data.typeLists.relationshipTypes || [], relationship.relationship_type);
+                const typeEntry = relationship.type_entry || null;
                 const perspectiveLabel = relationship.person_id_1 === person.id
-                    ? (typeEntry?.left_label || relationship.relationship_type)
-                    : (typeEntry?.right_label || relationship.relationship_type);
+                    ? (typeEntry?.left_label || typeEntry?.name || relationship.relationship_type)
+                    : (typeEntry?.right_label || typeEntry?.name || relationship.relationship_type);
                 const subtitleParts = [
                     typeEntry?.emoji ? `${typeEntry.emoji} ${perspectiveLabel}` : perspectiveLabel,
                     relationship.notes || "",

@@ -14,7 +14,6 @@ services:
       - DEBUG=True
       - DATABASE_URL=sqlite+aiosqlite:////app/data/pem.db
       - SECRET_KEY=dev-secret-key-change-in-production
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 10s
