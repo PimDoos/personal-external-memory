@@ -7,6 +7,7 @@ import { createEventsRenderer } from "./renderers/eventsRenderer.js";
 import { createTagsRenderer } from "./renderers/tagsRenderer.js";
 import { createLocationsRenderer } from "./renderers/locationsRenderer.js";
 import { createTypesRenderer } from "./renderers/typesRenderer.js";
+import { createSettingsRenderer } from "./renderers/settingsRenderer.js";
 import { createTopologyRenderer } from "./renderers/topologyRenderer.js";
 import { createCalendarRenderer } from "./renderers/calendarRenderer.js";
 import { createMapRenderer } from "./renderers/mapRenderer.js";
@@ -29,6 +30,7 @@ export function createRenderer(ctx) {
     const { renderTags } = createTagsRenderer({ state, caches, actions, common });
     const { renderLocations } = createLocationsRenderer({ state, caches, actions, common });
     const { renderTypes } = createTypesRenderer({ state, actions });
+    const { renderSettings } = createSettingsRenderer({ state });
     const { renderTopology } = createTopologyRenderer({ state, caches, actions });
     const { renderCalendar } = createCalendarRenderer({ state, actions });
     const { renderMap } = createMapRenderer({ state, actions });
@@ -47,6 +49,7 @@ export function createRenderer(ctx) {
         renderTags();
         renderLocations();
         renderTypes();
+        renderSettings();
         renderTopology();
         renderCalendar();
         renderMap();

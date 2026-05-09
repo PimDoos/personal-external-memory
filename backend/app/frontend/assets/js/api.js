@@ -185,4 +185,8 @@ export const api = {
         update: (category, id, data) => request(`/api/types/${category}/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (category, id) => request(`/api/types/${category}/${id}`, { method: "DELETE" }),
     },
+    settings: {
+        get: () => request("/api/user-settings"),
+        update: (data) => request("/api/user-settings", { method: "PUT", ...jsonBody(data) }),
+    },
 };

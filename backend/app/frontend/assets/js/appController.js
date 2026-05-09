@@ -7,7 +7,7 @@ import { toIsoDateTime } from "./ui.js";
 export function createAppController() {
     const TOKEN_REFRESH_EARLY_MS = 60 * 1000;
     const TOKEN_REFRESH_FALLBACK_MS = 5 * 60 * 1000;
-    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "locations", "types", "topology", "calendar", "map"]);
+    const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "locations", "types", "settings", "topology", "calendar", "map"]);
     const ENTITY_KEY_BY_SECTION = {
         people: "personId",
         circles: "circleId",
@@ -425,7 +425,7 @@ export function createAppController() {
     }
 
     async function refreshBaseData() {
-        const [people, circles, brands, events, tags, locations, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, eventParticipantRoleTypes, brandMembershipTypes, locationTypes] = await Promise.all([
+        const [people, circles, brands, events, tags, locations, contactInfoTypes, relationshipTypes, socialCircleTypes, eventTypes, eventParticipantRoleTypes, brandMembershipTypes, locationTypes, userSettings] = await Promise.all([
             api.people.list(),
             api.circles.list(),
             api.brands.list(),
@@ -439,6 +439,7 @@ export function createAppController() {
             api.types.list("event-participant-role"),
             api.types.list("brand-membership"),
             api.types.list("location"),
+            api.settings.get(),
         ]);
 
         state.data.people = people;
@@ -455,6 +456,11 @@ export function createAppController() {
             eventParticipantRoleTypes,
             brandMembershipTypes,
             locationTypes,
+        };
+        state.data.userSettings = {
+            me_person_id: userSettings?.me_person_id || null,
+            immich_api_key: userSettings?.immich_api_key || null,
+            home_assistant_api_key: userSettings?.home_assistant_api_key || null,
         };
 
         await refreshTopologyData();
@@ -1026,6 +1032,24 @@ export function createAppController() {
                 });
                 formNode.reset();
                 showToast("Tag created.");
+            });
+        });
+
+        getNodeById("settings-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const formNode = event.currentTarget;
+            await withAction(async () => {
+                const payload = createFormDataObject(formNode);
+                payload.me_person_id = payload.me_person_id ? Number(payload.me_person_id) : null;
+                payload.immich_api_key = payload.immich_api_key?.trim() || null;
+                payload.home_assistant_api_key = payload.home_assistant_api_key?.trim() || null;
+                const savedSettings = await api.settings.update(payload);
+                state.data.userSettings = {
+                    me_person_id: savedSettings?.me_person_id || null,
+                    immich_api_key: savedSettings?.immich_api_key || null,
+                    home_assistant_api_key: savedSettings?.home_assistant_api_key || null,
+                };
+                showToast("Settings saved.");
             });
         });
     }

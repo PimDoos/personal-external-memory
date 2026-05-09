@@ -69,6 +69,11 @@ export const state = {
             brandMembershipTypes: [],
             locationTypes: [],
         },
+        userSettings: {
+            me_person_id: null,
+            immich_api_key: null,
+            home_assistant_api_key: null,
+        },
     },
 };
 
@@ -95,6 +100,11 @@ export function clearSession() {
     state.selected.eventId = null;
     state.selected.tagId = null;
     state.selected.locationId = null;
+    state.data.userSettings = {
+        me_person_id: null,
+        immich_api_key: null,
+        home_assistant_api_key: null,
+    };
     Object.keys(state.sidebar).forEach((section) => {
         state.sidebar[section] = "hidden";
     });

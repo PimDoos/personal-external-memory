@@ -29,6 +29,7 @@
                 <button class="nav-button" data-section="tags" data-label="Tags" type="button">Tags</button>
                 <button class="nav-button" data-section="locations" data-label="Locations" type="button">Locations</button>
                 <button class="nav-button" data-section="types" data-label="Types" type="button">Types</button>
+                <button class="nav-button" data-section="settings" data-label="Settings" type="button">Settings</button>
                 <button class="nav-button" data-section="topology" data-label="Topology" type="button">Topology</button>
                 <button class="nav-button" data-section="calendar" data-label="Calendar" type="button">Calendar</button>
                 <button class="nav-button" data-section="map" data-label="Map" type="button">Map</button>
@@ -235,6 +236,30 @@
                         <article class="panel" id="types-panel-brand-membership"></article>
                         <article class="panel" id="types-panel-location"></article>
                     </div>
+                </section>
+
+                <section class="view-section" id="section-settings">
+                    <article class="panel">
+                        <div class="panel-heading">
+                            <h2>User Settings</h2>
+                        </div>
+                        <form id="settings-form" class="form-grid compact-form">
+                            <label>
+                                <span>Person representing me</span>
+                                <div id="settings-me-person-field"></div>
+                            </label>
+                            <label>
+                                <span>Immich API key</span>
+                                <input name="immich_api_key" id="settings-immich-api-key" type="password" autocomplete="off" placeholder="Paste API key">
+                            </label>
+                            <label>
+                                <span>Home Assistant API key</span>
+                                <input name="home_assistant_api_key" id="settings-home-assistant-api-key" type="password" autocomplete="off" placeholder="Paste API key">
+                            </label>
+                            <button class="primary-button" type="submit">Save settings</button>
+                        </form>
+                        <p class="muted">Integrations are not active yet. These values are saved for upcoming Immich and Home Assistant integrations.</p>
+                    </article>
                 </section>
 
                 <section class="view-section" id="section-calendar">

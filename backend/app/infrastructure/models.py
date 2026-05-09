@@ -31,6 +31,28 @@ class User(Base):
     brands = relationship("Brand", back_populates="user", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="user", cascade="all, delete-orphan")
     locations = relationship("Location", back_populates="user", cascade="all, delete-orphan")
+    settings = relationship(
+        "UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+# ===== User Settings =====
+class UserSettings(Base):
+    """User-level preferences and integration keys."""
+
+    __tablename__ = "user_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    me_person_id = Column(Integer, nullable=True, index=True)
+    immich_api_key = Column(String(512), nullable=True)
+    home_assistant_api_key = Column(String(512), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    user = relationship("User", back_populates="settings")
 
 
 # ===== Person =====
