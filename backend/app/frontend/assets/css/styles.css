@@ -226,11 +226,13 @@ select {
 }
 
 .user-chip {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     min-width: 0;
     grid-column: 1 / -1;
-    min-height: 48px;
+    min-height: 52px;
 }
 
 .user-chip strong {
@@ -238,10 +240,24 @@ select {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.2;
 }
 
-.user-chip .ghost-button {
-    margin-left: auto;
+.user-chip__actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.user-chip__actions .nav-button,
+.user-chip__actions .ghost-button {
+    padding: 9px 14px;
+    text-align: center;
+}
+
+.user-chip__nav {
+    min-width: 96px;
 }
 
 .user-chip__label,

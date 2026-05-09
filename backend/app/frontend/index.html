@@ -29,14 +29,16 @@
                 <button class="nav-button" data-section="tags" data-label="Tags" type="button">Tags</button>
                 <button class="nav-button" data-section="locations" data-label="Locations" type="button">Locations</button>
                 <button class="nav-button" data-section="types" data-label="Types" type="button">Types</button>
-                <button class="nav-button" data-section="settings" data-label="Settings" type="button">Settings</button>
                 <button class="nav-button" data-section="topology" data-label="Topology" type="button">Topology</button>
                 <button class="nav-button" data-section="calendar" data-label="Calendar" type="button">Calendar</button>
                 <button class="nav-button" data-section="map" data-label="Map" type="button">Map</button>
                 <div class="user-chip">
                     <div class="user-chip__label">Signed in</div>
                     <strong id="user-email">-</strong>
-                    <button class="ghost-button hidden" id="logout-button" type="button">Log out</button>
+                    <div class="user-chip__actions">
+                        <button class="nav-button user-chip__nav" data-section="settings" data-label="Settings" type="button">Settings</button>
+                        <button class="ghost-button hidden" id="logout-button" type="button">Log out</button>
+                    </div>
                 </div>
             </nav>
         </section>
