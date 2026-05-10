@@ -93,7 +93,6 @@ export function createTagsRenderer({ state, caches, actions, common }) {
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Name" }), nameInput] }));
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Description" }), descriptionInput] }));
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Color" }), colorInput] }));
-        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -142,6 +141,11 @@ export function createTagsRenderer({ state, caches, actions, common }) {
             .filter((person) => tagsForPerson(person).some((tagSummary) => tagSummary.id === tag.id))
             .sort((left, right) => personDisplayName(left).localeCompare(personDisplayName(right), undefined, { sensitivity: "base" }));
 
+        const tagEditForm = buildTagEditForm(tag);
+        const saveTagButton = createButtonNode("Save", "primary-button", () => {
+            tagEditForm.requestSubmit();
+        }, { type: "button" });
+
         container.appendChild(createNode("article", {
             className: "subpanel",
             children: [
@@ -149,12 +153,18 @@ export function createTagsRenderer({ state, caches, actions, common }) {
                     className: "panel-heading",
                     children: [
                         createNode("h3", { text: "Tag Details" }),
-                        createButtonNode("Delete", "danger-button", async () => {
-                            await actions.deleteTag(tag.id);
+                        createNode("div", {
+                            className: "list-actions",
+                            children: [
+                                saveTagButton,
+                                createButtonNode("Delete", "danger-button", async () => {
+                                    await actions.deleteTag(tag.id);
+                                }),
+                            ],
                         }),
                     ],
                 }),
-                buildTagEditForm(tag),
+                tagEditForm,
             ],
         }));
 

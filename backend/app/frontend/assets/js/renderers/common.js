@@ -102,11 +102,14 @@ export function createRenderCommon({ state, refs, caches }) {
     }
 
     function createListItem(title, subtitle, actionsNode, leadingNode) {
+        const subtitleNode = subtitle instanceof Node
+            ? subtitle
+            : createNode("p", { className: "muted", text: subtitle || "" });
         const textBlock = createNode("div", {
             className: "list-item__text",
             children: [
                 createNode("h4", { text: title }),
-                createNode("p", { className: "muted", text: subtitle || "" }),
+                subtitleNode,
             ],
         });
 

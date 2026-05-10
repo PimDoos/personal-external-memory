@@ -230,8 +230,6 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
             ],
         }));
 
-        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
-
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
             const payload = createFormDataObject(form);
@@ -298,6 +296,11 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
 
         clearNodeChildren(container);
         container.className = "detail-grid";
+        const locationEditForm = buildLocationEditForm(location);
+        const saveLocationButton = createButtonNode("Save", "primary-button", () => {
+            locationEditForm.requestSubmit();
+        }, { type: "button" });
+
         container.appendChild(createNode("article", {
             className: "subpanel",
             children: [
@@ -305,12 +308,18 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
                     className: "panel-heading",
                     children: [
                         createNode("h3", { text: "Location Details" }),
-                        createButtonNode("Delete", "danger-button", async () => {
-                            await actions.deleteLocation(location.id);
+                        createNode("div", {
+                            className: "list-actions",
+                            children: [
+                                saveLocationButton,
+                                createButtonNode("Delete", "danger-button", async () => {
+                                    await actions.deleteLocation(location.id);
+                                }),
+                            ],
                         }),
                     ],
                 }),
-                buildLocationEditForm(location),
+                locationEditForm,
             ],
         }));
 

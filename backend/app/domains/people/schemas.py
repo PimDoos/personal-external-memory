@@ -91,8 +91,10 @@ class PersonRelationshipEmbedded(BaseModel):
     id: int
     person_id_1: int
     person_id_2: int
-    relationship_type: str
+    relationship_type: Optional[str]
+    relationship_type_id: Optional[int] = None
     notes: Optional[str]
+    type_entry: Optional[dict] = None
 
 
 class PersonBrandMembershipEmbedded(BaseModel):

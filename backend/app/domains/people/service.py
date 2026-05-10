@@ -164,13 +164,39 @@ class PersonService:
             )
         )
         relationship_rows = (await self.session.execute(relationships_stmt)).scalars().all()
+        
+        # Fetch ManagedType entries for relationships
+        type_ids = {r.relationship_type_id for r in relationship_rows if r.relationship_type_id}
+        type_map = {}
+        if type_ids:
+            from app.infrastructure.models import ManagedType
+            stmt = select(ManagedType).where(ManagedType.id.in_(type_ids))
+            result = await self.session.execute(stmt)
+            for entry in result.scalars():
+                type_map[entry.id] = entry
+        
         for rel in relationship_rows:
+            type_entry = None
+            if rel.relationship_type_id and rel.relationship_type_id in type_map:
+                type_entry_obj = type_map[rel.relationship_type_id]
+                type_entry = {
+                    "id": type_entry_obj.id,
+                    "name": type_entry_obj.name,
+                    "category": type_entry_obj.category,
+                    "left_label": type_entry_obj.left_label,
+                    "right_label": type_entry_obj.right_label,
+                    "emoji": type_entry_obj.emoji,
+                    "uri_handler": type_entry_obj.uri_handler,
+                }
+            
             rel_payload = {
                 "id": rel.id,
                 "person_id_1": rel.person_id_1,
                 "person_id_2": rel.person_id_2,
                 "relationship_type": rel.relationship_type,
+                "relationship_type_id": rel.relationship_type_id,
                 "notes": rel.notes,
+                "type_entry": type_entry,
             }
             if rel.person_id_1 in relationships_map:
                 relationships_map[rel.person_id_1].append(rel_payload)

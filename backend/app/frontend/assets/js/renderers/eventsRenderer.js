@@ -102,7 +102,6 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             className: "event-form__notes",
             children: [createNode("span", { text: "Notes" }), notesInput],
         }));
-        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
 
         form.addEventListener("submit", async (eventObj) => {
             eventObj.preventDefault();
@@ -291,6 +290,11 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             .filter((person) => !participantIds.includes(person.id))
             .sort(comparePeopleByFirstName);
 
+        const eventEditForm = buildEventEditForm(event);
+        const saveEventButton = createButtonNode("Save", "primary-button", () => {
+            eventEditForm.requestSubmit();
+        }, { type: "button" });
+
         container.appendChild(createNode("article", {
             className: "subpanel",
             children: [
@@ -298,12 +302,18 @@ export function createEventsRenderer({ state, caches, actions, common }) {
                     className: "panel-heading",
                     children: [
                         createNode("h3", { text: "Event Details" }),
-                        createButtonNode("Delete", "danger-button", async () => {
-                            await actions.deleteEvent(event.id);
+                        createNode("div", {
+                            className: "list-actions",
+                            children: [
+                                saveEventButton,
+                                createButtonNode("Delete", "danger-button", async () => {
+                                    await actions.deleteEvent(event.id);
+                                }),
+                            ],
                         }),
                     ],
                 }),
-                buildEventEditForm(event),
+                eventEditForm,
                 createNode("p", { className: "muted", text: formatDateTime(event.date) }),
             ],
         }));

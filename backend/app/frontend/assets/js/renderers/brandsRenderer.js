@@ -185,7 +185,6 @@ export function createBrandsRenderer({ state, actions, common }) {
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Name" }), nameInput] }));
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Description" }), descriptionInput] }));
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Notes" }), notesInput] }));
-        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -353,6 +352,11 @@ export function createBrandsRenderer({ state, actions, common }) {
 
         clearNodeChildren(container);
         container.className = "detail-grid";
+        const brandEditForm = buildBrandEditForm(brand);
+        const saveBrandButton = createButtonNode("Save", "primary-button", () => {
+            brandEditForm.requestSubmit();
+        }, { type: "button" });
+
         container.appendChild(createNode("article", {
             className: "subpanel",
             children: [
@@ -360,12 +364,18 @@ export function createBrandsRenderer({ state, actions, common }) {
                     className: "panel-heading",
                     children: [
                         createNode("h3", { text: "Brand Details" }),
-                        createButtonNode("Delete", "danger-button", async () => {
-                            await actions.deleteBrand(brand.id);
+                        createNode("div", {
+                            className: "list-actions",
+                            children: [
+                                saveBrandButton,
+                                createButtonNode("Delete", "danger-button", async () => {
+                                    await actions.deleteBrand(brand.id);
+                                }),
+                            ],
                         }),
                     ],
                 }),
-                buildBrandEditForm(brand),
+                brandEditForm,
             ],
         }));
         container.appendChild(buildBrandLocationsPanel(brand));

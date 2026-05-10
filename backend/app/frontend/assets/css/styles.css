@@ -265,6 +265,11 @@ select {
     color: var(--ink-soft);
 }
 
+.relationship-chip__name {
+    color: var(--ink);
+}
+
+
 .auth-panel,
 .compact-form,
 .detail-panel,

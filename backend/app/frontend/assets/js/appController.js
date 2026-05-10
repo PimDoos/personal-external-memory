@@ -1145,7 +1145,7 @@ export function createAppController() {
                 await api.relationships.create({
                     person_id_1: personId2,
                     person_id_2: personId1,
-                    relationship_type: payload.relationship_type,
+                    relationship_type_id: payload.relationship_type_id,
                     notes: payload.notes ?? undefined,
                 });
             } else {

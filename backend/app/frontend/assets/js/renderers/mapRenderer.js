@@ -56,6 +56,8 @@ export function createMapRenderer({ state, actions }) {
     let markersLayer = null;
     let tileLayer = null;
     let tileTheme = null;
+    let hasInitializedViewport = false;
+    let wasMapSectionActive = false;
     const locationDetailCache = new Map();
     let locationDetailCacheVersion = "";
     const locationAssociationSummaryCache = new Map();
@@ -671,30 +673,50 @@ export function createMapRenderer({ state, actions }) {
             marker.addTo(markersLayer);
         });
 
-        if (plottable.length) {
-            const bounds = window.L.latLngBounds(plottable.map((entry) => [entry.coords.lat, entry.coords.lon]));
-            map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
-            renderUnmappedLocationsPanel(unmappedNode, unmapped);
-        } else {
-            map.setView([20, 0], 2);
-            if (state.data.locations.length) {
-                renderUnmappedLocationsPanel(unmappedNode, unmapped);
-            } else {
-                clearNodeChildren(unmappedNode);
-                unmappedNode.textContent = "No locations yet.";
-            }
+        const focusTarget = state.mapView?.focusTarget;
+        const isMapSectionActive = state.activeSection === "map";
+        const enteredMapSection = isMapSectionActive && !wasMapSectionActive;
+
+        if (isMapSectionActive) {
+            map.invalidateSize();
         }
 
-        const focusTarget = state.mapView?.focusTarget;
+        const fitAllPlottable = () => {
+            if (plottable.length) {
+                const bounds = window.L.latLngBounds(plottable.map((entry) => [entry.coords.lat, entry.coords.lon]));
+                map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+            } else {
+                map.setView([20, 0], 2);
+            }
+        };
+
         if (focusTarget && Number.isFinite(focusTarget.lat) && Number.isFinite(focusTarget.lon)) {
             const zoom = Number.isFinite(focusTarget.zoom) ? focusTarget.zoom : 16;
             map.setView([focusTarget.lat, focusTarget.lon], zoom);
             state.mapView.focusTarget = null;
+            hasInitializedViewport = true;
+        } else if (enteredMapSection) {
+            window.requestAnimationFrame(() => {
+                if (state.activeSection !== "map") {
+                    return;
+                }
+                map.invalidateSize();
+                fitAllPlottable();
+            });
+            hasInitializedViewport = true;
+        } else if (!hasInitializedViewport) {
+            fitAllPlottable();
+            hasInitializedViewport = true;
         }
 
-        if (state.activeSection === "map") {
-            map.invalidateSize();
+        if (state.data.locations.length) {
+            renderUnmappedLocationsPanel(unmappedNode, unmapped);
+        } else {
+            clearNodeChildren(unmappedNode);
+            unmappedNode.textContent = "No locations yet.";
         }
+
+        wasMapSectionActive = isMapSectionActive;
     }
 
     return { renderMap };

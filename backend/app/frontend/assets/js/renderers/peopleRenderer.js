@@ -50,6 +50,26 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         return list.find((entry) => String(entry.name || "").toLowerCase() === String(name || "").toLowerCase()) || null;
     }
 
+    function findRelationshipTypeForRelationship(relationship) {
+        const relationshipTypes = state.data.typeLists.relationshipTypes || [];
+        if (relationship.relationship_type_id) {
+            const byId = relationshipTypes.find((entry) => String(entry.id) === String(relationship.relationship_type_id));
+            if (byId) {
+                return byId;
+            }
+        }
+        return findTypeByName(relationshipTypes, relationship.type_entry?.name || relationship.relationship_type) || null;
+    }
+
+    function perspectiveLabelForRelationship(relationship, personId, typeEntry) {
+        const leftLabel = String(typeEntry?.left_label || "").trim();
+        const rightLabel = String(typeEntry?.right_label || "").trim();
+        if (relationship.person_id_1 === personId) {
+            return leftLabel || typeEntry?.name || relationship.relationship_type;
+        }
+        return rightLabel || typeEntry?.name || relationship.relationship_type;
+    }
+
     function buildUriLink(typeEntry, value) {
         if (!typeEntry?.uri_handler || !value) {
             return null;
@@ -309,8 +329,8 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
         function updatePerspectiveOptions() {
             const selectedType = relationshipTypes.find((t) => String(t.id) === String(relationInput.value));
-            const leftLabel = selectedType?.left_label || "";
-            const rightLabel = selectedType?.right_label || "";
+            const leftLabel = String(selectedType?.left_label || "").trim();
+            const rightLabel = String(selectedType?.right_label || "").trim();
             const isAsymmetric = leftLabel && rightLabel && leftLabel !== rightLabel;
 
             perspectiveSelect.style.display = isAsymmetric ? "" : "none";
@@ -372,11 +392,13 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
     function buildEditRelationshipForm(relationship, personId) {
         const form = createNode("form", { className: "inline-form" });
         const relationshipTypes = state.data.typeLists.relationshipTypes || [];
+        const resolvedTypeEntry = findRelationshipTypeForRelationship(relationship) || relationship.type_entry || null;
+        const selectedRelationshipTypeId = resolvedTypeEntry?.id || relationship.relationship_type_id || "";
         const relationInput = createSelectNode(
             relationshipTypes.length
                 ? relationshipTypes.map((entry) => ({ value: String(entry.id), label: `${entry.emoji || ""} ${entry.name}`.trim() }))
-                : [{ value: relationship.relationship_type_id || "", label: relationship.type_entry?.name || relationship.relationship_type || "No relationship types" }],
-            String(relationship.relationship_type_id || ""),
+                : [{ value: selectedRelationshipTypeId || "", label: resolvedTypeEntry?.name || relationship.relationship_type || "No relationship types" }],
+            String(selectedRelationshipTypeId || ""),
             {
                 name: "relationship_type_id",
                 required: true,
@@ -388,8 +410,8 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
         function updatePerspectiveOptions() {
             const selectedType = relationshipTypes.find((t) => String(t.id) === String(relationInput.value));
-            const leftLabel = selectedType?.left_label || "";
-            const rightLabel = selectedType?.right_label || "";
+            const leftLabel = String(selectedType?.left_label || "").trim();
+            const rightLabel = String(selectedType?.right_label || "").trim();
             const isAsymmetric = leftLabel && rightLabel && leftLabel !== rightLabel;
 
             perspectiveSelect.style.display = isAsymmetric ? "" : "none";
@@ -437,7 +459,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             await actions.updateRelationship(
                 relationship.id,
                 {
-                    relationship_type_id: Number(payload.relationship_type_id) || relationship.relationship_type_id,
+                    relationship_type_id: Number(payload.relationship_type_id) || Number(selectedRelationshipTypeId) || relationship.relationship_type_id,
                     notes: payload.notes === "" ? null : payload.notes,
                 },
                 relationship.person_id_1,
@@ -558,7 +580,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
         const personEditForm = buildPersonEditForm(person);
         personEditForm.classList.add("person-form", "person-form--detail");
-        const savePersonButton = createButtonNode("Save changes", "primary-button", () => {
+        const savePersonButton = createButtonNode("Save", "primary-button", () => {
             personEditForm.requestSubmit();
         }, { type: "button" });
 
@@ -765,15 +787,21 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 const counterpartId = relationship.person_id_1 === person.id
                     ? relationship.person_id_2
                     : relationship.person_id_1;
-                const typeEntry = relationship.type_entry || null;
-                const perspectiveLabel = relationship.person_id_1 === person.id
-                    ? (typeEntry?.left_label || typeEntry?.name || relationship.relationship_type)
-                    : (typeEntry?.right_label || typeEntry?.name || relationship.relationship_type);
-                const subtitleParts = [
-                    typeEntry?.emoji ? `${typeEntry.emoji} ${perspectiveLabel}` : perspectiveLabel,
-                    relationship.notes || "",
-                ].filter(Boolean);
-                const subtitle = subtitleParts.join(" · ");
+                const counterpartName = nameOfPerson(counterpartId);
+                const typeEntry = findRelationshipTypeForRelationship(relationship) || relationship.type_entry || null;
+                const perspectiveLabel = perspectiveLabelForRelationship(relationship, person.id, typeEntry);
+                const relationshipDisplay = typeEntry?.emoji ? `${typeEntry.emoji} ${perspectiveLabel}` : perspectiveLabel;
+                const subtitle = createNode("p", {
+                    className: "muted",
+                    children: [
+                        createNode("span", { className: "relationship-chip__label", text: relationshipDisplay }),
+                        createNode("span", { text: " of " }),
+                        createNode("span", { className: "relationship-chip__name", text: counterpartName }),
+                        ...(relationship.notes
+                            ? [createNode("span", { text: ` · ${relationship.notes}` })]
+                            : []),
+                    ],
+                });
                 const actionsNode = createNode("div", { className: "list-actions" });
                 actionsNode.addEventListener("mousedown", (eventObj) => {
                     eventObj.stopPropagation();
@@ -802,13 +830,12 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
                 actionsNode.appendChild(editButton);
                 actionsNode.appendChild(removeButton);
-                const counterpartName = nameOfPerson(counterpartId);
                 const avatar = createNode("span", {
                     className: "list-avatar",
                     text: getAvatarInitials(counterpartName),
                     attrs: { title: counterpartName, "aria-label": counterpartName },
                 });
-                const item = createListItem(counterpartName, subtitle, actionsNode, avatar);
+                const item = createListItem("", subtitle, actionsNode, avatar);
 
                 const editContainer = createNode("div", { attrs: { id: `relationship-edit-${relationship.id}` }, className: "hidden" });
                 editContainer.addEventListener("mousedown", (eventObj) => {

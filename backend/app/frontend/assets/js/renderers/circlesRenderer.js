@@ -82,7 +82,6 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Type" }), circleTypeSelect] }));
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Description" }), descriptionInput] }));
         form.appendChild(createNode("label", { children: [createNode("span", { text: "Notes" }), notesInput] }));
-        form.appendChild(createButtonNode("Save changes", "primary-button", null, { type: "submit" }));
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -260,6 +259,11 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
             .filter((person) => !memberIds.includes(person.id))
             .sort(comparePeopleByFirstName);
 
+        const circleEditForm = buildCircleEditForm(circle);
+        const saveCircleButton = createButtonNode("Save", "primary-button", () => {
+            circleEditForm.requestSubmit();
+        }, { type: "button" });
+
         container.appendChild(createNode("article", {
             className: "subpanel",
             children: [
@@ -267,12 +271,18 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                     className: "panel-heading",
                     children: [
                         createNode("h3", { text: "Circle Details" }),
-                        createButtonNode("Delete", "danger-button", async () => {
-                            await actions.deleteCircle(circle.id);
+                        createNode("div", {
+                            className: "list-actions",
+                            children: [
+                                saveCircleButton,
+                                createButtonNode("Delete", "danger-button", async () => {
+                                    await actions.deleteCircle(circle.id);
+                                }),
+                            ],
                         }),
                     ],
                 }),
-                buildCircleEditForm(circle),
+                circleEditForm,
             ],
         }));
         container.appendChild(buildCircleLocationsPanel(circle));
