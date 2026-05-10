@@ -1,6 +1,7 @@
 import { createCombobox } from "../combobox.js";
+import { clearNodeChildren, createNode } from "../dom.js";
 
-export function createSettingsRenderer({ state }) {
+export function createSettingsRenderer({ state, actions }) {
     function sortPeople(people) {
         return [...people].sort((left, right) => {
             const leftName = `${left.first_name || ""} ${left.last_name || ""}`.trim().toLowerCase();
@@ -43,6 +44,58 @@ export function createSettingsRenderer({ state }) {
         immichBaseUrlInput.value = state.data.userSettings?.immich_base_url || "";
         homeAssistantInput.value = state.data.userSettings?.home_assistant_api_key || "";
         homeAssistantBaseUrlInput.value = state.data.userSettings?.home_assistant_base_url || "";
+
+        let integrationNode = document.getElementById("settings-immich-tools");
+        if (!integrationNode) {
+            integrationNode = createNode("div", {
+                attrs: { id: "settings-immich-tools" },
+                className: "settings-integration-tools",
+            });
+            formNode.appendChild(integrationNode);
+        }
+
+        clearNodeChildren(integrationNode);
+        const testButton = createNode("button", {
+            className: "secondary-button",
+            text: "Test Immich Connection",
+            attrs: { type: "button" },
+        });
+        testButton.addEventListener("click", async () => {
+            await actions.testImmichConnection();
+        });
+
+        const syncButton = createNode("button", {
+            className: "secondary-button",
+            text: "Sync Immich Faces",
+            attrs: { type: "button" },
+        });
+        syncButton.addEventListener("click", async () => {
+            await actions.syncImmichFaces();
+        });
+
+        integrationNode.appendChild(
+            createNode("div", {
+                className: "list-actions",
+                children: [testButton, syncButton],
+            })
+        );
+
+        if (state.data.immich?.connectionMessage) {
+            integrationNode.appendChild(
+                createNode("p", {
+                    className: "muted",
+                    text: `Connection: ${state.data.immich.connectionMessage}`,
+                })
+            );
+        }
+        if (state.data.immich?.syncMessage) {
+            integrationNode.appendChild(
+                createNode("p", {
+                    className: "muted",
+                    text: `Sync: ${state.data.immich.syncMessage}`,
+                })
+            );
+        }
     }
 
     return {

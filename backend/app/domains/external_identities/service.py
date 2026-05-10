@@ -115,6 +115,33 @@ class ExternalIdentityService:
         if result.scalar_one_or_none():
             raise ConflictError("Association already exists")
 
+        # Business rule: a person can have only one linked Immich face.
+        if (
+            data.entity_type == "person"
+            and identity.source == "immich"
+            and identity.entity_type == "person"
+        ):
+            existing_face_link_stmt = (
+                select(ExternalIdentityAssociation)
+                .join(
+                    ExternalIdentity,
+                    ExternalIdentity.id == ExternalIdentityAssociation.external_identity_id,
+                )
+                .where(
+                    (ExternalIdentity.user_id == user_id)
+                    & (ExternalIdentityAssociation.entity_type == "person")
+                    & (ExternalIdentityAssociation.entity_id == data.entity_id)
+                    & (ExternalIdentity.source == "immich")
+                    & (ExternalIdentity.entity_type == "person")
+                    & (ExternalIdentityAssociation.external_identity_id != identity.id)
+                )
+            )
+            existing_face_link = (
+                await self.session.execute(existing_face_link_stmt)
+            ).scalar_one_or_none()
+            if existing_face_link:
+                raise ConflictError("Person already has a linked Immich face")
+
         association = ExternalIdentityAssociation(
             external_identity_id=identity.id,
             entity_type=data.entity_type,

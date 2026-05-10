@@ -4,6 +4,13 @@ import { formatDateTime } from "../ui.js";
 export function createLocationsRenderer({ state, caches, actions, common }) {
     const { filtered, createEventCard, createListItem, renderSimpleList } = common;
 
+    function hasImmichIntegrationConfigured() {
+        const settings = state.data.userSettings || {};
+        const apiKey = String(settings.immich_api_key || "").trim();
+        const baseUrl = String(settings.immich_base_url || "").trim();
+        return Boolean(apiKey && baseUrl);
+    }
+
     function parseCoordinates(rawLocation) {
         const value = String(rawLocation || "").trim();
         if (!value) {
@@ -245,6 +252,81 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         return form;
     }
 
+    function buildImmichGallerySection(items, onRefresh) {
+        const section = createNode("section", { className: "subpanel" });
+        section.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [
+                createNode("h3", { text: "Immich Gallery" }),
+                createButtonNode("Refresh", "secondary-button", async () => {
+                    await onRefresh();
+                }),
+            ],
+        }));
+
+        const grid = createNode("div", { className: "immich-gallery" });
+        if (!items.length) {
+            grid.appendChild(createNode("p", {
+                className: "muted",
+                text: "No photos found for events associated with this location.",
+            }));
+        } else {
+            items.forEach((item) => {
+                const imageUrl = item.preview_url || item.thumbnail_url || "";
+                const title = item.created_at
+                    ? `Taken ${formatDateTime(item.created_at)}`
+                    : (item.type || "Immich asset");
+                const card = createNode("a", {
+                    className: "immich-gallery__item",
+                    attrs: {
+                        href: item.immich_url || "#",
+                        target: "_blank",
+                        rel: "noopener noreferrer",
+                        title,
+                    },
+                });
+
+                if (imageUrl) {
+                    const imageNode = createNode("img", {
+                        className: "immich-gallery__image",
+                        attrs: {
+                            src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+                            alt: title,
+                            loading: "lazy",
+                        },
+                    });
+                    card.appendChild(imageNode);
+                    actions.resolveImmichImageUrl(item).then((resolvedUrl) => {
+                        if (resolvedUrl) {
+                            imageNode.src = resolvedUrl;
+                        } else {
+                            imageNode.remove();
+                            card.appendChild(createNode("span", {
+                                className: "immich-gallery__fallback",
+                                text: "Open in Immich",
+                            }));
+                        }
+                    }).catch(() => {
+                        imageNode.remove();
+                        card.appendChild(createNode("span", {
+                            className: "immich-gallery__fallback",
+                            text: "Open in Immich",
+                        }));
+                    });
+                } else {
+                    card.appendChild(createNode("span", {
+                        className: "immich-gallery__fallback",
+                        text: "Open in Immich",
+                    }));
+                }
+
+                grid.appendChild(card);
+            });
+        }
+        section.appendChild(grid);
+        return section;
+    }
+
     function renderLocationDetail() {
         const panel = document.getElementById("location-detail-panel");
         const form = document.getElementById("location-form");
@@ -275,6 +357,8 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         }
 
         const associations = caches.locationAssociations.get(location.id) || [];
+        const immichGalleryItems = caches.immichLocationGallery.get(location.id) || [];
+        const immichConfigured = hasImmichIntegrationConfigured();
         const associationsWithIndex = associations.map((association, index) => ({ association, index }));
         associationsWithIndex.sort((left, right) => {
             const leftEntity = resolveAssociatedEntity(left.association);
@@ -353,6 +437,11 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         );
         associatedEntitiesPanel.appendChild(associationsList);
         container.appendChild(associatedEntitiesPanel);
+        if (immichConfigured) {
+            container.appendChild(buildImmichGallerySection(immichGalleryItems, async () => {
+                await actions.refreshImmichLocationGallery(location.id);
+            }));
+        }
     }
 
     function renderLocations() {

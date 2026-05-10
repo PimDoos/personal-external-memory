@@ -30,7 +30,7 @@ export function createRenderer(ctx) {
     const { renderTags } = createTagsRenderer({ state, caches, actions, common });
     const { renderLocations } = createLocationsRenderer({ state, caches, actions, common });
     const { renderTypes } = createTypesRenderer({ state, actions });
-    const { renderSettings } = createSettingsRenderer({ state });
+    const { renderSettings } = createSettingsRenderer({ state, actions });
     const { renderTopology } = createTopologyRenderer({ state, caches, actions });
     const { renderCalendar } = createCalendarRenderer({ state, actions });
     const { renderMap } = createMapRenderer({ state, actions });

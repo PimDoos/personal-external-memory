@@ -76,6 +76,10 @@ export const state = {
             home_assistant_api_key: null,
             home_assistant_base_url: null,
         },
+        immich: {
+            connectionMessage: "",
+            syncMessage: "",
+        },
     },
 };
 
@@ -108,6 +112,10 @@ export function clearSession() {
         immich_base_url: null,
         home_assistant_api_key: null,
         home_assistant_base_url: null,
+    };
+    state.data.immich = {
+        connectionMessage: "",
+        syncMessage: "",
     };
     Object.keys(state.sidebar).forEach((section) => {
         state.sidebar[section] = "hidden";

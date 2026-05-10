@@ -44,6 +44,14 @@ export function createAppController() {
         brandMembers: new Map(),
         eventParticipants: new Map(),
         eventCircles: new Map(),
+        immichPersonGallery: new Map(),
+        immichEventGallery: new Map(),
+        immichLocationGallery: new Map(),
+        immichImageBlobUrls: new Map(),
+        immichImageFailedAssetIds: new Set(),
+        immichFaceAvatarBlobUrls: new Map(),
+        immichFaces: [],
+        personImmichFaceLink: new Map(),
         topology: {
             relationships: [],
             circleMembersByCircleId: new Map(),
@@ -91,6 +99,24 @@ export function createAppController() {
     }
 
     function clearAllCaches() {
+        caches.immichImageBlobUrls.forEach((objectUrl) => {
+            try {
+                URL.revokeObjectURL(objectUrl);
+            } catch {
+                // no-op
+            }
+        });
+        caches.immichImageBlobUrls.clear();
+        caches.immichImageFailedAssetIds.clear();
+        caches.immichFaceAvatarBlobUrls.forEach((objectUrl) => {
+            try {
+                URL.revokeObjectURL(objectUrl);
+            } catch {
+                // no-op
+            }
+        });
+        caches.immichFaceAvatarBlobUrls.clear();
+
         caches.personContacts.clear();
         caches.personLocations.clear();
         caches.circleLocations.clear();
@@ -106,6 +132,11 @@ export function createAppController() {
         caches.brandMembers.clear();
         caches.eventParticipants.clear();
         caches.eventCircles.clear();
+        caches.immichPersonGallery.clear();
+        caches.immichEventGallery.clear();
+        caches.immichLocationGallery.clear();
+        caches.immichFaces = [];
+        caches.personImmichFaceLink.clear();
         caches.topology = {
             relationships: [],
             circleMembersByCircleId: new Map(),
@@ -386,9 +417,26 @@ export function createAppController() {
         return payload;
     }
 
+    function hasImmichIntegrationConfigured() {
+        const settings = state.data.userSettings || {};
+        const apiKey = String(settings.immich_api_key || "").trim();
+        const baseUrl = String(settings.immich_base_url || "").trim();
+        return Boolean(apiKey && baseUrl);
+    }
+
     async function refreshSelectedEntityCaches() {
         if (state.selected.personId) {
             await loadPersonCaches(state.selected.personId);
+            if (hasImmichIntegrationConfigured()) {
+                await Promise.all([
+                    loadImmichGalleryForPerson(state.selected.personId),
+                    loadPersonImmichFaceLink(state.selected.personId),
+                ]);
+            } else {
+                caches.immichPersonGallery.set(state.selected.personId, []);
+                caches.personImmichFaceLink.set(state.selected.personId, null);
+                caches.immichFaces = [];
+            }
         }
         if (state.selected.circleId) {
             await Promise.all([
@@ -409,9 +457,19 @@ export function createAppController() {
                 loadEventLocations(state.selected.eventId),
                 loadEventCircles(state.selected.eventId),
             ]);
+            if (hasImmichIntegrationConfigured()) {
+                await loadImmichGalleryForEvent(state.selected.eventId);
+            } else {
+                caches.immichEventGallery.set(state.selected.eventId, []);
+            }
         }
         if (state.selected.locationId) {
             await loadLocationAssociations(state.selected.locationId);
+            if (hasImmichIntegrationConfigured()) {
+                await loadImmichGalleryForLocation(state.selected.locationId);
+            } else {
+                caches.immichLocationGallery.set(state.selected.locationId, []);
+            }
         }
     }
 
@@ -648,6 +706,142 @@ export function createAppController() {
         });
     }
 
+    async function loadImmichGalleryForPerson(personId) {
+        if (!hasImmichIntegrationConfigured()) {
+            caches.immichPersonGallery.set(personId, []);
+            return;
+        }
+
+        try {
+            const response = await api.immich.galleryForPerson(personId, 24);
+            caches.immichPersonGallery.set(personId, response?.items || []);
+        } catch {
+            caches.immichPersonGallery.set(personId, []);
+        }
+    }
+
+    async function loadPersonImmichFaceLink(personId) {
+        if (!hasImmichIntegrationConfigured()) {
+            caches.immichFaces = [];
+            caches.personImmichFaceLink.set(personId, null);
+            return;
+        }
+
+        try {
+            const allExternalIdentities = await api.externalIdentities.list(0, 1000);
+            const immichFaces = (allExternalIdentities || []).filter(
+                (entry) => entry.source === "immich" && entry.entity_type === "person"
+            );
+            caches.immichFaces = immichFaces;
+
+            let linkedFace = null;
+            for (const face of immichFaces) {
+                try {
+                    const detail = await api.externalIdentities.get(face.id);
+                    const association = (detail.associations || []).find(
+                        (assoc) => assoc.entity_type === "person" && Number(assoc.entity_id) === Number(personId)
+                    );
+                    if (association) {
+                        linkedFace = {
+                            identity: face,
+                            associationId: association.id,
+                        };
+                        break;
+                    }
+                } catch {
+                    // Ignore per-identity lookup failures so available faces still populate the dropdown.
+                }
+            }
+
+            caches.personImmichFaceLink.set(personId, linkedFace);
+        } catch {
+            // Keep previously loaded faces when list request fails transiently.
+            if (!Array.isArray(caches.immichFaces)) {
+                caches.immichFaces = [];
+            }
+            caches.personImmichFaceLink.set(personId, null);
+        }
+    }
+
+    async function loadImmichGalleryForEvent(eventId) {
+        if (!hasImmichIntegrationConfigured()) {
+            caches.immichEventGallery.set(eventId, []);
+            return;
+        }
+
+        try {
+            const response = await api.immich.galleryForEvent(eventId, 24);
+            caches.immichEventGallery.set(eventId, response?.items || []);
+        } catch {
+            caches.immichEventGallery.set(eventId, []);
+        }
+    }
+
+    async function loadImmichGalleryForLocation(locationId) {
+        if (!hasImmichIntegrationConfigured()) {
+            caches.immichLocationGallery.set(locationId, []);
+            return;
+        }
+
+        try {
+            const response = await api.immich.galleryForLocation(locationId, 24);
+            caches.immichLocationGallery.set(locationId, response?.items || []);
+        } catch {
+            caches.immichLocationGallery.set(locationId, []);
+        }
+    }
+
+    async function resolveImmichImageUrl(asset) {
+        const assetId = String(asset?.id || asset?.assetId || asset?.asset_id || "").trim();
+        if (!assetId) {
+            return null;
+        }
+
+        if (caches.immichImageFailedAssetIds.has(assetId)) {
+            return null;
+        }
+
+        const cached = caches.immichImageBlobUrls.get(assetId);
+        if (cached) {
+            return cached;
+        }
+
+        try {
+            const blob = await api.immich.thumbnailBlob(assetId, "preview");
+            const objectUrl = URL.createObjectURL(blob);
+            caches.immichImageBlobUrls.set(assetId, objectUrl);
+            return objectUrl;
+        } catch (error) {
+            caches.immichImageFailedAssetIds.add(assetId);
+            const message = String(error?.message || "").toLowerCase();
+            if (message.includes("asset.view")) {
+                state.data.immich.connectionMessage = "Immich API key missing 'asset.view' permission.";
+            }
+            return null;
+        }
+    }
+
+    async function resolveImmichFaceImageUrl(externalIdentityId) {
+        const identityId = Number(externalIdentityId);
+        if (!Number.isInteger(identityId) || identityId <= 0) {
+            return null;
+        }
+
+        const cached = caches.immichFaceAvatarBlobUrls.get(identityId);
+        if (cached) {
+            return cached;
+        }
+
+        try {
+            const blob = await api.externalIdentities.imageBlob(identityId);
+            const objectUrl = URL.createObjectURL(blob);
+            caches.immichFaceAvatarBlobUrls.set(identityId, objectUrl);
+            return objectUrl;
+        } catch {
+            return null;
+        }
+    }
+
     async function loadCircleDetail(circleId) {
         if (inFlightEntityDetails.circle.has(circleId)) {
             await inFlightEntityDetails.circle.get(circleId);
@@ -785,6 +979,12 @@ export function createAppController() {
 
         if (state.selected.personId) {
             await loadPersonCaches(state.selected.personId);
+            if (hasImmichIntegrationConfigured()) {
+                await Promise.all([
+                    loadImmichGalleryForPerson(state.selected.personId),
+                    loadPersonImmichFaceLink(state.selected.personId),
+                ]);
+            }
         }
         if (state.selected.circleId) {
             await Promise.all([
@@ -805,9 +1005,15 @@ export function createAppController() {
                 loadEventLocations(state.selected.eventId),
                 loadEventCircles(state.selected.eventId),
             ]);
+            if (hasImmichIntegrationConfigured()) {
+                await loadImmichGalleryForEvent(state.selected.eventId);
+            }
         }
         if (state.selected.locationId) {
             await loadLocationAssociations(state.selected.locationId);
+            if (hasImmichIntegrationConfigured()) {
+                await loadImmichGalleryForLocation(state.selected.locationId);
+            }
         }
 
         renderer.renderAll();
@@ -1055,16 +1261,93 @@ export function createAppController() {
                     home_assistant_api_key: savedSettings?.home_assistant_api_key || null,
                     home_assistant_base_url: savedSettings?.home_assistant_base_url || null,
                 };
+                await refreshSelectedEntityCaches();
                 showToast("Settings saved.");
             });
         });
     }
 
     const actions = {
+        testImmichConnection: async () => withAction(async () => {
+            const response = await api.immich.testConnection();
+            state.data.immich.connectionMessage = response?.user_email
+                ? `${response.message} (${response.user_email})`
+                : (response?.message || "Connection successful");
+            showToast("Immich connection successful.");
+        }),
+        syncImmichFaces: async () => withAction(async () => {
+            const result = await api.immich.syncFaces();
+            state.data.immich.syncMessage = `Created ${result.created}, updated ${result.updated}, skipped ${result.skipped}, total ${result.total_remote}`;
+            await refreshBaseData();
+            await refreshSelectedEntityCaches();
+            showToast("Immich faces synced.");
+        }),
+        linkImmichFaceToPerson: async (personId, externalIdentityId) => withAction(async () => {
+            if (!personId || !externalIdentityId) {
+                return;
+            }
+
+            const currentLink = caches.personImmichFaceLink.get(personId);
+            if (currentLink && Number(currentLink.identity?.id) !== Number(externalIdentityId)) {
+                await api.externalIdentities.removeAssociation(currentLink.identity.id, currentLink.associationId);
+            }
+
+            const selectedDetail = await api.externalIdentities.get(externalIdentityId);
+            const existingAssociation = (selectedDetail.associations || []).find(
+                (assoc) => assoc.entity_type === "person" && Number(assoc.entity_id) === Number(personId)
+            );
+
+            if (!existingAssociation) {
+                await api.externalIdentities.addAssociation(externalIdentityId, {
+                    entity_type: "person",
+                    entity_id: Number(personId),
+                });
+            }
+
+            await Promise.all([
+                loadPersonImmichFaceLink(personId),
+                loadImmichGalleryForPerson(personId),
+            ]);
+            showToast("Immich face linked.");
+        }),
+        unlinkImmichFaceFromPerson: async (personId) => withAction(async () => {
+            const currentLink = caches.personImmichFaceLink.get(personId);
+            if (!currentLink) {
+                return;
+            }
+
+            await api.externalIdentities.removeAssociation(currentLink.identity.id, currentLink.associationId);
+            await Promise.all([
+                loadPersonImmichFaceLink(personId),
+                loadImmichGalleryForPerson(personId),
+            ]);
+            showToast("Immich face unlinked.");
+        }),
+        refreshImmichPersonGallery: async (personId) => withAction(async () => {
+            await loadImmichGalleryForPerson(personId);
+        }),
+        refreshImmichEventGallery: async (eventId) => withAction(async () => {
+            await loadImmichGalleryForEvent(eventId);
+        }),
+        refreshImmichLocationGallery: async (locationId) => withAction(async () => {
+            await loadImmichGalleryForLocation(locationId);
+        }),
+        resolveImmichImageUrl,
+        resolveImmichFaceImageUrl,
         selectPerson: async (personId) => withAction(async () => {
             state.selected.personId = personId;
             state.sidebar.people = "detail";
             await loadPersonCaches(personId);
+            if (hasImmichIntegrationConfigured()) {
+                await Promise.all([
+                    loadImmichGalleryForPerson(personId),
+                    loadPersonImmichFaceLink(personId),
+                ]);
+            } else {
+                caches.immichPersonGallery.set(personId, []);
+                caches.personImmichFaceLink.set(personId, null);
+                caches.immichFaces = [];
+            }
         }),
         deletePerson: async (personId) => withAction(async () => {
             await api.people.remove(personId);
@@ -1313,6 +1596,11 @@ export function createAppController() {
                 loadEventParticipants(eventId),
                 loadEventLocations(eventId),
             ]);
+            if (hasImmichIntegrationConfigured()) {
+                await loadImmichGalleryForEvent(eventId);
+            } else {
+                caches.immichEventGallery.set(eventId, []);
+            }
         }),
         createLocationForEvent: async (eventId, payload) => withAction(async () => {
             const location = await api.locations.create(payload);
@@ -1394,6 +1682,11 @@ export function createAppController() {
             state.selected.locationId = locationId;
             state.sidebar.locations = "detail";
             await loadLocationAssociations(locationId);
+            if (hasImmichIntegrationConfigured()) {
+                await loadImmichGalleryForLocation(locationId);
+            } else {
+                caches.immichLocationGallery.set(locationId, []);
+            }
         }),
         createLocation: async (payload) => withAction(async () => {
             const created = await createAndSelect({

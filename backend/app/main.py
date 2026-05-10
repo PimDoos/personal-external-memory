@@ -128,6 +128,7 @@ def create_app() -> FastAPI:
     from app.domains.types.router import router as types_router
     from app.domains.user_settings.router import router as user_settings_router
     from app.domains.external_identities.router import router as external_identities_router
+    from app.domains.immich.router import router as immich_router
 
     app.include_router(resources_router, prefix="/api/resources", tags=["resources"])
     app.include_router(contact_info_router, prefix="/api/contact-info", tags=["contact_info"])
@@ -141,6 +142,7 @@ def create_app() -> FastAPI:
         prefix="/api/external-identities",
         tags=["external_identities"],
     )
+    app.include_router(immich_router, prefix="/api/immich", tags=["immich"])
 
     from app.domains.locations.router import router as locations_router
     app.include_router(locations_router, prefix="/api/locations", tags=["locations"])

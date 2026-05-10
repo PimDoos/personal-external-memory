@@ -1,6 +1,7 @@
 """External identities domain - API routes."""
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.external_identities.repository import ExternalIdentityRepository
@@ -13,6 +14,7 @@ from app.domains.external_identities.schemas import (
     ExternalIdentityUpdateRequest,
 )
 from app.domains.external_identities.service import ExternalIdentityService
+from app.domains.immich.service import ImmichService
 from app.infrastructure.database import get_db
 from app.infrastructure.dependencies import CurrentUser
 
@@ -54,12 +56,14 @@ async def get_external_identity(
     service = ExternalIdentityService(db)
     identity = await service.get(external_identity_id, current_user.id)
     associations = await service.list_associations(external_identity_id, current_user.id)
-    payload = ExternalIdentityDetailResponse.model_validate(identity)
-    payload.associations = [
-        ExternalIdentityAssociationResponse.model_validate(entry)
-        for entry in associations
-    ]
-    return payload
+    base_payload = ExternalIdentityResponse.model_validate(identity).model_dump()
+    return ExternalIdentityDetailResponse(
+        **base_payload,
+        associations=[
+            ExternalIdentityAssociationResponse.model_validate(entry)
+            for entry in associations
+        ],
+    )
 
 
 @router.put("/{external_identity_id}", response_model=ExternalIdentityResponse)
@@ -118,3 +122,15 @@ async def remove_external_identity_association(
     await service.remove_association(external_identity_id, association_id, current_user.id)
     await db.commit()
     return {"message": "Association removed successfully"}
+
+
+@router.get("/{external_identity_id}/image")
+async def get_external_identity_image(
+    external_identity_id: int,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Proxy an external identity image through PEM using the stored record and Immich fallback lookup."""
+    immich_service = ImmichService(db)
+    content, media_type = await immich_service.get_external_identity_image(current_user.id, external_identity_id)
+    return Response(content=content, media_type=media_type)

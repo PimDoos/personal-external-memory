@@ -358,6 +358,49 @@ select {
     transform: translateY(-1px);
 }
 
+.settings-integration-tools {
+    display: grid;
+    gap: 10px;
+}
+
+.immich-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.immich-gallery__item {
+    display: block;
+    background: var(--surface-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    overflow: hidden;
+    min-height: 92px;
+}
+
+.immich-gallery__item:hover {
+    border-color: var(--accent-soft-line);
+    transform: translateY(-1px);
+}
+
+.immich-gallery__image {
+    width: 100%;
+    height: 100%;
+    min-height: 92px;
+    object-fit: cover;
+    display: block;
+}
+
+.immich-gallery__fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 92px;
+    color: var(--ink-soft);
+    padding: 10px;
+    text-align: center;
+}
+
 .content.hidden,
 .hidden {
     display: none !important;

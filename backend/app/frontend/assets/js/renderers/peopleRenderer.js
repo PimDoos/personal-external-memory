@@ -6,6 +6,13 @@ import { getAvatarInitials } from "../avatar.js";
 export function createPeopleRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedPerson, createEventCard, createListItem, renderSimpleList } = common;
 
+    function hasImmichIntegrationConfigured() {
+        const settings = state.data.userSettings || {};
+        const apiKey = String(settings.immich_api_key || "").trim();
+        const baseUrl = String(settings.immich_base_url || "").trim();
+        return Boolean(apiKey && baseUrl);
+    }
+
     function displayEventLabel(event) {
         return event.title || `Event #${event.id}`;
     }
@@ -86,6 +93,198 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
         const handler = String(typeEntry.uri_handler || "");
         return `${handler}${trimmedValue}`;
+    }
+
+    function buildImmichGallerySection(items, onRefresh) {
+        const section = createNode("section", { className: "subpanel" });
+        section.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [
+                createNode("h3", { text: "Immich Gallery" }),
+                createButtonNode("Refresh", "secondary-button", async () => {
+                    await onRefresh();
+                }),
+            ],
+        }));
+
+        const grid = createNode("div", { className: "immich-gallery" });
+        if (!items.length) {
+            grid.appendChild(createNode("p", {
+                className: "muted",
+                text: "No Immich photos found. Link an Immich face first and sync faces in Settings.",
+            }));
+        } else {
+            items.forEach((item) => {
+                const imageUrl = item.preview_url || item.thumbnail_url || "";
+                const title = item.created_at
+                    ? `Taken ${formatDate(item.created_at)}`
+                    : (item.type || "Immich asset");
+
+                const card = createNode("a", {
+                    className: "immich-gallery__item",
+                    attrs: {
+                        href: item.immich_url || "#",
+                        target: "_blank",
+                        rel: "noopener noreferrer",
+                        title,
+                    },
+                });
+
+                if (imageUrl) {
+                    const imageNode = createNode("img", {
+                        className: "immich-gallery__image",
+                        attrs: {
+                            src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+                            alt: title,
+                            loading: "lazy",
+                        },
+                    });
+                    card.appendChild(imageNode);
+                    actions.resolveImmichImageUrl(item).then((resolvedUrl) => {
+                        if (resolvedUrl) {
+                            imageNode.src = resolvedUrl;
+                        } else {
+                            imageNode.remove();
+                            card.appendChild(createNode("span", {
+                                className: "immich-gallery__fallback",
+                                text: "Open in Immich",
+                            }));
+                        }
+                    }).catch(() => {
+                        imageNode.remove();
+                        card.appendChild(createNode("span", {
+                            className: "immich-gallery__fallback",
+                            text: "Open in Immich",
+                        }));
+                    });
+                } else {
+                    card.appendChild(createNode("span", {
+                        className: "immich-gallery__fallback",
+                        text: "Open in Immich",
+                    }));
+                }
+                grid.appendChild(card);
+            });
+        }
+
+        section.appendChild(grid);
+        return section;
+    }
+
+    function buildImmichFaceLinkSection(person, faces, linkedFace, onLink, onUnlink) {
+        const section = createNode("section", { className: "subpanel" });
+        section.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [createNode("h3", { text: "Linked Immich Face" })],
+        }));
+
+        if (linkedFace?.identity) {
+            const face = linkedFace.identity;
+            const row = createNode("div", { className: "list-item" });
+            const title = face.display_name || `Immich Face #${face.external_id}`;
+            const subtitle = `Immich ID: ${face.external_id}`;
+            row.appendChild(createNode("div", {
+                className: "list-item__row",
+                children: [
+                    createNode("div", {
+                        className: "list-item__main",
+                        children: [
+                            face.image_url
+                                ? (() => {
+                                    const avatarWrap = createNode("div", { className: "list-avatar-wrap" });
+                                    const imageNode = createNode("img", {
+                                        className: "list-avatar",
+                                        attrs: {
+                                            src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+                                            alt: title,
+                                            loading: "lazy",
+                                        },
+                                    });
+                                    avatarWrap.appendChild(imageNode);
+                                    actions.resolveImmichFaceImageUrl(face.id).then((resolvedUrl) => {
+                                        if (resolvedUrl) {
+                                            imageNode.src = resolvedUrl;
+                                        } else {
+                                            imageNode.style.display = "none";
+                                            avatarWrap.appendChild(createNode("span", {
+                                                className: "list-avatar",
+                                                text: getAvatarInitials(title),
+                                            }));
+                                        }
+                                    }).catch(() => {
+                                        imageNode.style.display = "none";
+                                        avatarWrap.appendChild(createNode("span", {
+                                            className: "list-avatar",
+                                            text: getAvatarInitials(title),
+                                        }));
+                                    });
+                                    return avatarWrap;
+                                })()
+                                : createNode("span", {
+                                    className: "list-avatar",
+                                    text: getAvatarInitials(title),
+                                }),
+                            createNode("div", {
+                                className: "list-item__text",
+                                children: [
+                                    createNode("h4", { text: title }),
+                                    createNode("p", { className: "muted", text: subtitle }),
+                                ],
+                            }),
+                        ],
+                    }),
+                    createNode("div", {
+                        className: "list-actions",
+                        children: [
+                            createButtonNode("Open", "secondary-button", () => {
+                                if (face.click_uri) {
+                                    window.open(face.click_uri, "_blank", "noopener,noreferrer");
+                                }
+                            }),
+                            createButtonNode("Unlink", "danger-button", async () => {
+                                await onUnlink();
+                            }),
+                        ],
+                    }),
+                ],
+            }));
+            section.appendChild(row);
+        } else {
+            section.appendChild(createNode("p", {
+                className: "muted",
+                text: "No Immich face linked.",
+            }));
+            const form = createNode("form", { className: "inline-form" });
+            const options = faces.length
+                ? faces.map((face) => ({
+                    value: String(face.id),
+                    label: `${face.display_name || `Face #${face.external_id}`} (${face.external_id})`,
+                }))
+                : [{ value: "", label: "No synced faces" }];
+
+            const select = createSelectNode(options, "", {
+                name: "external_identity_id",
+                required: true,
+                disabled: !faces.length,
+            });
+            form.appendChild(select);
+            form.appendChild(createButtonNode("Link face", "primary-button", null, {
+                type: "submit",
+                disabled: !faces.length,
+            }));
+
+            form.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const payload = createFormDataObject(form);
+                if (!payload.external_identity_id) {
+                    return;
+                }
+                await onLink(Number(payload.external_identity_id));
+            });
+
+            section.appendChild(form);
+        }
+        return section;
     }
 
     function contactTypeOptions(currentValue = "") {
@@ -577,6 +776,10 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             eventIds: [],
             brandIds: [],
         };
+        const immichGalleryItems = caches.immichPersonGallery.get(person.id) || [];
+        const immichFaces = caches.immichFaces || [];
+        const linkedImmichFace = caches.personImmichFaceLink.get(person.id) || null;
+        const immichConfigured = hasImmichIntegrationConfigured();
 
         const personEditForm = buildPersonEditForm(person);
         personEditForm.classList.add("person-form", "person-form--detail");
@@ -612,6 +815,22 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             ],
         });
         container.appendChild(overview);
+        if (immichConfigured) {
+            container.appendChild(buildImmichFaceLinkSection(
+                person,
+                immichFaces,
+                linkedImmichFace,
+                async (externalIdentityId) => {
+                    await actions.linkImmichFaceToPerson(person.id, externalIdentityId);
+                },
+                async () => {
+                    await actions.unlinkImmichFaceFromPerson(person.id);
+                }
+            ));
+            container.appendChild(buildImmichGallerySection(immichGalleryItems, async () => {
+                await actions.refreshImmichPersonGallery(person.id);
+            }));
+        }
 
         const contactsSection = createNode("section", { className: "subpanel" });
         const { wrapper: contactFormWrapper, trigger: contactFormTrigger } = wrapCollapsible("+ Add", buildContactForm(person.id));

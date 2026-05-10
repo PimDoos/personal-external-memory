@@ -102,6 +102,39 @@ async function request(path, options = {}, authMeta = { retryAfterRefresh: true 
     return payload;
 }
 
+async function requestBlob(path, options = {}, authMeta = { retryAfterRefresh: true }) {
+    const headers = {
+        ...(options.headers || {}),
+    };
+
+    if (state.token) {
+        headers.Authorization = `Bearer ${state.token}`;
+    }
+
+    const response = await fetch(path, {
+        ...options,
+        headers,
+    });
+
+    if (response.status === 401 && authMeta.retryAfterRefresh && shouldTryRefresh(path)) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+            return requestBlob(path, options, { retryAfterRefresh: false });
+        }
+        notifyAuthExpired();
+        const error = new Error("Session expired. Please sign in again.");
+        error.code = "AUTH_EXPIRED";
+        throw error;
+    }
+
+    if (!response.ok) {
+        const detailText = await response.text();
+        throw new Error(detailText || "Request failed");
+    }
+
+    return response.blob();
+}
+
 function jsonBody(data) {
     return { body: JSON.stringify(data) };
 }
@@ -188,5 +221,29 @@ export const api = {
     settings: {
         get: () => request("/api/user-settings"),
         update: (data) => request("/api/user-settings", { method: "PUT", ...jsonBody(data) }),
+    },
+    immich: {
+        testConnection: () => request("/api/immich/test-connection", { method: "POST" }),
+        syncFaces: () => request("/api/immich/sync-faces", { method: "POST" }),
+        galleryForPerson: (personId, limit = 24) => request(`/api/immich/gallery/person/${personId}?limit=${Number(limit)}`),
+        galleryForEvent: (eventId, limit = 24) => request(`/api/immich/gallery/event/${eventId}?limit=${Number(limit)}`),
+        galleryForLocation: (locationId, limit = 24) => request(`/api/immich/gallery/location/${locationId}?limit=${Number(limit)}`),
+        thumbnailBlob: (assetId, size = "preview") => requestBlob(
+            `/api/immich/assets/${encodeURIComponent(String(assetId))}/thumbnail?size=${encodeURIComponent(String(size))}`
+        ),
+        proxyImageBlob: (path) => requestBlob(`/api/immich/proxy-image?path=${encodeURIComponent(String(path || ""))}`),
+    },
+    externalIdentities: {
+        list: (skip = 0, limit = 1000) => request(`/api/external-identities?skip=${Number(skip)}&limit=${Number(limit)}`),
+        get: (id) => request(`/api/external-identities/${id}`),
+        imageBlob: (id) => requestBlob(`/api/external-identities/${encodeURIComponent(String(id))}/image`),
+        addAssociation: (externalIdentityId, data) => request(
+            `/api/external-identities/${externalIdentityId}/associations`,
+            { method: "POST", ...jsonBody(data) }
+        ),
+        removeAssociation: (externalIdentityId, associationId) => request(
+            `/api/external-identities/${externalIdentityId}/associations/${associationId}`,
+            { method: "DELETE" }
+        ),
     },
 };

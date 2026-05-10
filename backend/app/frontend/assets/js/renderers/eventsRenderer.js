@@ -6,6 +6,13 @@ import { getAvatarInitials } from "../avatar.js";
 export function createEventsRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedEvent, createListItem, renderSimpleList } = common;
 
+    function hasImmichIntegrationConfigured() {
+        const settings = state.data.userSettings || {};
+        const apiKey = String(settings.immich_api_key || "").trim();
+        const baseUrl = String(settings.immich_base_url || "").trim();
+        return Boolean(apiKey && baseUrl);
+    }
+
     function displayEventLabel(event) {
         return event.title || `Event #${event.id}`;
     }
@@ -241,6 +248,81 @@ export function createEventsRenderer({ state, caches, actions, common }) {
         return panel;
     }
 
+    function buildImmichGallerySection(items, onRefresh) {
+        const section = createNode("section", { className: "subpanel" });
+        section.appendChild(createNode("div", {
+            className: "panel-heading",
+            children: [
+                createNode("h3", { text: "Immich Gallery" }),
+                createButtonNode("Refresh", "secondary-button", async () => {
+                    await onRefresh();
+                }),
+            ],
+        }));
+
+        const grid = createNode("div", { className: "immich-gallery" });
+        if (!items.length) {
+            grid.appendChild(createNode("p", {
+                className: "muted",
+                text: "No photos found for this event date window.",
+            }));
+        } else {
+            items.forEach((item) => {
+                const imageUrl = item.preview_url || item.thumbnail_url || "";
+                const title = item.created_at
+                    ? `Taken ${formatDateTime(item.created_at)}`
+                    : (item.type || "Immich asset");
+                const card = createNode("a", {
+                    className: "immich-gallery__item",
+                    attrs: {
+                        href: item.immich_url || "#",
+                        target: "_blank",
+                        rel: "noopener noreferrer",
+                        title,
+                    },
+                });
+
+                if (imageUrl) {
+                    const imageNode = createNode("img", {
+                        className: "immich-gallery__image",
+                        attrs: {
+                            src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+                            alt: title,
+                            loading: "lazy",
+                        },
+                    });
+                    card.appendChild(imageNode);
+                    actions.resolveImmichImageUrl(item).then((resolvedUrl) => {
+                        if (resolvedUrl) {
+                            imageNode.src = resolvedUrl;
+                        } else {
+                            imageNode.remove();
+                            card.appendChild(createNode("span", {
+                                className: "immich-gallery__fallback",
+                                text: "Open in Immich",
+                            }));
+                        }
+                    }).catch(() => {
+                        imageNode.remove();
+                        card.appendChild(createNode("span", {
+                            className: "immich-gallery__fallback",
+                            text: "Open in Immich",
+                        }));
+                    });
+                } else {
+                    card.appendChild(createNode("span", {
+                        className: "immich-gallery__fallback",
+                        text: "Open in Immich",
+                    }));
+                }
+
+                grid.appendChild(card);
+            });
+        }
+        section.appendChild(grid);
+        return section;
+    }
+
     function renderEventDetail() {
         const panel = document.getElementById("event-detail-panel");
         const sidebarForm = document.getElementById("event-form");
@@ -285,6 +367,8 @@ export function createEventsRenderer({ state, caches, actions, common }) {
         container.className = "detail-grid";
 
         const participants = caches.eventParticipants.get(event.id) || [];
+        const immichGalleryItems = caches.immichEventGallery.get(event.id) || [];
+        const immichConfigured = hasImmichIntegrationConfigured();
         const participantIds = participants.map((participant) => participant.person_id);
         const availablePeople = state.data.people
             .filter((person) => !participantIds.includes(person.id))
@@ -318,6 +402,11 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             ],
         }));
         container.appendChild(buildEventLocationsPanel(event));
+        if (immichConfigured) {
+            container.appendChild(buildImmichGallerySection(immichGalleryItems, async () => {
+                await actions.refreshImmichEventGallery(event.id);
+            }));
+        }
 
         const section = createNode("section", { className: "subpanel" });
         const form = createNode("form", { className: "inline-form" });
