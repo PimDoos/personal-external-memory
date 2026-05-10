@@ -23,7 +23,9 @@ class UserSettingsService:
             return UserSettingsResponse(
                 me_person_id=None,
                 immich_api_key=None,
+                immich_base_url=None,
                 home_assistant_api_key=None,
+                home_assistant_base_url=None,
             )
 
         if settings.me_person_id is not None:
@@ -32,7 +34,9 @@ class UserSettingsService:
                 return UserSettingsResponse(
                     me_person_id=None,
                     immich_api_key=settings.immich_api_key,
+                    immich_base_url=settings.immich_base_url,
                     home_assistant_api_key=settings.home_assistant_api_key,
+                    home_assistant_base_url=settings.home_assistant_base_url,
                 )
 
         return UserSettingsResponse.model_validate(settings)
@@ -50,7 +54,13 @@ class UserSettingsService:
             if me_person is None:
                 raise ValidationError("Selected person does not belong to current user")
 
-        for key in ("me_person_id", "immich_api_key", "home_assistant_api_key"):
+        for key in (
+            "me_person_id",
+            "immich_api_key",
+            "immich_base_url",
+            "home_assistant_api_key",
+            "home_assistant_base_url",
+        ):
             if key not in payload:
                 continue
             value = payload[key]

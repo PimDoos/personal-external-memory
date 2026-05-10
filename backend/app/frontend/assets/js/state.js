@@ -72,7 +72,9 @@ export const state = {
         userSettings: {
             me_person_id: null,
             immich_api_key: null,
+            immich_base_url: null,
             home_assistant_api_key: null,
+            home_assistant_base_url: null,
         },
     },
 };
@@ -103,7 +105,9 @@ export function clearSession() {
     state.data.userSettings = {
         me_person_id: null,
         immich_api_key: null,
+        immich_base_url: null,
         home_assistant_api_key: null,
+        home_assistant_base_url: null,
     };
     Object.keys(state.sidebar).forEach((section) => {
         state.sidebar[section] = "hidden";

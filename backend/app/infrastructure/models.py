@@ -46,7 +46,9 @@ class UserSettings(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
     me_person_id = Column(Integer, nullable=True, index=True)
     immich_api_key = Column(String(512), nullable=True)
+    immich_base_url = Column(String(512), nullable=True)
     home_assistant_api_key = Column(String(512), nullable=True)
+    home_assistant_base_url = Column(String(512), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False

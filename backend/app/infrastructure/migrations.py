@@ -39,7 +39,10 @@ async def run_migrations() -> None:
             applied = {row[0] for row in result.fetchall()}
         
         # Define list of all migrations
-        all_migrations = ["20260510_relationship_type_fk"]
+        all_migrations = [
+            "20260510_relationship_type_fk",
+            "20260510_user_settings_base_urls",
+        ]
         pending = [m for m in all_migrations if m not in applied]
         
         if not pending:
@@ -85,6 +88,36 @@ async def run_migrations() -> None:
                     "INSERT INTO schema_versions (migration_name, applied_at) VALUES (:name, :now)"
                 ), {"name": "20260510_relationship_type_fk", "now": datetime.utcnow()})
                 
+                print("  ✓ Applied")
+
+        # Apply 20260510_user_settings_base_urls migration
+        if "20260510_user_settings_base_urls" in pending:
+            print("\n→ Add base URL columns to user_settings")
+
+            async with engine.begin() as conn:
+                result = await conn.execute(text("PRAGMA table_info(user_settings)"))
+                columns = [row[1] for row in result.fetchall()]
+
+                if "immich_base_url" not in columns:
+                    print("  Adding immich_base_url column...")
+                    await conn.execute(
+                        text("ALTER TABLE user_settings ADD COLUMN immich_base_url VARCHAR(512)")
+                    )
+                else:
+                    print("  Column immich_base_url already exists")
+
+                if "home_assistant_base_url" not in columns:
+                    print("  Adding home_assistant_base_url column...")
+                    await conn.execute(
+                        text("ALTER TABLE user_settings ADD COLUMN home_assistant_base_url VARCHAR(512)")
+                    )
+                else:
+                    print("  Column home_assistant_base_url already exists")
+
+                await conn.execute(text(
+                    "INSERT INTO schema_versions (migration_name, applied_at) VALUES (:name, :now)"
+                ), {"name": "20260510_user_settings_base_urls", "now": datetime.utcnow()})
+
                 print("  ✓ Applied")
         
         print("\n✓ All migrations completed successfully")

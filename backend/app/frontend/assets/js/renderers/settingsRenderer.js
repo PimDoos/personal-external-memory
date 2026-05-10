@@ -17,8 +17,10 @@ export function createSettingsRenderer({ state }) {
 
         const mePersonField = document.getElementById("settings-me-person-field");
         const immichInput = formNode.querySelector("input[name='immich_api_key']");
+        const immichBaseUrlInput = formNode.querySelector("input[name='immich_base_url']");
         const homeAssistantInput = formNode.querySelector("input[name='home_assistant_api_key']");
-        if (!mePersonField || !immichInput || !homeAssistantInput) {
+        const homeAssistantBaseUrlInput = formNode.querySelector("input[name='home_assistant_base_url']");
+        if (!mePersonField || !immichInput || !immichBaseUrlInput || !homeAssistantInput || !homeAssistantBaseUrlInput) {
             return;
         }
 
@@ -38,7 +40,9 @@ export function createSettingsRenderer({ state }) {
         }));
 
         immichInput.value = state.data.userSettings?.immich_api_key || "";
+        immichBaseUrlInput.value = state.data.userSettings?.immich_base_url || "";
         homeAssistantInput.value = state.data.userSettings?.home_assistant_api_key || "";
+        homeAssistantBaseUrlInput.value = state.data.userSettings?.home_assistant_base_url || "";
     }
 
     return {

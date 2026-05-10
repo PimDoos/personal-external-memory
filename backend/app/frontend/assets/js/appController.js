@@ -460,7 +460,9 @@ export function createAppController() {
         state.data.userSettings = {
             me_person_id: userSettings?.me_person_id || null,
             immich_api_key: userSettings?.immich_api_key || null,
+            immich_base_url: userSettings?.immich_base_url || null,
             home_assistant_api_key: userSettings?.home_assistant_api_key || null,
+            home_assistant_base_url: userSettings?.home_assistant_base_url || null,
         };
 
         await refreshTopologyData();
@@ -1042,12 +1044,16 @@ export function createAppController() {
                 const payload = createFormDataObject(formNode);
                 payload.me_person_id = payload.me_person_id ? Number(payload.me_person_id) : null;
                 payload.immich_api_key = payload.immich_api_key?.trim() || null;
+                payload.immich_base_url = payload.immich_base_url?.trim() || null;
                 payload.home_assistant_api_key = payload.home_assistant_api_key?.trim() || null;
+                payload.home_assistant_base_url = payload.home_assistant_base_url?.trim() || null;
                 const savedSettings = await api.settings.update(payload);
                 state.data.userSettings = {
                     me_person_id: savedSettings?.me_person_id || null,
                     immich_api_key: savedSettings?.immich_api_key || null,
+                    immich_base_url: savedSettings?.immich_base_url || null,
                     home_assistant_api_key: savedSettings?.home_assistant_api_key || null,
+                    home_assistant_base_url: savedSettings?.home_assistant_base_url || null,
                 };
                 showToast("Settings saved.");
             });

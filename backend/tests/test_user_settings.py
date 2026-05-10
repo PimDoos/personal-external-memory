@@ -40,7 +40,9 @@ def test_user_settings_roundtrip() -> None:
     assert initial_response.json() == {
         "me_person_id": None,
         "immich_api_key": None,
+        "immich_base_url": None,
         "home_assistant_api_key": None,
+        "home_assistant_base_url": None,
     }
 
     person_response = client.post(
@@ -56,7 +58,9 @@ def test_user_settings_roundtrip() -> None:
         json={
             "me_person_id": person_id,
             "immich_api_key": "immich-secret",
+            "immich_base_url": "https://immich.local",
             "home_assistant_api_key": "ha-secret",
+            "home_assistant_base_url": "https://ha.local",
         },
         headers=headers,
     )
@@ -68,7 +72,9 @@ def test_user_settings_roundtrip() -> None:
     assert refreshed_response.json() == {
         "me_person_id": person_id,
         "immich_api_key": "immich-secret",
+        "immich_base_url": "https://immich.local",
         "home_assistant_api_key": "ha-secret",
+        "home_assistant_base_url": "https://ha.local",
     }
 
 

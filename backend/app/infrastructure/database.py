@@ -283,6 +283,8 @@ async def _apply_sqlite_migrations(connection) -> None:
     await add_column_if_missing("locations", "longitude", "FLOAT")
     await add_column_if_missing("locations", "geocode_status", "VARCHAR(32)")
     await add_column_if_missing("locations", "geocoded_at", "DATETIME")
+    await add_column_if_missing("user_settings", "immich_base_url", "VARCHAR(512)")
+    await add_column_if_missing("user_settings", "home_assistant_base_url", "VARCHAR(512)")
     
     # Ensure social_circle_associations table exists
     table_check_result = await connection.execute(text(
