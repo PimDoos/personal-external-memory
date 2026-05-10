@@ -1,15 +1,6 @@
 import { clearNodeChildren, createNode } from "../dom.js";
 import { api } from "../api.js";
 
-function escapeHtml(value) {
-    return String(value || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
-
 function parseCoordinates(rawLocation) {
     const value = String(rawLocation || "").trim();
     if (!value) {
@@ -272,9 +263,12 @@ export function createMapRenderer({ state, actions }) {
         }
     }
 
-    function buildAssociationsHtml(associations) {
+    function buildAssociationsContent(associations, onAssociationClick) {
         if (!Array.isArray(associations) || !associations.length) {
-            return "<div class=\"map-popup-associations__empty\">No associated entities.</div>";
+            return createNode("div", {
+                className: "map-popup-associations__empty",
+                text: "No associated entities.",
+            });
         }
 
         const grouped = new Map();
@@ -289,7 +283,10 @@ export function createMapRenderer({ state, actions }) {
             });
         });
 
-        const sections = [];
+        const associationsNode = createNode("div", {
+            className: "map-popup-associations",
+        });
+
         grouped.forEach((entries, entityType) => {
             let sortedEntries = [...entries];
             if (entityType === "event") {
@@ -306,17 +303,63 @@ export function createMapRenderer({ state, actions }) {
                     .sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base" }));
             }
 
-            const items = sortedEntries
-                .map((entry) => {
-                    return `<li><button type=\"button\" class=\"map-popup-association-link\" data-entity-type=\"${escapeHtml(entityType)}\" data-entity-id=\"${Number(entry.entityId || 0)}\">${escapeHtml(entry.label)}</button></li>`;
+            const listNode = createNode("ul");
+            sortedEntries.forEach((entry) => {
+                const entityId = Number(entry.entityId || 0);
+                const buttonNode = createNode("button", {
+                    className: "map-popup-association-link",
+                    text: entry.label,
+                    attrs: { type: "button" },
+                    dataset: {
+                        entityType,
+                        entityId,
+                    },
+                });
+                buttonNode.addEventListener("click", async (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    await onAssociationClick(entityType, entityId);
+                });
+
+                listNode.appendChild(createNode("li", { children: [buttonNode] }));
+            });
+
+            associationsNode.appendChild(
+                createNode("div", {
+                    className: "map-popup-associations__group",
+                    children: [
+                        createNode("strong", { text: formatEntityTypeLabel(entityType) }),
+                        listNode,
+                    ],
                 })
-                .join("");
-            sections.push(
-                `<div class=\"map-popup-associations__group\"><strong>${escapeHtml(formatEntityTypeLabel(entityType))}</strong><ul>${items}</ul></div>`
             );
         });
 
-        return `<div class=\"map-popup-associations\">${sections.join("")}</div>`;
+        return associationsNode;
+    }
+
+    function buildPopupBody(title, type, rawLocation, associationsContent) {
+        return createNode("div", {
+            children: [
+                createNode("strong", { text: title }),
+                createNode("br"),
+                createNode("span", { text: type }),
+                createNode("br"),
+                createNode("small", { text: rawLocation || "" }),
+                createNode("hr"),
+                associationsContent,
+            ],
+        });
+    }
+
+    function buildMarkerIconHtml(colorClass, colorLabel) {
+        return createNode("span", {
+            className: `map-marker-icon ${colorClass}`,
+            attrs: {
+                title: colorLabel,
+                "aria-label": colorLabel,
+            },
+        }).outerHTML;
     }
 
     async function getLocationDetail(locationId) {
@@ -455,7 +498,7 @@ export function createMapRenderer({ state, actions }) {
         const colorLabel = getMarkerColorLabel(summary);
         return window.L.divIcon({
             className: "map-marker-icon-wrapper",
-            html: `<span class="map-marker-icon ${colorClass}" title="${escapeHtml(colorLabel)}" aria-label="${escapeHtml(colorLabel)}"></span>`,
+            html: buildMarkerIconHtml(colorClass, colorLabel),
             iconSize: [20, 20],
             iconAnchor: [10, 10],
             popupAnchor: [0, -10],
@@ -481,7 +524,7 @@ export function createMapRenderer({ state, actions }) {
         const colorLabel = colorLabelByRule[ruleKey] || "Unassociated";
         return window.L.divIcon({
             className: "map-marker-icon-wrapper",
-            html: `<span class="map-marker-icon ${colorClass}" title="${escapeHtml(colorLabel)}" aria-label="${escapeHtml(colorLabel)}"></span>`,
+            html: buildMarkerIconHtml(colorClass, colorLabel),
             iconSize: [20, 20],
             iconAnchor: [10, 10],
             popupAnchor: [0, -10],
@@ -636,7 +679,15 @@ export function createMapRenderer({ state, actions }) {
             }
 
             marker.bindPopup(
-                `<strong>${escapeHtml(title)}</strong><br>${escapeHtml(type)}<br><small>${escapeHtml(location.location || "")}</small><hr><div class=\"map-popup-associations__loading\">Loading associations...</div>`
+                buildPopupBody(
+                    title,
+                    type,
+                    location.location,
+                    createNode("div", {
+                        className: "map-popup-associations__loading",
+                        text: "Loading associations...",
+                    })
+                )
             );
             marker.on("popupopen", async () => {
                 const popup = marker.getPopup();
@@ -647,26 +698,25 @@ export function createMapRenderer({ state, actions }) {
                 try {
                     const detail = await getLocationDetail(location.id);
                     locationAssociationSummaryCache.set(location.id, summarizeAssociationTypes(detail.associations || []));
-                    const associationsHtml = buildAssociationsHtml(detail.associations || []);
                     popup.setContent(
-                        `<strong>${escapeHtml(title)}</strong><br>${escapeHtml(type)}<br><small>${escapeHtml(location.location || "")}</small><hr>${associationsHtml}`
+                        buildPopupBody(
+                            title,
+                            type,
+                            location.location,
+                            buildAssociationsContent(detail.associations || [], openEntityFromAssociation)
+                        )
                     );
-
-                    const popupNode = popup.getElement();
-                    if (popupNode) {
-                        popupNode.querySelectorAll(".map-popup-association-link").forEach((node) => {
-                            node.addEventListener("click", async (event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                const entityType = String(node.getAttribute("data-entity-type") || "");
-                                const entityId = Number(node.getAttribute("data-entity-id") || 0);
-                                await openEntityFromAssociation(entityType, entityId);
-                            });
-                        });
-                    }
                 } catch {
                     popup.setContent(
-                        `<strong>${escapeHtml(title)}</strong><br>${escapeHtml(type)}<br><small>${escapeHtml(location.location || "")}</small><hr><div class=\"map-popup-associations__error\">Could not load associations.</div>`
+                        buildPopupBody(
+                            title,
+                            type,
+                            location.location,
+                            createNode("div", {
+                                className: "map-popup-associations__error",
+                                text: "Could not load associations.",
+                            })
+                        )
                     );
                 }
             });
