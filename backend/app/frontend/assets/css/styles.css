@@ -1145,7 +1145,7 @@ textarea {
 .empty-state {
     display: grid;
     place-items: center;
-    min-height: 220px;
+    min-height: 68px;
     padding: 20px;
     border: 1px dashed var(--empty-border);
     color: var(--ink-soft);

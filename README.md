@@ -178,5 +178,11 @@ The native frontend is now implemented and served directly by FastAPI.
     - Link faces in Immich to people in PEM
         - Immich faces are provided as external entity, which can be linked to a person.
         - If a person has a face from Immich linked, display the face image as avatar for that person
-    - Display photos taken during an event (dynamically fetch from Immich)
-    - Display photos taken at a location (dynamically fetch from Immich)
+        - Clicking the face association opens the face in Immich
+    - Show a small photo gallery on certain detail pages
+        - Event detail page: Display photos taken during an event (dynamically fetch from Immich)
+        - Location detail page: Display photos taken at a location (dynamically fetch from Immich)
+        - Person detail page: Display photos containing that person (dynamically fetch from Immich using the linked face)
+        - Clicking the photo opens it in Immich
+    - Immich base URL and API key are user-specific and set in user settings.
+        - In user settings, the user should be able to test if their settings are valid

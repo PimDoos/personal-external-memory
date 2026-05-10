@@ -127,6 +127,7 @@ def create_app() -> FastAPI:
     from app.domains.associations.router import router as associations_router
     from app.domains.types.router import router as types_router
     from app.domains.user_settings.router import router as user_settings_router
+    from app.domains.external_identities.router import router as external_identities_router
 
     app.include_router(resources_router, prefix="/api/resources", tags=["resources"])
     app.include_router(contact_info_router, prefix="/api/contact-info", tags=["contact_info"])
@@ -135,6 +136,11 @@ def create_app() -> FastAPI:
     app.include_router(associations_router, prefix="/api/associations", tags=["associations"])
     app.include_router(types_router, prefix="/api/types", tags=["types"])
     app.include_router(user_settings_router, prefix="/api/user-settings", tags=["user_settings"])
+    app.include_router(
+        external_identities_router,
+        prefix="/api/external-identities",
+        tags=["external_identities"],
+    )
 
     from app.domains.locations.router import router as locations_router
     app.include_router(locations_router, prefix="/api/locations", tags=["locations"])

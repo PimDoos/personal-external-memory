@@ -3,7 +3,18 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, Boolean
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -31,6 +42,9 @@ class User(Base):
     brands = relationship("Brand", back_populates="user", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="user", cascade="all, delete-orphan")
     locations = relationship("Location", back_populates="user", cascade="all, delete-orphan")
+    external_identities = relationship(
+        "ExternalIdentity", back_populates="user", cascade="all, delete-orphan"
+    )
     settings = relationship(
         "UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
@@ -352,6 +366,72 @@ class LocationAssociation(Base):
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=False, index=True)
     entity_type = Column(String(50), nullable=False)  # person, brand, social_circle, event
     entity_id = Column(Integer, nullable=False, index=True)
+
+
+# ===== ExternalIdentity =====
+class ExternalIdentity(Base):
+    """Identity/entity provided by an external integration."""
+
+    __tablename__ = "external_identities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    display_name = Column(String(255), nullable=False)
+    external_id = Column(String(255), nullable=False)
+    source = Column(String(255), nullable=False)
+    entity_type = Column(String(50), nullable=False)  # person, location, event, image, text
+    click_uri = Column(String(2000), nullable=True)
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
+    image_url = Column(String(2000), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    content = Column(Text, nullable=True)
+    is_read_only = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "source", "external_id", name="uq_external_identity_key"),
+    )
+
+    user = relationship("User", back_populates="external_identities")
+    associations = relationship(
+        "ExternalIdentityAssociation",
+        back_populates="external_identity",
+        cascade="all, delete-orphan",
+    )
+
+
+# ===== ExternalIdentityAssociation =====
+class ExternalIdentityAssociation(Base):
+    """Association between external identity and an internal entity."""
+
+    __tablename__ = "external_identity_associations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    external_identity_id = Column(
+        Integer,
+        ForeignKey("external_identities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    entity_type = Column(String(50), nullable=False)  # person, social_circle, brand, event
+    entity_id = Column(Integer, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "external_identity_id",
+            "entity_type",
+            "entity_id",
+            name="uq_external_identity_association",
+        ),
+    )
+
+    external_identity = relationship("ExternalIdentity", back_populates="associations")
 
 
 # ===== Resource =====
