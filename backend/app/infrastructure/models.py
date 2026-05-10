@@ -151,6 +151,8 @@ class PersonRelationship(Base):
     relationship_type = Column(String(100), nullable=False)  # DEPRECATED: will be removed after migration
     relationship_type_id = Column(Integer, ForeignKey("managed_types.id", ondelete="SET NULL"), nullable=True)
     type_entry = relationship("ManagedType", foreign_keys=[relationship_type_id])
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 

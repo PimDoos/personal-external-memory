@@ -41,6 +41,7 @@ async def run_migrations() -> None:
         # Define list of all migrations
         all_migrations = [
             "20260510_relationship_type_fk",
+            "20260510_relationship_date_range",
             "20260510_user_settings_base_urls",
         ]
         pending = [m for m in all_migrations if m not in applied]
@@ -88,6 +89,36 @@ async def run_migrations() -> None:
                     "INSERT INTO schema_versions (migration_name, applied_at) VALUES (:name, :now)"
                 ), {"name": "20260510_relationship_type_fk", "now": datetime.utcnow()})
                 
+                print("  ✓ Applied")
+
+        # Apply 20260510_relationship_date_range migration
+        if "20260510_relationship_date_range" in pending:
+            print("\n→ Add start/end date columns to person_relationships")
+
+            async with engine.begin() as conn:
+                result = await conn.execute(text("PRAGMA table_info(person_relationships)"))
+                columns = [row[1] for row in result.fetchall()]
+
+                if "start_date" not in columns:
+                    print("  Adding start_date column...")
+                    await conn.execute(
+                        text("ALTER TABLE person_relationships ADD COLUMN start_date DATE")
+                    )
+                else:
+                    print("  Column start_date already exists")
+
+                if "end_date" not in columns:
+                    print("  Adding end_date column...")
+                    await conn.execute(
+                        text("ALTER TABLE person_relationships ADD COLUMN end_date DATE")
+                    )
+                else:
+                    print("  Column end_date already exists")
+
+                await conn.execute(text(
+                    "INSERT INTO schema_versions (migration_name, applied_at) VALUES (:name, :now)"
+                ), {"name": "20260510_relationship_date_range", "now": datetime.utcnow()})
+
                 print("  ✓ Applied")
 
         # Apply 20260510_user_settings_base_urls migration

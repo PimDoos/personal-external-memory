@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timedelta
+import math
+from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qs, quote_plus, unquote_plus, urlencode, urlparse
 from urllib.error import HTTPError, URLError
@@ -33,6 +34,8 @@ from app.infrastructure.models import (
 
 class ImmichService:
     """Service for Immich integration operations."""
+
+    LOCATION_GALLERY_RADIUS_METERS = 50.0
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -63,17 +66,11 @@ class ImmichService:
         people_payload = await self._request_json(base_url, api_key, "GET", "/api/people")
         people_list = self._extract_people(people_payload)
 
-        # Compatibility fallback for API variants exposing faces separately.
-        if not people_list:
-            fallback_payload = await self._request_json(base_url, api_key, "GET", "/api/faces", allow_404=True)
-            people_list = self._extract_people(fallback_payload)
-
         if not people_list:
             shape = self._describe_payload_shape(people_payload)
-            fallback_shape = self._describe_payload_shape(fallback_payload)
             raise ValidationError(
-                "Unexpected Immich faces/people response format "
-                f"(people={shape}, faces={fallback_shape})"
+                "Unexpected Immich people response format "
+                f"(people={shape})"
             )
 
         created = 0
@@ -86,16 +83,8 @@ class ImmichService:
                 skipped += 1
                 continue
 
-            nested_person = person.get("person") if isinstance(person.get("person"), dict) else {}
-
-            display_name = str(
-                person.get("name")
-                or person.get("personName")
-                or person.get("faceName")
-                or nested_person.get("name")
-                or nested_person.get("personName")
-                or f"Immich Person {person_id}"
-            ).strip()
+            name = person.get("name")
+            display_name = str(name).strip() if isinstance(name, str) and name.strip() else f"Immich Person {person_id}"
             image_url = f"/api/immich/people/{person_id}/thumbnail"
             click_uri = f"{base_url}/people/{person_id}"
 
@@ -139,42 +128,13 @@ class ImmichService:
         )
 
     def _extract_people(self, payload: Any) -> list[dict[str, Any]]:
-        """Normalize Immich people/faces payloads across API variants."""
-        if isinstance(payload, list):
-            return [item for item in payload if isinstance(item, dict)]
-
+        """Extract people from GET /people response schema."""
         if not isinstance(payload, dict):
             return []
-
-        if isinstance(payload.get("items"), list):
-            return [item for item in payload["items"] if isinstance(item, dict)]
-
-        if isinstance(payload.get("people"), list):
-            return [item for item in payload["people"] if isinstance(item, dict)]
-
-        if isinstance(payload.get("faces"), list):
-            return [item for item in payload["faces"] if isinstance(item, dict)]
-
-        data = payload.get("data")
-        if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
-        if isinstance(data, dict):
-            for key in ("items", "people", "faces"):
-                value = data.get(key)
-                if isinstance(value, list):
-                    return [item for item in value if isinstance(item, dict)]
-
-        for key in ("result", "results"):
-            value = payload.get(key)
-            if isinstance(value, list):
-                return [item for item in value if isinstance(item, dict)]
-            if isinstance(value, dict):
-                for nested_key in ("items", "people", "faces"):
-                    nested_value = value.get(nested_key)
-                    if isinstance(nested_value, list):
-                        return [item for item in nested_value if isinstance(item, dict)]
-
-        return []
+        people = payload.get("people")
+        if not isinstance(people, list):
+            return []
+        return [item for item in people if isinstance(item, dict)]
 
     def _describe_payload_shape(self, payload: Any) -> str:
         if isinstance(payload, list):
@@ -238,21 +198,16 @@ class ImmichService:
         return await self._request_binary(base_url, api_key, "GET", path)
 
     async def get_person_thumbnail(self, user_id: int, person_id: str) -> tuple[bytes, str]:
-        """Fetch an Immich person thumbnail by person id across API variants."""
+        """Fetch an Immich person thumbnail by person id."""
         base_url, api_key = await self._get_user_immich_credentials(user_id)
         normalized_person_id = str(person_id or "").strip()
         if not normalized_person_id:
             raise ValidationError("Person ID is required")
 
-        candidate_paths = [
-            f"/api/people/{normalized_person_id}/thumbnail",
-            f"/api/faces/{normalized_person_id}/thumbnail",
-        ]
-        for candidate in candidate_paths:
-            try:
-                return await self._request_binary(base_url, api_key, "GET", candidate)
-            except ValidationError:
-                continue
+        try:
+            return await self._request_binary(base_url, api_key, "GET", f"/api/people/{normalized_person_id}/thumbnail")
+        except ValidationError:
+            pass
 
         # Fallback: resolve thumbnail path from person payload and proxy that path.
         person_payload = await self._request_json(
@@ -265,8 +220,6 @@ class ImmichService:
         fallback_path = None
         if isinstance(person_payload, dict):
             fallback_path = self._extract_person_image_url(base_url, person_payload)
-            if not fallback_path and isinstance(person_payload.get("person"), dict):
-                fallback_path = self._extract_person_image_url(base_url, person_payload["person"])
 
         if fallback_path:
             return await self.get_proxied_image(user_id, fallback_path)
@@ -338,25 +291,6 @@ class ImmichService:
             except ValidationError:
                 continue
 
-        # Some Immich variants return richer thumbnail fields only in /api/people list.
-        people_payload = await self._request_json(base_url, api_key, "GET", "/api/people", allow_404=True)
-        people_list = self._extract_people(people_payload)
-        fallback_person = next(
-            (
-                entry
-                for entry in people_list
-                if str(self._coerce_person_id(entry) or "") == str(identity.external_id)
-            ),
-            None,
-        )
-        if isinstance(fallback_person, dict):
-            fallback_image = self._extract_person_image_url(base_url, fallback_person)
-            if fallback_image:
-                try:
-                    return await self.get_proxied_image(user_id, fallback_image)
-                except ValidationError:
-                    pass
-
         raise NotFoundError("External identity image not available")
 
     def _normalize_proxied_image_path(self, path: str | None) -> str:
@@ -381,12 +315,10 @@ class ImmichService:
         if event is None:
             raise NotFoundError("Event not found")
 
-        center = event.start_time or event.date
-        if center is None:
+        event_window = self._event_time_window(event)
+        if event_window is None:
             return ImmichGalleryResponse(context="event", items=[])
-
-        start = center - timedelta(hours=18)
-        end = (event.end_time or center) + timedelta(hours=30)
+        start, end = event_window
 
         payload = {
             "page": 1,
@@ -404,13 +336,18 @@ class ImmichService:
         )
 
     async def gallery_for_location(self, user_id: int, location_id: int, limit: int = 24) -> ImmichGalleryResponse:
-        """Fetch Immich gallery items for a location via linked events date windows."""
+        """Fetch Immich gallery items for a location and keep only items within configured geo radius."""
         base_url, api_key = await self._get_user_immich_credentials(user_id)
 
         location_stmt = select(Location).where((Location.id == location_id) & (Location.user_id == user_id))
         location = (await self.session.execute(location_stmt)).scalar_one_or_none()
         if location is None:
             raise NotFoundError("Location not found")
+
+        location_coords = self._extract_location_coordinates(location)
+        if location_coords is None:
+            return ImmichGalleryResponse(context="location", items=[])
+        location_lat, location_lon = location_coords
 
         event_ids_stmt = select(LocationAssociation.entity_id).where(
             (LocationAssociation.location_id == location_id)
@@ -427,16 +364,16 @@ class ImmichService:
 
         all_items: list[dict[str, Any]] = []
         for event in events[:5]:
-            center = event.start_time or event.date
-            if center is None:
+            event_window = self._event_time_window(event)
+            if event_window is None:
                 continue
-            start = center - timedelta(hours=18)
-            end = (event.end_time or center) + timedelta(hours=30)
+            start, end = event_window
             payload = {
                 "page": 1,
                 "size": max(1, min(limit, 200)),
                 "takenAfter": start.isoformat(),
                 "takenBefore": end.isoformat(),
+                "withExif": True,
                 "withArchived": False,
             }
             response = await self._request_json(base_url, api_key, "POST", "/api/search/metadata", payload)
@@ -448,13 +385,121 @@ class ImmichService:
             item_id = str(item.get("id") or "")
             if not item_id:
                 continue
-            dedup[item_id] = item
+            item_coords = self._extract_asset_coordinates(item)
+            if item_coords is None:
+                continue
+
+            distance = self._distance_meters(location_lat, location_lon, item_coords[0], item_coords[1])
+            if distance <= self.LOCATION_GALLERY_RADIUS_METERS:
+                dedup[item_id] = item
 
         items = list(dedup.values())[: max(1, min(limit, 200))]
         return ImmichGalleryResponse(
             context="location",
             items=[self._to_asset_response(base_url, asset) for asset in items],
         )
+
+    def _event_time_window(self, event: Event) -> tuple[datetime, datetime] | None:
+        start = event.start_time or event.date
+        end = event.end_time or event.date
+        if start is None or end is None:
+            return None
+        if end < start:
+            start, end = end, start
+        return start, end
+
+    def _extract_location_coordinates(self, location: Location) -> tuple[float, float] | None:
+        lat = location.latitude
+        lon = location.longitude
+        if self._is_valid_coordinate_pair(lat, lon):
+            return float(lat), float(lon)
+
+        # Fallback for manually entered coordinates in the free-form location string.
+        parsed = self._parse_coordinates_from_text(location.location)
+        if parsed and self._is_valid_coordinate_pair(parsed[0], parsed[1]):
+            return parsed
+
+        return None
+
+    def _extract_asset_coordinates(self, asset: dict[str, Any]) -> tuple[float, float] | None:
+        exif_raw = asset.get("exifInfo")
+        if not isinstance(exif_raw, dict):
+            return None
+
+        lat_raw = exif_raw.get("latitude")
+        lon_raw = exif_raw.get("longitude")
+        if lat_raw is None or lon_raw is None:
+            return None
+
+        try:
+            lat_value = float(lat_raw)
+            lon_value = float(lon_raw)
+        except (TypeError, ValueError):
+            return None
+
+        if not self._is_valid_coordinate_pair(lat_value, lon_value):
+            return None
+
+        return lat_value, lon_value
+
+    def _is_valid_coordinate_pair(self, lat: Any, lon: Any) -> bool:
+        try:
+            lat_value = float(lat)
+            lon_value = float(lon)
+        except (TypeError, ValueError):
+            return False
+        return abs(lat_value) <= 90 and abs(lon_value) <= 180
+
+    def _parse_coordinates_from_text(self, raw_location: str | None) -> tuple[float, float] | None:
+        value = str(raw_location or "").strip()
+        if not value:
+            return None
+
+        # WKT POINT(lon lat)
+        if value.upper().startswith("POINT") and "(" in value and ")" in value:
+            inner = value[value.find("(") + 1:value.rfind(")")]
+            parts = [part for part in inner.replace(",", " ").split() if part]
+            if len(parts) >= 2:
+                try:
+                    lon = float(parts[0])
+                    lat = float(parts[1])
+                    if self._is_valid_coordinate_pair(lat, lon):
+                        return lat, lon
+                except ValueError:
+                    pass
+
+        tokens: list[float] = []
+        for token in value.replace(",", " ").split():
+            try:
+                tokens.append(float(token))
+            except ValueError:
+                continue
+            if len(tokens) >= 2:
+                break
+
+        if len(tokens) < 2:
+            return None
+
+        first, second = tokens[0], tokens[1]
+        if self._is_valid_coordinate_pair(first, second):
+            return first, second
+        if self._is_valid_coordinate_pair(second, first):
+            return second, first
+        return None
+
+    def _distance_meters(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        radius = 6_371_000.0
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        delta_phi = math.radians(lat2 - lat1)
+        delta_lambda = math.radians(lon2 - lon1)
+
+        a = (
+            math.sin(delta_phi / 2) ** 2
+            + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+        )
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return radius * c
 
     async def _get_user_immich_credentials(self, user_id: int) -> tuple[str, str]:
         stmt = select(UserSettings).where(UserSettings.user_id == user_id)
@@ -564,59 +609,33 @@ class ImmichService:
     def _coerce_person_id(self, person: dict[str, Any]) -> str | None:
         if not isinstance(person, dict):
             return None
-        nested_person = person.get("person") if isinstance(person.get("person"), dict) else {}
-        value = (
-            person.get("id")
-            or person.get("personId")
-            or person.get("faceId")
-            or person.get("assetId")
-            or nested_person.get("id")
-            or nested_person.get("personId")
-        )
+        value = person.get("id")
         if value is None:
             return None
         text = str(value).strip()
         return text or None
 
     def _extract_person_image_url(self, base_url: str, person: dict[str, Any]) -> str | None:
-        nested_person = person.get("person") if isinstance(person.get("person"), dict) else {}
-        nested_face = person.get("face") if isinstance(person.get("face"), dict) else {}
-        candidates = [
-            person.get("thumbnailPath"),
-            person.get("avatarPath"),
-            nested_face.get("thumbnailPath"),
-            person.get("thumbnailUrl"),
-            person.get("avatarUrl"),
-            nested_person.get("thumbnailPath"),
-            nested_person.get("avatarPath"),
-            nested_person.get("thumbnailUrl"),
-            nested_person.get("avatarUrl"),
-        ]
-        for candidate in candidates:
-            if not candidate:
-                continue
-            text = str(candidate)
-            proxied_path = text if text.startswith("http://") or text.startswith("https://") else urljoin(f"{base_url}/", text.lstrip("/"))
-            return f"/api/immich/proxy-image?path={quote_plus(proxied_path)}"
-        return None
+        thumbnail_path = person.get("thumbnailPath")
+        if not isinstance(thumbnail_path, str) or not thumbnail_path:
+            return None
+        proxied_path = thumbnail_path if thumbnail_path.startswith("http://") or thumbnail_path.startswith("https://") else urljoin(f"{base_url}/", thumbnail_path.lstrip("/"))
+        return f"/api/immich/proxy-image?path={quote_plus(proxied_path)}"
 
     def _extract_assets(self, payload: Any) -> list[dict[str, Any]]:
-        if isinstance(payload, dict):
-            assets = payload.get("assets")
-            if isinstance(assets, dict) and isinstance(assets.get("items"), list):
-                return [item for item in assets["items"] if isinstance(item, dict)]
-            if isinstance(assets, list):
-                return [item for item in assets if isinstance(item, dict)]
-            if isinstance(payload.get("items"), list):
-                return [item for item in payload["items"] if isinstance(item, dict)]
-        if isinstance(payload, list):
-            return [item for item in payload if isinstance(item, dict)]
+        if not isinstance(payload, dict):
+            return []
+        assets = payload.get("assets")
+        if not isinstance(assets, dict):
+            return []
+        items = assets.get("items")
+        if isinstance(items, list):
+            return [item for item in items if isinstance(item, dict)]
         return []
 
     def _to_asset_response(self, base_url: str, item: dict[str, Any]) -> ImmichAssetResponse:
-        raw_asset_id = item.get("id") or item.get("assetId") or item.get("asset_id")
+        raw_asset_id = item.get("id")
         asset_id = str(raw_asset_id or "").strip()
-        thumb_path = item.get("thumbhash") or item.get("thumbnailPath")
         original_path = item.get("originalPath")
         created_raw = item.get("fileCreatedAt") or item.get("createdAt")
 
@@ -627,10 +646,7 @@ class ImmichService:
             except ValueError:
                 created_at = None
 
-        thumbnail_url = None
-        if isinstance(thumb_path, str) and thumb_path:
-            thumbnail_url = thumb_path if thumb_path.startswith("http") else urljoin(f"{base_url}/", thumb_path.lstrip("/"))
-
+        thumbnail_url = f"/api/immich/assets/{asset_id}/thumbnail?size=thumbnail" if asset_id else None
         preview_url = f"/api/immich/assets/{asset_id}/thumbnail?size=preview" if asset_id else None
         immich_url = f"{base_url}/photos/{asset_id}" if asset_id else None
 

@@ -93,6 +93,8 @@ class PersonRelationshipEmbedded(BaseModel):
     person_id_2: int
     relationship_type: Optional[str]
     relationship_type_id: Optional[int] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     notes: Optional[str]
     type_entry: Optional[dict] = None
 

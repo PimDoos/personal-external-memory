@@ -77,6 +77,21 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         return rightLabel || typeEntry?.name || relationship.relationship_type;
     }
 
+    function relationshipDateRangeLabel(relationship) {
+        const start = relationship.start_date ? String(relationship.start_date).slice(0, 10) : "";
+        const end = relationship.end_date ? String(relationship.end_date).slice(0, 10) : "";
+        if (start && end) {
+            return `${start} - ${end}`;
+        }
+        if (start) {
+            return `Since ${start}`;
+        }
+        if (end) {
+            return `Until ${end}`;
+        }
+        return "";
+    }
+
     function buildUriLink(typeEntry, value) {
         if (!typeEntry?.uri_handler || !value) {
             return null;
@@ -613,6 +628,18 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 placeholder: "Optional note",
             },
         });
+        const startDateInput = createNode("input", {
+            attrs: {
+                name: "start_date",
+                type: "date",
+            },
+        });
+        const endDateInput = createNode("input", {
+            attrs: {
+                name: "end_date",
+                type: "date",
+            },
+        });
 
         const submitButton = createButtonNode("Add", "primary-button", null, {
             type: "submit",
@@ -622,6 +649,8 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         form.appendChild(personSelect);
         form.appendChild(relationInput);
         form.appendChild(perspectiveSelect);
+        form.appendChild(startDateInput);
+        form.appendChild(endDateInput);
         form.appendChild(notesInput);
         form.appendChild(submitButton);
 
@@ -636,6 +665,8 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 person_id_1: isRightPerspective ? Number(payload.person_id_2) : personId,
                 person_id_2: isRightPerspective ? personId : Number(payload.person_id_2),
                 relationship_type_id: Number(payload.relationship_type_id),
+                start_date: payload.start_date || undefined,
+                end_date: payload.end_date || undefined,
                 notes: payload.notes || undefined,
             });
             form.reset();
@@ -698,9 +729,25 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 placeholder: "Optional note",
             },
         });
+        const startDateInput = createNode("input", {
+            value: relationship.start_date ? String(relationship.start_date).slice(0, 10) : "",
+            attrs: {
+                name: "start_date",
+                type: "date",
+            },
+        });
+        const endDateInput = createNode("input", {
+            value: relationship.end_date ? String(relationship.end_date).slice(0, 10) : "",
+            attrs: {
+                name: "end_date",
+                type: "date",
+            },
+        });
 
         form.appendChild(relationInput);
         form.appendChild(perspectiveSelect);
+        form.appendChild(startDateInput);
+        form.appendChild(endDateInput);
         form.appendChild(notesInput);
         form.appendChild(createButtonNode("Save", "primary-button", null, { type: "submit" }));
 
@@ -716,6 +763,8 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 relationship.id,
                 {
                     relationship_type_id: Number(payload.relationship_type_id) || Number(selectedRelationshipTypeId) || relationship.relationship_type_id,
+                    start_date: payload.start_date === "" ? null : payload.start_date,
+                    end_date: payload.end_date === "" ? null : payload.end_date,
                     notes: payload.notes === "" ? null : payload.notes,
                 },
                 relationship.person_id_1,
@@ -1077,12 +1126,16 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 const typeEntry = findRelationshipTypeForRelationship(relationship) || relationship.type_entry || null;
                 const perspectiveLabel = perspectiveLabelForRelationship(relationship, person.id, typeEntry);
                 const relationshipDisplay = typeEntry?.emoji ? `${typeEntry.emoji} ${perspectiveLabel}` : perspectiveLabel;
+                const relationshipDateRange = relationshipDateRangeLabel(relationship);
                 const subtitle = createNode("p", {
                     className: "muted",
                     children: [
                         createNode("span", { className: "relationship-chip__label", text: relationshipDisplay }),
                         createNode("span", { text: " of " }),
                         createNode("span", { className: "relationship-chip__name", text: counterpartName }),
+                        ...(relationshipDateRange
+                            ? [createNode("span", { text: ` · ${relationshipDateRange}` })]
+                            : []),
                         ...(relationship.notes
                             ? [createNode("span", { text: ` · ${relationship.notes}` })]
                             : []),

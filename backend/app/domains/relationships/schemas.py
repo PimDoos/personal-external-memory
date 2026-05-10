@@ -1,5 +1,6 @@
 """Relationships domain - schemas for request/response validation."""
 
+from datetime import date
 from typing import Optional
 from pydantic import BaseModel
 
@@ -11,6 +12,8 @@ class PersonRelationshipCreateRequest(BaseModel):
     person_id_2: int
     relationship_type_id: Optional[int] = None  # FK to ManagedType
     relationship_type: Optional[str] = None  # DEPRECATED: for migration only
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     notes: Optional[str] = None
 
 
@@ -19,6 +22,8 @@ class PersonRelationshipUpdateRequest(BaseModel):
 
     relationship_type_id: Optional[int] = None
     relationship_type: Optional[str] = None  # DEPRECATED: for migration only
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     notes: Optional[str] = None
 
 
@@ -30,6 +35,8 @@ class PersonRelationshipResponse(BaseModel):
     person_id_2: int
     relationship_type_id: Optional[int]
     relationship_type: Optional[str]
+    start_date: Optional[date]
+    end_date: Optional[date]
     notes: Optional[str]
     type_entry: Optional[dict] = None  # Populated with ManagedType details
 

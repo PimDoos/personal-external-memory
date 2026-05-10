@@ -195,6 +195,8 @@ class PersonService:
                 "person_id_2": rel.person_id_2,
                 "relationship_type": rel.relationship_type,
                 "relationship_type_id": rel.relationship_type_id,
+                "start_date": rel.start_date,
+                "end_date": rel.end_date,
                 "notes": rel.notes,
                 "type_entry": type_entry,
             }

@@ -1423,6 +1423,8 @@ export function createAppController() {
                     person_id_1: personId2,
                     person_id_2: personId1,
                     relationship_type_id: payload.relationship_type_id,
+                    start_date: payload.start_date ?? undefined,
+                    end_date: payload.end_date ?? undefined,
                     notes: payload.notes ?? undefined,
                 });
             } else {

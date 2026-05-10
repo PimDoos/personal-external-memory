@@ -8,7 +8,7 @@ from app.domains.relationships.schemas import (
     PersonRelationshipUpdateRequest,
 )
 from app.infrastructure.models import PersonRelationship, Person
-from app.infrastructure.exceptions import NotFoundError, ConflictError
+from app.infrastructure.exceptions import NotFoundError, ConflictError, ValidationError
 
 
 class PersonRelationshipService:
@@ -17,6 +17,10 @@ class PersonRelationshipService:
     def __init__(self, session: AsyncSession):
         """Initialize relationship service."""
         self.session = session
+
+    def _validate_date_range(self, start_date, end_date) -> None:
+        if start_date and end_date and end_date < start_date:
+            raise ValidationError("Relationship end date cannot be before start date")
 
     async def create(
         self, user_id: int, data: PersonRelationshipCreateRequest
@@ -53,6 +57,8 @@ class PersonRelationshipService:
         if data.person_id_1 == data.person_id_2:
             raise ConflictError("Cannot create relationship with the same person")
 
+        self._validate_date_range(data.start_date, data.end_date)
+
         # Check if relationship already exists (bidirectional)
         from app.domains.relationships.repository import PersonRelationshipRepository
         repo = PersonRelationshipRepository(self.session)
@@ -88,6 +94,8 @@ class PersonRelationshipService:
             person_id_2=data.person_id_2,
             relationship_type_id=relationship_type_id,
             relationship_type=relationship_type_name or "",
+            start_date=data.start_date,
+            end_date=data.end_date,
             notes=data.notes,
         )
         self.session.add(relationship)
@@ -121,6 +129,10 @@ class PersonRelationshipService:
         relationship = await self.get(relationship_id, user_id)
 
         update_data = data.model_dump(exclude_unset=True)
+        next_start_date = update_data.get("start_date", relationship.start_date)
+        next_end_date = update_data.get("end_date", relationship.end_date)
+        self._validate_date_range(next_start_date, next_end_date)
+
         # Handle type update logic
         if "relationship_type_id" in update_data and update_data["relationship_type_id"]:
             relationship.relationship_type_id = update_data["relationship_type_id"]
@@ -143,6 +155,10 @@ class PersonRelationshipService:
             relationship.relationship_type_id = type_entry.id
             relationship.relationship_type = type_entry.name
         # Other fields
+        if "start_date" in update_data:
+            relationship.start_date = update_data["start_date"]
+        if "end_date" in update_data:
+            relationship.end_date = update_data["end_date"]
         if "notes" in update_data:
             relationship.notes = update_data["notes"]
 

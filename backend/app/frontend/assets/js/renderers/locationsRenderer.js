@@ -257,7 +257,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         section.appendChild(createNode("div", {
             className: "panel-heading",
             children: [
-                createNode("h3", { text: "Immich Gallery" }),
+                createNode("h3", { text: "Photos" }),
                 createButtonNode("Refresh", "secondary-button", async () => {
                     await onRefresh();
                 }),
@@ -267,8 +267,8 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         const grid = createNode("div", { className: "immich-gallery" });
         if (!items.length) {
             grid.appendChild(createNode("p", {
-                className: "muted",
-                text: "No photos found for events associated with this location.",
+                className: "muted immich-gallery__empty",
+                text: "No photos found within 50 meters of this location.",
             }));
         } else {
             items.forEach((item) => {

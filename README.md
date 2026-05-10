@@ -64,6 +64,37 @@ PEM is a people relationship management system. It allows you to keep track of p
     - Event type
     - Event participant role type
 
+- External entities
+    - External entities are entities provided by external integrations
+    - External entities can have the following properties set: (optional unless specified otherwise)
+        - Display name (required)
+        - External ID (requied): Uniquely identifies the entity in the source system
+        - Click URI: URI to open the entity in the source system
+        - Entity type (required): person, location, event, image, text
+        - Start date
+        - End date
+        - Image URL: If set, will be displayed on the entity
+        - Latitude & Longitude: If both set, specifies coordinates
+        - Content: Any text
+        - Source: Name of the source system
+    - Examples:
+        - Faces from Immich:
+            - Type: person
+            - Image URL: face photo
+            - Display Name: Name of face
+            - Source: Immich
+        - Entities from Home Assistant
+            - Type: person (for person entity), location (for entity with lat/lon set), text (for sensor entity)
+            - Display name: entity display name
+            - Content: State
+            - Latitude & Longitude: from latitude & longitude attributes
+            - Source: Home Assistant
+    - External entities are read-only and cannot be edited in PEM
+    - External entities are synced on app startup and when adding a new association
+    - External entities are only visible in the association and do not have their own detail pages. Clicking the association opens the entity in the external system.
+    - External entities can be associated with internal entities (people, social circles, brands, events) to enrich their information
+    - The integration can specify to which internal entity type(s) the external entity can be associated with.
+
 
 ### User interface
 - Dashboard: Overview of upcoming events, recent events, and important dates (like birthdays)
@@ -87,6 +118,17 @@ PEM is a people relationship management system. It allows you to keep track of p
 - Calendar integration: Sync events to and from external calendar applications like Google Calendar or Outlook Calendar
 - Contact integration: Sync people to and from external contact management applications like Google Contacts or Microsoft People
 - Immich integration: Link people in Immich to people in PEM, and link photos and albums in Immich to people, social circles, brands, or events in PEM
+    - Link faces in Immich to people in PEM
+        - Immich faces are provided as external entity, which can be linked to a person.
+        - If a person has a face from Immich linked, display the face image as avatar for that person
+        - Clicking the face association opens the face in Immich
+    - Show a small photo gallery on certain detail pages
+        - Event detail page: Display photos taken during an event (dynamically fetch from Immich)
+        - Location detail page: Display photos taken at a location (dynamically fetch from Immich)
+        - Person detail page: Display photos containing that person (dynamically fetch from Immich using the linked face)
+        - Clicking the photo opens it in Immich
+    - Immich base URL and API key are user-specific and set in user settings.
+        - In user settings, the user should be able to test if their settings are valid
 
 ## Technology Stack
 - Backend: Python with FastAPI
@@ -132,8 +174,6 @@ The native frontend is now implemented and served directly by FastAPI.
     - Brands
     - Social Circles
 
-- Add start and end date to relationships (optional field)
-
 - Add point in time filter to topology view, to visualize the relationships at a specific point in time.
     - People that were not alive at that time are not displayed
     - Relationships that were not active at that time are not displayed
@@ -142,47 +182,3 @@ The native frontend is now implemented and served directly by FastAPI.
 - Add calendar view
     - Ability to filter events by people, social circles, tags or brands
 
-- Add external entities
-    - External entities are entities provided by external integrations
-    - External entities can have the following properties set: (optional unless specified otherwise)
-        - Display name (required)
-        - External ID (requied): Uniquely identifies the entity in the source system
-        - Click URI: URI to open the entity in the source system
-        - Entity type (required): person, location, event, image, text
-        - Start date
-        - End date
-        - Image URL: If set, will be displayed on the entity
-        - Latitude & Longitude: If both set, specifies coordinates
-        - Content: Any text
-        - Source: Name of the source system
-    - Examples:
-        - Faces from Immich:
-            - Type: person
-            - Image URL: face photo
-            - Display Name: Name of face
-            - Source: Immich
-        - Entities from Home Assistant
-            - Type: person (for person entity), location (for entity with lat/lon set), text (for sensor entity)
-            - Display name: entity display name
-            - Content: State
-            - Latitude & Longitude: from latitude & longitude attributes
-            - Source: Home Assistant
-    - External entities are read-only and cannot be edited in PEM
-    - External entities are synced on app startup and when adding a new association
-    - External entities are only visible in the association and do not have their own detail pages. Clicking the association opens the entity in the external system.
-    - External entities can be associated with internal entities (people, social circles, brands, events) to enrich their information
-    - The integration can specify to which internal entity type(s) the external entity can be associated with.
-
-
-- Add Immich integration
-    - Link faces in Immich to people in PEM
-        - Immich faces are provided as external entity, which can be linked to a person.
-        - If a person has a face from Immich linked, display the face image as avatar for that person
-        - Clicking the face association opens the face in Immich
-    - Show a small photo gallery on certain detail pages
-        - Event detail page: Display photos taken during an event (dynamically fetch from Immich)
-        - Location detail page: Display photos taken at a location (dynamically fetch from Immich)
-        - Person detail page: Display photos containing that person (dynamically fetch from Immich using the linked face)
-        - Clicking the photo opens it in Immich
-    - Immich base URL and API key are user-specific and set in user settings.
-        - In user settings, the user should be able to test if their settings are valid

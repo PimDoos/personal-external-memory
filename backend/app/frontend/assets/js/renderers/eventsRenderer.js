@@ -253,7 +253,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
         section.appendChild(createNode("div", {
             className: "panel-heading",
             children: [
-                createNode("h3", { text: "Immich Gallery" }),
+                createNode("h3", { text: "Photos" }),
                 createButtonNode("Refresh", "secondary-button", async () => {
                     await onRefresh();
                 }),
@@ -263,7 +263,7 @@ export function createEventsRenderer({ state, caches, actions, common }) {
         const grid = createNode("div", { className: "immich-gallery" });
         if (!items.length) {
             grid.appendChild(createNode("p", {
-                className: "muted",
+                className: "muted immich-gallery__empty",
                 text: "No photos found for this event date window.",
             }));
         } else {
