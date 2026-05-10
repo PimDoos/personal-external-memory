@@ -1,6 +1,6 @@
 """External identities domain - business logic."""
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.external_identities.schemas import (
@@ -182,6 +182,54 @@ class ExternalIdentityService:
         )
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def list_immich_person_faces_for_linking(
+        self,
+        user_id: int,
+        person_id: int | None = None,
+    ) -> list[dict]:
+        """Return minimal Immich person-face identities and optional link info for one person."""
+        association_join_condition = and_(
+            ExternalIdentityAssociation.external_identity_id == ExternalIdentity.id,
+            ExternalIdentityAssociation.entity_type == "person",
+        )
+
+        stmt = (
+            select(
+                ExternalIdentity.id,
+                ExternalIdentity.external_id,
+                ExternalIdentity.display_name,
+                ExternalIdentity.image_url,
+                ExternalIdentity.click_uri,
+                ExternalIdentityAssociation.id.label("linked_association_id"),
+                ExternalIdentityAssociation.entity_id.label("linked_person_id"),
+            )
+            .select_from(ExternalIdentity)
+            .outerjoin(
+                ExternalIdentityAssociation,
+                association_join_condition,
+            )
+            .where(
+                (ExternalIdentity.user_id == user_id)
+                & (ExternalIdentity.source == "immich")
+                & (ExternalIdentity.entity_type == "person")
+            )
+            .order_by(ExternalIdentity.display_name.asc(), ExternalIdentity.id.asc())
+        )
+
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            {
+                "id": row.id,
+                "external_id": row.external_id,
+                "display_name": row.display_name,
+                "image_url": row.image_url,
+                "click_uri": row.click_uri,
+                "linked_association_id": row.linked_association_id,
+                "linked_person_id": row.linked_person_id,
+            }
+            for row in rows
+        ]
 
     def _validate_external_entity_type(self, entity_type: str) -> None:
         if entity_type not in self.ALLOWED_EXTERNAL_ENTITY_TYPES:

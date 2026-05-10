@@ -45,13 +45,9 @@ export function createSettingsRenderer({ state, actions }) {
         homeAssistantInput.value = state.data.userSettings?.home_assistant_api_key || "";
         homeAssistantBaseUrlInput.value = state.data.userSettings?.home_assistant_base_url || "";
 
-        let integrationNode = document.getElementById("settings-immich-tools");
+        const integrationNode = document.getElementById("settings-immich-tools");
         if (!integrationNode) {
-            integrationNode = createNode("div", {
-                attrs: { id: "settings-immich-tools" },
-                className: "settings-integration-tools",
-            });
-            formNode.appendChild(integrationNode);
+            return;
         }
 
         clearNodeChildren(integrationNode);

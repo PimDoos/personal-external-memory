@@ -88,3 +88,15 @@ class ExternalIdentityDetailResponse(ExternalIdentityResponse):
     """External identity detail with associations."""
 
     associations: list[ExternalIdentityAssociationResponse] = []
+
+
+class ImmichPersonFaceLinkCandidateResponse(BaseModel):
+    """Minimal Immich face payload used for person-linking UI."""
+
+    id: int
+    external_id: str
+    display_name: str
+    image_url: Optional[str]
+    click_uri: Optional[str]
+    linked_association_id: Optional[int] = None
+    linked_person_id: Optional[int] = None

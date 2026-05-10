@@ -10,6 +10,7 @@ from app.domains.external_identities.schemas import (
     ExternalIdentityAssociationResponse,
     ExternalIdentityCreateRequest,
     ExternalIdentityDetailResponse,
+    ImmichPersonFaceLinkCandidateResponse,
     ExternalIdentityResponse,
     ExternalIdentityUpdateRequest,
 )
@@ -44,6 +45,21 @@ async def list_external_identities(
     """List external identities for current user."""
     repo = ExternalIdentityRepository(db)
     return await repo.list_by_user(current_user.id, skip, limit)
+
+
+@router.get("/immich/person-faces", response_model=list[ImmichPersonFaceLinkCandidateResponse])
+async def list_immich_person_faces_for_linking(
+    current_user: CurrentUser,
+    person_id: int | None = Query(None, ge=1),
+    db: AsyncSession = Depends(get_db),
+) -> list[ImmichPersonFaceLinkCandidateResponse]:
+    """List minimal Immich face identities used by person-linking UI, with optional link to one person."""
+    service = ExternalIdentityService(db)
+    payload = await service.list_immich_person_faces_for_linking(current_user.id, person_id)
+    return [
+        ImmichPersonFaceLinkCandidateResponse(**entry)
+        for entry in payload
+    ]
 
 
 @router.get("/{external_identity_id}", response_model=ExternalIdentityDetailResponse)

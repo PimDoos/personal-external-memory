@@ -246,29 +246,42 @@
                             <h2>User Settings</h2>
                         </div>
                         <form id="settings-form" class="form-grid compact-form">
-                            <label>
-                                <span>Person representing me</span>
-                                <div id="settings-me-person-field"></div>
-                            </label>
-                            <label>
-                                <span>Immich API key</span>
-                                <input name="immich_api_key" id="settings-immich-api-key" type="password" autocomplete="off" placeholder="Paste API key">
-                            </label>
-                            <label>
-                                <span>Immich Base URL</span>
-                                <input name="immich_base_url" id="settings-immich-base-url" type="url" autocomplete="off" placeholder="https://immich.example.com">
-                            </label>
-                            <label>
-                                <span>Home Assistant API key</span>
-                                <input name="home_assistant_api_key" id="settings-home-assistant-api-key" type="password" autocomplete="off" placeholder="Paste API key">
-                            </label>
-                            <label>
-                                <span>Home Assistant Base URL</span>
-                                <input name="home_assistant_base_url" id="settings-home-assistant-base-url" type="url" autocomplete="off" placeholder="https://ha.example.com">
-                            </label>
+                            <section class="settings-subsection">
+                                <h3>General</h3>
+                                <label>
+                                    <span>Person representing me</span>
+                                    <div id="settings-me-person-field"></div>
+                                </label>
+                            </section>
+
+                            <section class="settings-subsection settings-subsection--immich" id="settings-immich-subsection">
+                                <h3>Immich</h3>
+                                <label>
+                                    <span>Immich API key</span>
+                                    <input name="immich_api_key" id="settings-immich-api-key" type="password" autocomplete="off" placeholder="Paste API key">
+                                </label>
+                                <label>
+                                    <span>Immich Base URL</span>
+                                    <input name="immich_base_url" id="settings-immich-base-url" type="url" autocomplete="off" placeholder="https://immich.example.com">
+                                </label>
+                                <div id="settings-immich-tools" class="settings-integration-tools"></div>
+                            </section>
+
+                            <section class="settings-subsection">
+                                <h3>Home Assistant</h3>
+                                <label>
+                                    <span>Home Assistant API key</span>
+                                    <input name="home_assistant_api_key" id="settings-home-assistant-api-key" type="password" autocomplete="off" placeholder="Paste API key">
+                                </label>
+                                <label>
+                                    <span>Home Assistant Base URL</span>
+                                    <input name="home_assistant_base_url" id="settings-home-assistant-base-url" type="url" autocomplete="off" placeholder="https://ha.example.com">
+                                </label>
+                                <p class="muted">Home Assistant integration remains planned.</p>
+                            </section>
+
                             <button class="primary-button" type="submit">Save settings</button>
                         </form>
-                        <p class="muted">Use the Immich controls to test credentials and sync faces into external identities. Home Assistant integration remains planned.</p>
                     </article>
                 </section>
 

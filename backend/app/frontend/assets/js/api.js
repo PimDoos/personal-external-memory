@@ -235,6 +235,10 @@ export const api = {
     },
     externalIdentities: {
         list: (skip = 0, limit = 1000) => request(`/api/external-identities?skip=${Number(skip)}&limit=${Number(limit)}`),
+        listImmichPersonFaces: (personId = null) => {
+            const query = personId ? `?person_id=${Number(personId)}` : "";
+            return request(`/api/external-identities/immich/person-faces${query}`);
+        },
         get: (id) => request(`/api/external-identities/${id}`),
         imageBlob: (id) => requestBlob(`/api/external-identities/${encodeURIComponent(String(id))}/image`),
         addAssociation: (externalIdentityId, data) => request(

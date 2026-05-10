@@ -96,11 +96,11 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
     }
 
     function buildImmichGallerySection(items, onRefresh) {
-        const section = createNode("section", { className: "subpanel" });
+        const section = createNode("div", { className: "immich-gallery-block" });
         section.appendChild(createNode("div", {
             className: "panel-heading",
             children: [
-                createNode("h3", { text: "Immich Gallery" }),
+                createNode("h4", { text: "Gallery" }),
                 createButtonNode("Refresh", "secondary-button", async () => {
                     await onRefresh();
                 }),
@@ -110,7 +110,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         const grid = createNode("div", { className: "immich-gallery" });
         if (!items.length) {
             grid.appendChild(createNode("p", {
-                className: "muted",
+                className: "muted immich-gallery__empty",
                 text: "No Immich photos found. Link an Immich face first and sync faces in Settings.",
             }));
         } else {
@@ -172,10 +172,63 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
     }
 
     function buildImmichFaceLinkSection(person, faces, linkedFace, onLink, onUnlink) {
-        const section = createNode("section", { className: "subpanel" });
+        const normalizeComparableName = (value) => String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, " ")
+            .trim()
+            .replace(/\s+/g, " ");
+
+        const findBestMatchingFace = (candidateFaces) => {
+            if (!candidateFaces.length) {
+                return null;
+            }
+
+            const personFullName = normalizeComparableName(`${person.first_name || ""} ${person.last_name || ""}`);
+            const personTokens = personFullName ? personFullName.split(" ") : [];
+
+            let bestFace = candidateFaces[0];
+            let bestScore = Number.NEGATIVE_INFINITY;
+
+            candidateFaces.forEach((face) => {
+                const faceName = normalizeComparableName(face.display_name || "");
+                const faceTokens = new Set(faceName ? faceName.split(" ") : []);
+                let score = 0;
+
+                if (personFullName && faceName) {
+                    if (faceName === personFullName) {
+                        score += 1000;
+                    }
+                    if (faceName.startsWith(personFullName) || personFullName.startsWith(faceName)) {
+                        score += 400;
+                    }
+
+                    const overlap = personTokens.filter((token) => faceTokens.has(token)).length;
+                    score += overlap * 120;
+
+                    if (personTokens.length && personTokens.every((token) => faceTokens.has(token))) {
+                        score += 250;
+                    }
+
+                    score -= Math.abs(faceName.length - personFullName.length);
+                } else if (faceName) {
+                    score += 10;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestFace = face;
+                }
+            });
+
+            return bestFace;
+        };
+
+        const section = createNode("div", { className: "immich-face-link-block" });
         section.appendChild(createNode("div", {
             className: "panel-heading",
-            children: [createNode("h3", { text: "Linked Immich Face" })],
+            children: [createNode("h4", { text: "Linked Face" })],
         }));
 
         if (linkedFace?.identity) {
@@ -254,23 +307,27 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                 className: "muted",
                 text: "No Immich face linked.",
             }));
-            const form = createNode("form", { className: "inline-form" });
-            const options = faces.length
-                ? faces.map((face) => ({
+            const form = createNode("form", { className: "inline-form immich-face-link-form" });
+            const unassignedFaces = faces.filter((face) => !Number(face.linked_person_id));
+            const options = unassignedFaces.length
+                ? unassignedFaces.map((face) => ({
                     value: String(face.id),
                     label: `${face.display_name || `Face #${face.external_id}`} (${face.external_id})`,
                 }))
-                : [{ value: "", label: "No synced faces" }];
+                : [{ value: "", label: "No unassigned faces" }];
 
-            const select = createSelectNode(options, "", {
+            const suggestedFace = findBestMatchingFace(unassignedFaces);
+            const suggestedFaceId = suggestedFace ? String(suggestedFace.id) : "";
+
+            const select = createSelectNode(options, suggestedFaceId, {
                 name: "external_identity_id",
                 required: true,
-                disabled: !faces.length,
+                disabled: !unassignedFaces.length,
             });
             form.appendChild(select);
             form.appendChild(createButtonNode("Link face", "primary-button", null, {
                 type: "submit",
-                disabled: !faces.length,
+                disabled: !unassignedFaces.length,
             }));
 
             form.addEventListener("submit", async (event) => {
@@ -816,20 +873,30 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         });
         container.appendChild(overview);
         if (immichConfigured) {
-            container.appendChild(buildImmichFaceLinkSection(
-                person,
-                immichFaces,
-                linkedImmichFace,
-                async (externalIdentityId) => {
-                    await actions.linkImmichFaceToPerson(person.id, externalIdentityId);
-                },
-                async () => {
-                    await actions.unlinkImmichFaceFromPerson(person.id);
-                }
-            ));
-            container.appendChild(buildImmichGallerySection(immichGalleryItems, async () => {
-                await actions.refreshImmichPersonGallery(person.id);
-            }));
+            const photosSection = createNode("section", {
+                className: "subpanel photos-subpanel",
+                children: [
+                    createNode("div", {
+                        className: "panel-heading",
+                        children: [createNode("h3", { text: "Photos" })],
+                    }),
+                    buildImmichGallerySection(immichGalleryItems, async () => {
+                        await actions.refreshImmichPersonGallery(person.id);
+                    }),
+                    buildImmichFaceLinkSection(
+                        person,
+                        immichFaces,
+                        linkedImmichFace,
+                        async (externalIdentityId) => {
+                            await actions.linkImmichFaceToPerson(person.id, externalIdentityId);
+                        },
+                        async () => {
+                            await actions.unlinkImmichFaceFromPerson(person.id);
+                        }
+                    ),
+                ],
+            });
+            container.appendChild(photosSection);
         }
 
         const contactsSection = createNode("section", { className: "subpanel" });

@@ -728,30 +728,18 @@ export function createAppController() {
         }
 
         try {
-            const allExternalIdentities = await api.externalIdentities.list(0, 1000);
-            const immichFaces = (allExternalIdentities || []).filter(
-                (entry) => entry.source === "immich" && entry.entity_type === "person"
-            );
+            const immichFaces = await api.externalIdentities.listImmichPersonFaces(personId);
             caches.immichFaces = immichFaces;
 
-            let linkedFace = null;
-            for (const face of immichFaces) {
-                try {
-                    const detail = await api.externalIdentities.get(face.id);
-                    const association = (detail.associations || []).find(
-                        (assoc) => assoc.entity_type === "person" && Number(assoc.entity_id) === Number(personId)
-                    );
-                    if (association) {
-                        linkedFace = {
-                            identity: face,
-                            associationId: association.id,
-                        };
-                        break;
-                    }
-                } catch {
-                    // Ignore per-identity lookup failures so available faces still populate the dropdown.
+            const linkedIdentity = (immichFaces || []).find(
+                (face) => Number(face.linked_person_id) === Number(personId) && Number(face.linked_association_id) > 0
+            ) || null;
+            const linkedFace = linkedIdentity
+                ? {
+                    identity: linkedIdentity,
+                    associationId: linkedIdentity.linked_association_id,
                 }
-            }
+                : null;
 
             caches.personImmichFaceLink.set(personId, linkedFace);
         } catch {
