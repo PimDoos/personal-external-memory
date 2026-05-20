@@ -52,8 +52,6 @@ export function createMapRenderer({ state, actions }) {
     const locationDetailCache = new Map();
     let locationDetailCacheVersion = "";
     const locationAssociationSummaryCache = new Map();
-    const locationAssociationSummaryInFlight = new Map();
-    let rerenderQueued = false;
     const legendItems = [
         { key: "person", label: "Person", className: "map-marker--person" },
         { key: "brand", label: "Brand", className: "map-marker--brand" },
@@ -85,19 +83,6 @@ export function createMapRenderer({ state, actions }) {
         locationDetailCacheVersion = nextVersion;
         locationDetailCache.clear();
         locationAssociationSummaryCache.clear();
-        locationAssociationSummaryInFlight.clear();
-    }
-
-    function requestRerender() {
-        if (rerenderQueued) {
-            return;
-        }
-
-        rerenderQueued = true;
-        window.setTimeout(() => {
-            rerenderQueued = false;
-            renderMap();
-        }, 0);
     }
 
     function getLegendFilters() {
@@ -470,34 +455,6 @@ export function createMapRenderer({ state, actions }) {
         return candidates.find((key) => Boolean(filters[key])) || null;
     }
 
-    async function ensureLocationAssociationSummary(locationId) {
-        if (locationAssociationSummaryCache.has(locationId)) {
-            return locationAssociationSummaryCache.get(locationId);
-        }
-
-        if (locationAssociationSummaryInFlight.has(locationId)) {
-            return locationAssociationSummaryInFlight.get(locationId);
-        }
-
-        const pending = getLocationDetail(locationId)
-            .then((detail) => {
-                const summary = summarizeAssociationTypes(detail.associations || []);
-                locationAssociationSummaryCache.set(locationId, summary);
-                return summary;
-            })
-            .catch(() => {
-                const fallback = summarizeAssociationTypes([]);
-                locationAssociationSummaryCache.set(locationId, fallback);
-                return fallback;
-            })
-            .finally(() => {
-                locationAssociationSummaryInFlight.delete(locationId);
-            });
-
-        locationAssociationSummaryInFlight.set(locationId, pending);
-        return pending;
-    }
-
     function buildMarkerIcon(locationId) {
         const summary = locationAssociationSummaryCache.get(locationId) || summarizeAssociationTypes([]);
         const colorClass = getMarkerColorClass(summary);
@@ -674,30 +631,42 @@ export function createMapRenderer({ state, actions }) {
         plottable.forEach(({ location, coords, markerRule }) => {
             const title = location.label || location.location || `Location #${location.id}`;
             const type = location.location_type || "Unknown";
+            const preloadedAssociations = Array.isArray(location.associations) ? location.associations : null;
+            if (preloadedAssociations) {
+                locationAssociationSummaryCache.set(location.id, summarizeAssociationTypes(preloadedAssociations));
+            }
             const marker = window.L.marker([coords.lat, coords.lon], {
                 icon: buildMarkerIconFromRule(markerRule),
             });
-
-            if (!locationAssociationSummaryCache.has(location.id)) {
-                ensureLocationAssociationSummary(location.id).then(() => {
-                    requestRerender();
-                });
-            }
 
             marker.bindPopup(
                 buildPopupBody(
                     title,
                     type,
                     location.location,
-                    createNode("div", {
-                        className: "map-popup-associations__loading",
-                        text: "Loading associations...",
-                    })
+                    preloadedAssociations
+                        ? buildAssociationsContent(preloadedAssociations, openEntityFromAssociation)
+                        : createNode("div", {
+                            className: "map-popup-associations__loading",
+                            text: "Loading associations...",
+                        })
                 )
             );
             marker.on("popupopen", async () => {
                 const popup = marker.getPopup();
                 if (!popup) {
+                    return;
+                }
+
+                 if (preloadedAssociations) {
+                    popup.setContent(
+                        buildPopupBody(
+                            title,
+                            type,
+                            location.location,
+                            buildAssociationsContent(preloadedAssociations, openEntityFromAssociation)
+                        )
+                    );
                     return;
                 }
 

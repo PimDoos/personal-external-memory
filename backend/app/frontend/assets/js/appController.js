@@ -588,9 +588,13 @@ export function createAppController() {
         state.data.events = events;
         state.data.tags = tags;
         state.data.locations = locations;
-        caches.locationAssociations = new Map(
-            locations.map((location) => [location.id, location.associations || []])
-        );
+        const preloadedLocationAssociations = new Map();
+        locations.forEach((location) => {
+            if (Array.isArray(location.associations)) {
+                preloadedLocationAssociations.set(location.id, location.associations);
+            }
+        });
+        caches.locationAssociations = preloadedLocationAssociations;
         state.data.typeLists = {
             contactInfoTypes,
             relationshipTypes,
@@ -1061,6 +1065,10 @@ export function createAppController() {
     }
 
     async function loadLocationDetail(locationId) {
+        if (caches.locationAssociations.has(locationId)) {
+            return;
+        }
+
         const fromList = state.data.locations.find((entry) => entry.id === locationId);
         if (fromList && Array.isArray(fromList.associations)) {
             caches.locationAssociations.set(locationId, fromList.associations);
