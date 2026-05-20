@@ -45,39 +45,45 @@
 
         <main class="layout">
             <section class="auth-panel panel" id="auth-panel">
-                    <div class="tabs auth-tabs">
-                        <button class="tab-button active" data-auth-tab="login" type="button">Login</button>
-                        <button class="tab-button" data-auth-tab="register" type="button">Register</button>
-                    </div>
+                    <form id="login-form" class="auth-form" method="post" action="javascript:void(0)">
+                        <div class="auth-form-row">
+                            <label>
+                                <input name="email" type="email" required placeholder="Email address">
+                            </label>
+                        </div>
 
-                    <form id="login-form" class="form-grid" method="post" action="javascript:void(0)">
-                        <label>
-                            <span>Email</span>
-                            <input name="email" type="email" required placeholder="you@example.com">
-                        </label>
-                        <label>
-                            <span>Password</span>
-                            <input name="password" type="password" required placeholder="Minimum 8 characters">
-                        </label>
-                        <button class="primary-button" type="submit">Sign in</button>
+                        <div class="auth-form-row auth-form-actions">
+                            <button class="secondary-button" id="openid-login-button" type="button" hidden>Sign in with SSO</button>
+                            <button class="secondary-button" id="password-signin-button" type="button">Password sign in</button>
+                        </div>
+
+                        <div class="auth-form-row hidden" id="auth-password-row">
+                            <label>
+                                <input name="password" type="password" required placeholder="Password">
+                            </label>
+                        </div>
+
+                        <button class="primary-button hidden" id="submit-login-button" type="submit">Sign in</button>
                     </form>
 
-                    <div class="list-actions hidden" id="openid-login-row">
-                        <button class="secondary-button" id="openid-login-button" type="button">Sign in with SSO</button>
-                    </div>
-
-                    <form id="register-form" class="form-grid hidden" method="post" action="javascript:void(0)">
-                        <label>
-                            <span>Email</span>
-                            <input name="email" type="email" required placeholder="you@example.com">
-                        </label>
-                        <label>
-                            <span>Password</span>
-                            <input name="password" type="password" required placeholder="Minimum 8 characters">
-                        </label>
+                    <form id="register-form" class="auth-form hidden" method="post" action="javascript:void(0)">
+                        <div class="auth-form-row">
+                            <label>
+                                <input name="email" type="email" required placeholder="Email address">
+                            </label>
+                        </div>
+                        <div class="auth-form-row">
+                            <label>
+                                <input name="password" type="password" required placeholder="Password (minimum 8 characters)">
+                            </label>
+                        </div>
                         <button class="primary-button" type="submit">Create account</button>
                     </form>
-                    <p class="muted" id="auth-message">Use the backend auth endpoints through this UI.</p>
+
+                    <div class="auth-panel-footer">
+                        <p id="auth-message"></p>
+                        <p class="muted" id="auth-register-link"><button class="ghost-button" type="button" id="show-register-button">Create a new account</button></p>
+                    </div>
             </section>
 
             <section class="content hidden" id="content-panel">

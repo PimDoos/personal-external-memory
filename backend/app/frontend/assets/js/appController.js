@@ -20,7 +20,6 @@ export function createAppController() {
     const refs = {
         authPanel: getNodeById("auth-panel"),
         authMessage: getNodeById("auth-message"),
-        openidLoginRow: getNodeById("openid-login-row"),
         openidLoginButton: getNodeById("openid-login-button"),
         contentPanel: getNodeById("content-panel"),
         navigationPanel: getNodeById("navigation-panel"),
@@ -71,7 +70,6 @@ export function createAppController() {
         event: new Map(),
         location: new Map(),
     };
-    let openIdPopup = null;
 
     function clearBackgroundRefreshTimer() {
         if (backgroundRefreshTimerId !== null) {
@@ -154,6 +152,7 @@ export function createAppController() {
         clearSession();
         clearAllCaches();
         renderer.renderAll();
+        checkApi();
         if (message) {
             setAuthMessage(message);
             showToast(message, isError);
@@ -496,18 +495,8 @@ export function createAppController() {
 
         if (refs.openidLoginButton) {
             refs.openidLoginButton.innerText = state.data.auth.openidButtonText;
+            refs.openidLoginButton.hidden = !state.data.auth.openidEnabled;
         }
-        if (refs.openidLoginRow) {
-            refs.openidLoginRow.classList.toggle("hidden", !state.data.auth.openidEnabled);
-        }
-    }
-
-    async function launchOpenIdPopup(authUrl) {
-        const popup = window.open(authUrl, "pem-openid", "popup,width=560,height=700");
-        if (!popup) {
-            throw new Error("Popup was blocked. Allow popups for this site and try again.");
-        }
-        openIdPopup = popup;
     }
 
     async function startOpenIdLogin() {
@@ -519,7 +508,7 @@ export function createAppController() {
         if (!authUrl) {
             throw new Error("OpenID authorization URL is missing");
         }
-        await launchOpenIdPopup(authUrl);
+        window.location.href = authUrl;
     }
 
     async function startOpenIdLink() {
@@ -528,49 +517,50 @@ export function createAppController() {
         if (!authUrl) {
             throw new Error("OpenID authorization URL is missing");
         }
-        await launchOpenIdPopup(authUrl);
+        window.location.href = authUrl;
     }
 
-    async function handleOpenIdMessage(event) {
-        if (event.origin !== window.location.origin) {
-            return;
-        }
-        const data = event.data || {};
-        if (data.source !== "pem-openid") {
-            return;
-        }
-
-        if (openIdPopup && !openIdPopup.closed) {
+    async function restoreOpenIdCallback() {
+        const callbackData = localStorage.getItem("openid_callback");
+        if (callbackData) {
             try {
-                openIdPopup.close();
-            } catch {
-                // no-op
+                const data = JSON.parse(callbackData);
+                localStorage.removeItem("openid_callback");
+                if (data.access_token && data.refresh_token && data.email) {
+                    saveSession(data.access_token, data.email, data.refresh_token);
+                    setAuthMessage("Signed in.");
+                    applyHashToState();
+                    await bootstrapAuthenticated();
+                    writeHashFromState({ replace: true });
+                    scheduleBackgroundRefresh();
+                    showToast("Logged in via OpenID.");
+                    return;
+                }
+            } catch (e) {
+                localStorage.removeItem("openid_callback");
             }
         }
 
-        if (data.status !== "success") {
-            const message = data.message || "OpenID authentication failed";
-            setAuthMessage(message);
-            showToast(message, true);
-            return;
-        }
-
-        if (data.action === "login" && data.access_token && data.refresh_token && data.email) {
-            saveSession(data.access_token, data.email, data.refresh_token);
-            setAuthMessage("Signed in.");
-            applyHashToState();
-            await bootstrapAuthenticated();
-            writeHashFromState({ replace: true });
-            scheduleBackgroundRefresh();
-            showToast("Logged in via OpenID.");
-            return;
-        }
-
-        if (data.action === "link") {
+        const linkSuccess = localStorage.getItem("openid_link_success");
+        if (linkSuccess) {
+            localStorage.removeItem("openid_link_success");
             await refreshBaseData();
             await refreshSelectedEntityCaches();
             renderer.renderAll();
-            showToast(data.message || "OpenID account linked.");
+            showToast("OpenID account linked.");
+        }
+
+        const errorData = localStorage.getItem("openid_error");
+        if (errorData) {
+            try {
+                const error = JSON.parse(errorData);
+                localStorage.removeItem("openid_error");
+                const message = error.error || "OpenID authentication failed";
+                setAuthMessage(message);
+                showToast(message, true);
+            } catch (e) {
+                localStorage.removeItem("openid_error");
+            }
         }
     }
 
@@ -1110,7 +1100,15 @@ export function createAppController() {
                 await api.auth.register(payload);
                 setAuthMessage("Account created. Sign in with the same credentials.");
                 form.reset();
+                const loginForm = getNodeById("login-form");
+                const registerForm = getNodeById("register-form");
+                registerForm.classList.add("hidden");
+                loginForm.classList.remove("hidden");
             } else {
+                if (!payload.password) {
+                    setAuthMessage("Password is required");
+                    return;
+                }
                 const tokens = await api.auth.login(payload);
                 saveSession(tokens.access_token, payload.email, tokens.refresh_token);
                 setAuthMessage("Signed in.");
@@ -1127,29 +1125,29 @@ export function createAppController() {
     }
 
     function bindAuthTabs() {
-        document.querySelectorAll("[data-auth-tab]").forEach((button) => {
-            button.addEventListener("click", () => {
-                const tab = button.dataset.authTab;
-                document.querySelectorAll("[data-auth-tab]").forEach((entry) => {
-                    entry.classList.toggle("active", entry === button);
-                });
+        const passwordSigninButton = getNodeById("password-signin-button");
+        const submitLoginButton = getNodeById("submit-login-button");
+        const passwordRow = getNodeById("auth-password-row");
+        const showRegisterButton = getNodeById("show-register-button");
 
+        if (passwordSigninButton) {
+            passwordSigninButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                passwordRow.classList.remove("hidden");
+                submitLoginButton.classList.remove("hidden");
+                passwordSigninButton.classList.add("hidden");
+            });
+        }
+
+        if (showRegisterButton) {
+            showRegisterButton.addEventListener("click", (event) => {
+                event.preventDefault();
                 const loginForm = getNodeById("login-form");
                 const registerForm = getNodeById("register-form");
-
-                switch (tab) {
-                    case "register":
-                        loginForm.classList.add("hidden");
-                        registerForm.classList.remove("hidden");
-                        break;
-                    case "login":
-                    default:
-                        loginForm.classList.remove("hidden");
-                        registerForm.classList.add("hidden");
-                        break;
-                }
+                loginForm.classList.add("hidden");
+                registerForm.classList.remove("hidden");
             });
-        });
+        }
     }
 
     function bindStaticHandlers() {
@@ -1174,10 +1172,6 @@ export function createAppController() {
                 }
             });
         }
-
-        window.addEventListener("message", (event) => {
-            handleOpenIdMessage(event);
-        });
 
         refs.logoutButton.addEventListener("click", () => {
             endAuthenticatedSession("", false);
@@ -1933,6 +1927,7 @@ export function createAppController() {
             endAuthenticatedSession("Session expired. Please sign in again.", true);
         });
         await checkApi();
+        await restoreOpenIdCallback();
 
         window.addEventListener("hashchange", () => {
             applyLocationStateFromHash();

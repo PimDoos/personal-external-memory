@@ -158,6 +158,14 @@ select {
     margin-top: 20px;
 }
 
+.layout:has(.auth-panel:not(.hidden)) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    margin-top: 0;
+}
+
 .sidebar,
 .content {
     min-width: 0;
@@ -276,6 +284,93 @@ select {
 .form-grid {
     display: grid;
     gap: 14px;
+}
+
+.auth-panel {
+    max-width: 380px;
+    width: 100%;
+    padding: 32px 24px !important;
+}
+
+.auth-form {
+    display: grid;
+    gap: 12px;
+}
+
+.auth-form-row {
+    display: grid;
+    gap: 8px;
+}
+
+.auth-form-row label {
+    display: block;
+}
+
+.auth-form-row input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    background: var(--input-bg);
+    color: var(--ink);
+    font-size: 0.95rem;
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.auth-form-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.auth-form-row input::placeholder {
+    color: var(--ink-soft);
+}
+
+.auth-form-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.auth-form-actions button {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+}
+
+.auth-panel-footer {
+    display: grid;
+    gap: 12px;
+    text-align: center;
+}
+
+.auth-panel-footer p {
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+#auth-message {
+    color: var(--button-danger-bg);
+    min-height: 1.2em;
+}
+
+#auth-register-link {
+    color: var(--ink-soft);
+}
+
+#auth-register-link button {
+    padding: 0;
+    font-size: inherit;
+    color: var(--accent);
+    background: none;
+    border: none;
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 180ms ease;
+}
+
+#auth-register-link button:hover {
+    color: var(--accent-strong);
 }
 
 .form-grid {

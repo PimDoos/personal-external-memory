@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domains.auth.schemas import (
     OpenIdAuthorizationUrlResponse,
     OpenIdConfigResponse,
-    OpenIdPopupMessage,
     TokenRefreshRequest,
     TokenResponse,
     UserLoginRequest,
@@ -133,67 +132,89 @@ async def openid_callback(
     error_description: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
-    """Handle OpenID callback and post result to opener window."""
+    """Handle OpenID callback and redirect with result."""
     service = AuthService(db)
 
-    def _popup_html(payload: OpenIdPopupMessage) -> HTMLResponse:
-        payload_json = json.dumps(payload.model_dump(exclude_none=True)).replace("</", "<\\/")
-        html = f"""
-<!doctype html>
+    if error:
+        error_msg = f"OpenID error: {error_description or error}"
+        encoded_error = json.dumps({"error": error_msg}).replace('"', '\\"')
+        html = f"""<!doctype html>
 <html>
 <body>
 <script>
-(() => {{
-  const payload = {payload_json};
-  try {{
-    if (window.opener && !window.opener.closed) {{
-      window.opener.postMessage(payload, window.location.origin);
-    }}
-  }} catch (_) {{}}
-  window.close();
-}})();
+  localStorage.setItem('openid_error', '{encoded_error}');
+  window.location.href = '/';
 </script>
 </body>
 </html>
 """
         return HTMLResponse(content=html)
 
-    if error:
-        payload = OpenIdPopupMessage(
-            status="error",
-            action="login",
-            message=f"OpenID error: {error_description or error}",
-        )
-        return _popup_html(payload)
-
     if not code or not state:
-        payload = OpenIdPopupMessage(
-            status="error",
-            action="login",
-            message="OpenID callback is missing required parameters.",
-        )
-        return _popup_html(payload)
+        error_msg = "OpenID callback is missing required parameters."
+        encoded_error = json.dumps({"error": error_msg}).replace('"', '\\"')
+        html = f"""<!doctype html>
+<html>
+<body>
+<script>
+  localStorage.setItem('openid_error', '{encoded_error}');
+  window.location.href = '/';
+</script>
+</body>
+</html>
+"""
+        return HTMLResponse(content=html)
 
     try:
         result = await service.complete_openid_callback(code, state)
         await db.commit()
-        payload = OpenIdPopupMessage(
-            status=result.get("status", "success"),
-            action=str(result.get("action", "login")),
-            message=result.get("message"),
-            access_token=result.get("access_token"),
-            refresh_token=result.get("refresh_token"),
-            email=result.get("email"),
-        )
-        return _popup_html(payload)
+        action = str(result.get("action", "login"))
+        
+        if action == "link":
+            html = """<!doctype html>
+<html>
+<body>
+<script>
+  localStorage.setItem('openid_link_success', 'true');
+  window.location.href = '/#section=settings';
+</script>
+</body>
+</html>
+"""
+            return HTMLResponse(content=html)
+        
+        callback_data = {
+            "access_token": result.get("access_token"),
+            "refresh_token": result.get("refresh_token"),
+            "email": result.get("email"),
+        }
+        encoded_data = json.dumps(callback_data).replace('"', '\\"')
+        html = f"""<!doctype html>
+<html>
+<body>
+<script>
+  localStorage.setItem('openid_callback', '{encoded_data}');
+  window.location.href = '/';
+</script>
+</body>
+</html>
+"""
+        return HTMLResponse(content=html)
     except Exception as exc:
         await db.rollback()
-        payload = OpenIdPopupMessage(
-            status="error",
-            action="login",
-            message=str(exc),
-        )
-        return _popup_html(payload)
+        error_msg = str(exc)
+        encoded_error = json.dumps({"error": error_msg}).replace('"', '\\"')
+        html = f"""<!doctype html>
+<html>
+<body>
+<script>
+  localStorage.setItem('openid_error', '{encoded_error}');
+  window.location.href = '/';
+</script>
+</body>
+</html>
+"""
+        return HTMLResponse(content=html)
 
 
 @router.delete("/openid/link")

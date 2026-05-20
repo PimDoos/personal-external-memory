@@ -19,10 +19,9 @@ async def get_user_settings(
     """Get settings for the current user."""
     service = UserSettingsService(db)
     response = await service.get(current_user.id)
-    return UserSettingsResponse(
-        **response.model_dump(),
-        openid_linked=bool(current_user.openid_subject and current_user.openid_issuer),
-    )
+    data = response.model_dump()
+    data["openid_linked"] = bool(current_user.openid_subject and current_user.openid_issuer)
+    return UserSettingsResponse(**data)
 
 
 @router.put("", response_model=UserSettingsResponse)
@@ -36,7 +35,6 @@ async def update_user_settings(
     settings = await service.update(current_user.id, request)
     await db.commit()
     response = UserSettingsResponse.model_validate(settings)
-    return UserSettingsResponse(
-        **response.model_dump(),
-        openid_linked=bool(current_user.openid_subject and current_user.openid_issuer),
-    )
+    data = response.model_dump()
+    data["openid_linked"] = bool(current_user.openid_subject and current_user.openid_issuer)
+    return UserSettingsResponse(**data)
