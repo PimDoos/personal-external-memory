@@ -20,7 +20,7 @@ export function createRenderer(ctx) {
         actions,
     } = ctx;
 
-    const common = createRenderCommon({ state, refs, caches });
+    const common = createRenderCommon({ state, refs, caches, actions });
 
     const { renderDashboard } = createDashboardRenderer({ state, caches, actions, common });
     const { renderPeople } = createPeopleRenderer({ state, caches, actions, common });

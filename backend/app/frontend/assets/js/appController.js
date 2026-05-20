@@ -588,6 +588,9 @@ export function createAppController() {
         state.data.events = events;
         state.data.tags = tags;
         state.data.locations = locations;
+        caches.locationAssociations = new Map(
+            locations.map((location) => [location.id, location.associations || []])
+        );
         state.data.typeLists = {
             contactInfoTypes,
             relationshipTypes,
@@ -834,9 +837,44 @@ export function createAppController() {
         }
     }
 
+    async function preloadAllPersonFaceLinks() {
+        if (!hasImmichIntegrationConfigured()) {
+            return;
+        }
+        try {
+            const allFaces = await api.externalIdentities.listImmichPersonFaces();
+            caches.immichFaces = allFaces || [];
+
+            // Build a lookup from person_id → linked face identity
+            const linkedByPersonId = new Map();
+            for (const face of allFaces || []) {
+                const personId = Number(face.linked_person_id);
+                const assocId = Number(face.linked_association_id);
+                if (personId > 0 && assocId > 0) {
+                    linkedByPersonId.set(personId, {
+                        identity: face,
+                        associationId: assocId,
+                    });
+                }
+            }
+
+            // Populate the cache for all people currently in state
+            for (const person of state.data.people || []) {
+                if (!caches.personImmichFaceLink.has(person.id)) {
+                    caches.personImmichFaceLink.set(person.id, linkedByPersonId.get(person.id) || null);
+                }
+            }
+
+            renderer.renderAll();
+        } catch {
+            // Non-critical — leave cache empty, initials will be shown
+        }
+    }
+
     async function loadImmichGalleryForEvent(eventId) {
         if (!hasImmichIntegrationConfigured()) {
             caches.immichEventGallery.set(eventId, []);
+            return;
             return;
         }
 
@@ -1023,6 +1061,12 @@ export function createAppController() {
     }
 
     async function loadLocationDetail(locationId) {
+        const fromList = state.data.locations.find((entry) => entry.id === locationId);
+        if (fromList && Array.isArray(fromList.associations)) {
+            caches.locationAssociations.set(locationId, fromList.associations);
+            return;
+        }
+
         if (inFlightEntityDetails.location.has(locationId)) {
             await inFlightEntityDetails.location.get(locationId);
             return;
@@ -1088,6 +1132,7 @@ export function createAppController() {
         }
 
         renderer.renderAll();
+        preloadAllPersonFaceLinks();
     }
 
     async function handleAuthSubmit(mode, event) {

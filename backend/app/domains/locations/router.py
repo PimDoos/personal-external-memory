@@ -1,6 +1,7 @@
 """Locations domain - API routes."""
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.locations.schemas import (
@@ -13,6 +14,7 @@ from app.domains.locations.service import LocationService
 from app.domains.locations.repository import LocationRepository
 from app.infrastructure.database import get_db
 from app.infrastructure.dependencies import CurrentUser
+from app.infrastructure.models import LocationAssociation
 
 router = APIRouter()
 
@@ -57,21 +59,49 @@ async def get_location(
     )
 
 
-@router.get("", response_model=list[LocationResponse])
+@router.get("", response_model=list[LocationDetailResponse])
 async def list_locations(
     current_user: CurrentUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
-) -> list[LocationResponse]:
+) -> list[LocationDetailResponse]:
     """List all locations for current user."""
     repo = LocationRepository(db)
     service = LocationService(db)
     locations = await repo.list_by_user(current_user.id, skip, limit)
     for location in locations:
         await service.ensure_geocoded_for_response(location)
+
+    location_ids = [location.id for location in locations]
+    associations_by_location_id: dict[int, list[LocationAssociation]] = {
+        location_id: [] for location_id in location_ids
+    }
+    if location_ids:
+        association_stmt = select(LocationAssociation).where(
+            LocationAssociation.location_id.in_(location_ids)
+        )
+        association_result = await db.execute(association_stmt)
+        for association in association_result.scalars().all():
+            associations_by_location_id.setdefault(association.location_id, []).append(association)
+
     await db.commit()
-    return locations
+    return [
+        LocationDetailResponse(
+            id=location.id,
+            location_type=location.location_type,
+            label=location.label,
+            location=location.location,
+            latitude=location.latitude,
+            longitude=location.longitude,
+            geocode_status=location.geocode_status,
+            geocoded_at=location.geocoded_at,
+            created_at=location.created_at,
+            updated_at=location.updated_at,
+            associations=associations_by_location_id.get(location.id, []),
+        )
+        for location in locations
+    ]
 
 
 @router.put("/{location_id}", response_model=LocationResponse)

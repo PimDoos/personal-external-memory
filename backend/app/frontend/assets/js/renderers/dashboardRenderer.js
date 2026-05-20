@@ -1,6 +1,6 @@
 import { formatBirthday } from "../ui.js";
 import { createNode } from "../dom.js";
-import { getAvatarInitials } from "../avatar.js";
+import { createPersonAvatar } from "../avatar.js";
 
 export function createDashboardRenderer({ state, caches, actions, common }) {
     const { createListItem, createEventCard, renderSimpleList } = common;
@@ -114,11 +114,8 @@ export function createDashboardRenderer({ state, caches, actions, common }) {
             birthdays,
             (item) => {
                 const personName = `${item.first_name} ${item.last_name || ""}`.trim();
-                const avatar = createNode("span", {
-                    className: "list-avatar",
-                    text: getAvatarInitials(personName),
-                    attrs: { title: personName, "aria-label": personName },
-                });
+                const faceId = caches.personImmichFaceLink.get(item.id)?.identity?.id || null;
+                const avatar = createPersonAvatar(personName, faceId, actions.resolveImmichFaceImageUrl);
                 const row = createListItem(personName, formatBirthday(item.birth_date), null, avatar);
                 bindEntityNavigation(row, "people", item.id, async () => {
                     await actions.openPersonFromContext(item.id);

@@ -367,6 +367,12 @@ export function createMapRenderer({ state, actions }) {
             return locationDetailCache.get(locationId);
         }
 
+        const fromList = (state.data.locations || []).find((location) => Number(location.id) === Number(locationId));
+        if (fromList && Array.isArray(fromList.associations)) {
+            locationDetailCache.set(locationId, fromList);
+            return fromList;
+        }
+
         const detail = await api.locations.get(locationId);
         locationDetailCache.set(locationId, detail);
         return detail;

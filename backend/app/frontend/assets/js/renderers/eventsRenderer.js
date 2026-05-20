@@ -1,7 +1,7 @@
 import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
 import { formatDateTime, toLocalDateTimeInputValue, toIsoDateTime } from "../ui.js";
 import { createCombobox } from "../combobox.js";
-import { getAvatarInitials } from "../avatar.js";
+import { createPersonAvatar } from "../avatar.js";
 
 export function createEventsRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedEvent, createListItem, renderSimpleList } = common;
@@ -470,11 +470,8 @@ export function createEventsRenderer({ state, caches, actions, common }) {
                     await actions.removeEventParticipant(event.id, participant.person_id);
                 }));
                 const participantName = nameOfPerson(participant.person_id);
-                const avatar = createNode("span", {
-                    className: "list-avatar",
-                    text: getAvatarInitials(participantName),
-                    attrs: { title: participantName, "aria-label": participantName },
-                });
+                const faceId = caches.personImmichFaceLink.get(participant.person_id)?.identity?.id || null;
+                const avatar = createPersonAvatar(participantName, faceId, actions.resolveImmichFaceImageUrl);
                 const item = createListItem(participantName, participant.role || "No role", actionsNode, avatar);
                 bindEntityNavigation(item, "people", participant.person_id, async () => {
                     await actions.openPersonFromContext(participant.person_id);

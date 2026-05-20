@@ -1270,6 +1270,12 @@ textarea {
     color: #ffffff;
 }
 
+img.list-avatar,
+img.dashboard-avatar {
+    object-fit: cover;
+    background: #2a3a36;
+}
+
 .list-avatar {
     width: 36px;
     height: 36px;

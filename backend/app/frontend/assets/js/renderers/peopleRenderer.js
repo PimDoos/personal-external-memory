@@ -1,7 +1,7 @@
 import { createButtonNode, clearNodeChildren, createNode, createEmptyStateNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
 import { calculateAge, calculateAgeAtDate, formatDate } from "../ui.js";
 import { createCombobox } from "../combobox.js";
-import { getAvatarInitials } from "../avatar.js";
+import { getAvatarInitials, createPersonAvatar } from "../avatar.js";
 
 export function createPeopleRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedPerson, createEventCard, createListItem, renderSimpleList } = common;
@@ -1169,11 +1169,8 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
                 actionsNode.appendChild(editButton);
                 actionsNode.appendChild(removeButton);
-                const avatar = createNode("span", {
-                    className: "list-avatar",
-                    text: getAvatarInitials(counterpartName),
-                    attrs: { title: counterpartName, "aria-label": counterpartName },
-                });
+                const faceId = caches.personImmichFaceLink.get(counterpartId)?.identity?.id || null;
+                const avatar = createPersonAvatar(counterpartName, faceId, actions.resolveImmichFaceImageUrl);
                 const item = createListItem("", subtitle, actionsNode, avatar);
 
                 const editContainer = createNode("div", { attrs: { id: `relationship-edit-${relationship.id}` }, className: "hidden" });
@@ -1412,11 +1409,8 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                     ],
                 });
                 const personName = `${person.first_name} ${person.last_name || ""}`.trim();
-                const avatar = createNode("span", {
-                    className: "list-avatar",
-                    text: getAvatarInitials(personName),
-                    attrs: { title: personName, "aria-label": personName },
-                });
+                const faceId = caches.personImmichFaceLink.get(person.id)?.identity?.id || null;
+                const avatar = createPersonAvatar(personName, faceId, actions.resolveImmichFaceImageUrl);
 
                 const item = createNode("div", {
                     className: `list-item${person.date_of_death ? " person-card--deceased" : ""}`,

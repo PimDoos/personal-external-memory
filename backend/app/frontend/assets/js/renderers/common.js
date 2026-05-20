@@ -1,8 +1,8 @@
 import { clearNodeChildren, createEmptyStateNode, createNode } from "../dom.js";
 import { formatDateTime } from "../ui.js";
-import { getAvatarInitials } from "../avatar.js";
+import { createPersonAvatar } from "../avatar.js";
 
-export function createRenderCommon({ state, refs, caches }) {
+export function createRenderCommon({ state, refs, caches, actions }) {
     function filtered(section, items, ...extractors) {
         const needle = (state.filters[section] || "").trim().toLowerCase();
         if (!needle) {
@@ -156,11 +156,8 @@ export function createRenderCommon({ state, refs, caches }) {
                 const label = person
                     ? `${person.first_name} ${person.last_name || ""}`.trim()
                     : `Person #${participant.person_id}`;
-                const avatar = createNode("span", {
-                    className: "dashboard-avatar",
-                    text: getAvatarInitials(label),
-                    attrs: { title: label, "aria-label": label },
-                });
+                const faceId = caches.personImmichFaceLink.get(participant.person_id)?.identity?.id || null;
+                const avatar = createPersonAvatar(label, faceId, actions?.resolveImmichFaceImageUrl, "dashboard-avatar");
                 wrapper.appendChild(avatar);
             });
 
