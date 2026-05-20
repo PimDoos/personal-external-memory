@@ -145,6 +145,10 @@ export const api = {
         register: (data) => request("/api/auth/register", { method: "POST", ...jsonBody(data) }),
         login: (data) => request("/api/auth/login", { method: "POST", ...jsonBody(data) }),
         refresh: (data) => request("/api/auth/refresh", { method: "POST", ...jsonBody(data) }, { retryAfterRefresh: false }),
+        openidConfig: () => request("/api/auth/openid/config", { method: "GET" }, { retryAfterRefresh: false }),
+        openidLoginUrl: () => request("/api/auth/openid/login-url", { method: "GET" }, { retryAfterRefresh: false }),
+        openidLinkUrl: () => request("/api/auth/openid/link-url", { method: "POST" }),
+        openidUnlink: () => request("/api/auth/openid/link", { method: "DELETE" }),
     },
     people: {
         list: () => request("/api/people"),

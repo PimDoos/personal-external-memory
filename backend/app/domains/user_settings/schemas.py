@@ -21,6 +21,7 @@ class UserSettingsResponse(BaseModel):
     immich_base_url: str | None = None
     home_assistant_api_key: str | None = None
     home_assistant_base_url: str | None = None
+    openid_linked: bool = False
 
     class Config:
         """Pydantic config."""

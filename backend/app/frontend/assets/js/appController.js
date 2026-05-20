@@ -20,6 +20,8 @@ export function createAppController() {
     const refs = {
         authPanel: getNodeById("auth-panel"),
         authMessage: getNodeById("auth-message"),
+        openidLoginRow: getNodeById("openid-login-row"),
+        openidLoginButton: getNodeById("openid-login-button"),
         contentPanel: getNodeById("content-panel"),
         navigationPanel: getNodeById("navigation-panel"),
         userEmail: getNodeById("user-email"),
@@ -69,6 +71,7 @@ export function createAppController() {
         event: new Map(),
         location: new Map(),
     };
+    let openIdPopup = null;
 
     function clearBackgroundRefreshTimer() {
         if (backgroundRefreshTimerId !== null) {
@@ -476,9 +479,98 @@ export function createAppController() {
     async function checkApi() {
         try {
             await api.health();
+            try {
+                const openid = await api.auth.openidConfig();
+                state.data.auth.openidEnabled = Boolean(openid?.enabled);
+                state.data.auth.openidButtonText = String(openid?.button_text || "Sign in with SSO");
+            } catch {
+                state.data.auth.openidEnabled = false;
+                state.data.auth.openidButtonText = "Sign in with SSO";
+            }
             setApiStatus("API ready", true);
         } catch {
+            state.data.auth.openidEnabled = false;
+            state.data.auth.openidButtonText = "Sign in with SSO";
             setApiStatus("API unavailable", false);
+        }
+
+        if (refs.openidLoginButton) {
+            refs.openidLoginButton.innerText = state.data.auth.openidButtonText;
+        }
+        if (refs.openidLoginRow) {
+            refs.openidLoginRow.classList.toggle("hidden", !state.data.auth.openidEnabled);
+        }
+    }
+
+    async function launchOpenIdPopup(authUrl) {
+        const popup = window.open(authUrl, "pem-openid", "popup,width=560,height=700");
+        if (!popup) {
+            throw new Error("Popup was blocked. Allow popups for this site and try again.");
+        }
+        openIdPopup = popup;
+    }
+
+    async function startOpenIdLogin() {
+        if (!state.data.auth?.openidEnabled) {
+            throw new Error("OpenID SSO is not configured");
+        }
+        const response = await api.auth.openidLoginUrl();
+        const authUrl = String(response?.authorization_url || "").trim();
+        if (!authUrl) {
+            throw new Error("OpenID authorization URL is missing");
+        }
+        await launchOpenIdPopup(authUrl);
+    }
+
+    async function startOpenIdLink() {
+        const response = await api.auth.openidLinkUrl();
+        const authUrl = String(response?.authorization_url || "").trim();
+        if (!authUrl) {
+            throw new Error("OpenID authorization URL is missing");
+        }
+        await launchOpenIdPopup(authUrl);
+    }
+
+    async function handleOpenIdMessage(event) {
+        if (event.origin !== window.location.origin) {
+            return;
+        }
+        const data = event.data || {};
+        if (data.source !== "pem-openid") {
+            return;
+        }
+
+        if (openIdPopup && !openIdPopup.closed) {
+            try {
+                openIdPopup.close();
+            } catch {
+                // no-op
+            }
+        }
+
+        if (data.status !== "success") {
+            const message = data.message || "OpenID authentication failed";
+            setAuthMessage(message);
+            showToast(message, true);
+            return;
+        }
+
+        if (data.action === "login" && data.access_token && data.refresh_token && data.email) {
+            saveSession(data.access_token, data.email, data.refresh_token);
+            setAuthMessage("Signed in.");
+            applyHashToState();
+            await bootstrapAuthenticated();
+            writeHashFromState({ replace: true });
+            scheduleBackgroundRefresh();
+            showToast("Logged in via OpenID.");
+            return;
+        }
+
+        if (data.action === "link") {
+            await refreshBaseData();
+            await refreshSelectedEntityCaches();
+            renderer.renderAll();
+            showToast(data.message || "OpenID account linked.");
         }
     }
 
@@ -521,6 +613,7 @@ export function createAppController() {
             immich_base_url: userSettings?.immich_base_url || null,
             home_assistant_api_key: userSettings?.home_assistant_api_key || null,
             home_assistant_base_url: userSettings?.home_assistant_base_url || null,
+            openid_linked: Boolean(userSettings?.openid_linked),
         };
 
         await refreshTopologyData();
@@ -1070,6 +1163,22 @@ export function createAppController() {
             handleAuthSubmit("register", event);
         });
 
+        if (refs.openidLoginButton) {
+            refs.openidLoginButton.addEventListener("click", async () => {
+                try {
+                    await startOpenIdLogin();
+                } catch (error) {
+                    const message = error.message || "OpenID authentication failed";
+                    setAuthMessage(message);
+                    showToast(message, true);
+                }
+            });
+        }
+
+        window.addEventListener("message", (event) => {
+            handleOpenIdMessage(event);
+        });
+
         refs.logoutButton.addEventListener("click", () => {
             endAuthenticatedSession("", false);
             showToast("Logged out.");
@@ -1248,6 +1357,7 @@ export function createAppController() {
                     immich_base_url: savedSettings?.immich_base_url || null,
                     home_assistant_api_key: savedSettings?.home_assistant_api_key || null,
                     home_assistant_base_url: savedSettings?.home_assistant_base_url || null,
+                    openid_linked: Boolean(savedSettings?.openid_linked),
                 };
                 await refreshSelectedEntityCaches();
                 showToast("Settings saved.");
@@ -1269,6 +1379,18 @@ export function createAppController() {
             await refreshBaseData();
             await refreshSelectedEntityCaches();
             showToast("Immich faces synced.");
+        }),
+        startOpenIdLink: async () => withAction(async () => {
+            if (!state.data.auth?.openidEnabled) {
+                throw new Error("OpenID SSO is not configured");
+            }
+            await startOpenIdLink();
+            showToast("Complete OpenID linking in the popup window.");
+        }, { render: false }),
+        unlinkOpenId: async () => withAction(async () => {
+            await api.auth.openidUnlink();
+            state.data.userSettings.openid_linked = false;
+            showToast("OpenID account unlinked.");
         }),
         linkImmichFaceToPerson: async (personId, externalIdentityId) => withAction(async () => {
             if (!personId || !externalIdentityId) {
@@ -1717,6 +1839,16 @@ export function createAppController() {
             state.selected.personId = personId;
             state.sidebar.people = "detail";
             await loadPersonCaches(personId);
+            if (hasImmichIntegrationConfigured()) {
+                await Promise.all([
+                    loadImmichGalleryForPerson(personId),
+                    loadPersonImmichFaceLink(personId),
+                ]);
+            } else {
+                caches.immichPersonGallery.set(personId, []);
+                caches.personImmichFaceLink.set(personId, null);
+                caches.immichFaces = [];
+            }
         }),
         openBrandFromContext: async (brandId) => withAction(async () => {
             state.activeSection = "brands";

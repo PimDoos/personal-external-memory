@@ -30,6 +30,9 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    openid_issuer = Column(String(512), nullable=True, index=True)
+    openid_subject = Column(String(255), nullable=True, index=True)
+    openid_email = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 

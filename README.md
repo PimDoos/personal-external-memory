@@ -129,6 +129,15 @@ PEM is a people relationship management system. It allows you to keep track of p
         - Clicking the photo opens it in Immich
     - Immich base URL and API key are user-specific and set in user settings.
         - In user settings, the user should be able to test if their settings are valid
+- OpenID SSO integration: Authenticate users via OpenID-compliant providers (OAuth2 OIDC)
+    - Automatically create new users or link existing users by email
+    - Supported flow: Authorization Code Grant with PKCE
+    - Pop-up based authentication window
+    - Account linking/unlinking from user settings
+    - Configuration via environment variables (Issuer URL, Client ID, Client Secret)
+    - **Redirect URI**: `http://your-domain/api/auth/openid/callback`
+        - For local development: `http://localhost:8000/api/auth/openid/callback`
+        - Configure this exact URI in your OpenID provider's application settings
 
 ## Technology Stack
 - Backend: Python with FastAPI
@@ -163,7 +172,6 @@ The native frontend is now implemented and served directly by FastAPI.
 
 ### Todo
 
-- Add sign-in with OpenID
 - Add user preferences
     - Dark mode: Auto, light or dark
     - Me: Select person which represents the user

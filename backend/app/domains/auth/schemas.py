@@ -42,3 +42,28 @@ class UserResponse(BaseModel):
         """Pydantic config."""
 
         from_attributes = True
+
+
+class OpenIdConfigResponse(BaseModel):
+    """OpenID SSO UI configuration response."""
+
+    enabled: bool
+    button_text: str
+
+
+class OpenIdAuthorizationUrlResponse(BaseModel):
+    """Authorization URL used to launch OpenID authentication in a popup."""
+
+    authorization_url: str
+
+
+class OpenIdPopupMessage(BaseModel):
+    """Payload sent from callback popup to opener window."""
+
+    source: str = "pem-openid"
+    status: str
+    action: str
+    message: str | None = None
+    access_token: str | None = None
+    refresh_token: str | None = None
+    email: str | None = None

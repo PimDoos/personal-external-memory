@@ -75,6 +75,11 @@ export const state = {
             immich_base_url: null,
             home_assistant_api_key: null,
             home_assistant_base_url: null,
+            openid_linked: false,
+        },
+        auth: {
+            openidEnabled: false,
+            openidButtonText: "Sign in with SSO",
         },
         immich: {
             connectionMessage: "",
@@ -112,6 +117,11 @@ export function clearSession() {
         immich_base_url: null,
         home_assistant_api_key: null,
         home_assistant_base_url: null,
+        openid_linked: false,
+    };
+    state.data.auth = {
+        openidEnabled: false,
+        openidButtonText: "Sign in with SSO",
     };
     state.data.immich = {
         connectionMessage: "",

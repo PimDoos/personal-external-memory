@@ -43,6 +43,7 @@ async def run_migrations() -> None:
             "20260510_relationship_type_fk",
             "20260510_relationship_date_range",
             "20260510_user_settings_base_urls",
+            "20260520_user_openid_fields",
         ]
         pending = [m for m in all_migrations if m not in applied]
         
@@ -148,6 +149,44 @@ async def run_migrations() -> None:
                 await conn.execute(text(
                     "INSERT INTO schema_versions (migration_name, applied_at) VALUES (:name, :now)"
                 ), {"name": "20260510_user_settings_base_urls", "now": datetime.utcnow()})
+
+                print("  ✓ Applied")
+
+        # Apply 20260520_user_openid_fields migration
+        if "20260520_user_openid_fields" in pending:
+            print("\n→ Add OpenID linkage columns to users")
+
+            async with engine.begin() as conn:
+                result = await conn.execute(text("PRAGMA table_info(users)"))
+                columns = [row[1] for row in result.fetchall()]
+
+                if "openid_issuer" not in columns:
+                    print("  Adding openid_issuer column...")
+                    await conn.execute(
+                        text("ALTER TABLE users ADD COLUMN openid_issuer VARCHAR(512)")
+                    )
+                else:
+                    print("  Column openid_issuer already exists")
+
+                if "openid_subject" not in columns:
+                    print("  Adding openid_subject column...")
+                    await conn.execute(
+                        text("ALTER TABLE users ADD COLUMN openid_subject VARCHAR(255)")
+                    )
+                else:
+                    print("  Column openid_subject already exists")
+
+                if "openid_email" not in columns:
+                    print("  Adding openid_email column...")
+                    await conn.execute(
+                        text("ALTER TABLE users ADD COLUMN openid_email VARCHAR(255)")
+                    )
+                else:
+                    print("  Column openid_email already exists")
+
+                await conn.execute(text(
+                    "INSERT INTO schema_versions (migration_name, applied_at) VALUES (:name, :now)"
+                ), {"name": "20260520_user_openid_fields", "now": datetime.utcnow()})
 
                 print("  ✓ Applied")
         

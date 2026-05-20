@@ -1,5 +1,5 @@
 import { createCombobox } from "../combobox.js";
-import { clearNodeChildren, createNode } from "../dom.js";
+import { clearNodeChildren, createButtonNode, createNode } from "../dom.js";
 
 export function createSettingsRenderer({ state, actions }) {
     function sortPeople(people) {
@@ -46,8 +46,34 @@ export function createSettingsRenderer({ state, actions }) {
         homeAssistantBaseUrlInput.value = state.data.userSettings?.home_assistant_base_url || "";
 
         const integrationNode = document.getElementById("settings-immich-tools");
-        if (!integrationNode) {
+        const openidNode = document.getElementById("settings-openid-tools");
+        if (!integrationNode || !openidNode) {
             return;
+        }
+
+        clearNodeChildren(openidNode);
+        const openidEnabled = Boolean(state.data.auth?.openidEnabled);
+        const openidLinked = Boolean(state.data.userSettings?.openid_linked);
+        openidNode.appendChild(createNode("p", {
+            className: "muted",
+            text: openidEnabled
+                ? (openidLinked ? "OpenID account linked." : "OpenID account not linked.")
+                : "OpenID SSO is not configured by the server.",
+        }));
+        if (openidEnabled) {
+            openidNode.appendChild(createNode("div", {
+                className: "list-actions",
+                children: [
+                    createButtonNode("Link OpenID Account", "secondary-button", async () => {
+                        await actions.startOpenIdLink();
+                    }),
+                    createButtonNode("Unlink OpenID Account", "danger-button", async () => {
+                        await actions.unlinkOpenId();
+                    }, {
+                        disabled: !openidLinked,
+                    }),
+                ],
+            }));
         }
 
         clearNodeChildren(integrationNode);

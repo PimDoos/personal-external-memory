@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     IMMICH_API_URL: Optional[str] = None
     IMMICH_API_KEY: Optional[str] = None
 
+    # OpenID Connect SSO (optional)
+    OPENID_ISSUER_URL: Optional[str] = None
+    OPENID_CLIENT_ID: Optional[str] = None
+    OPENID_CLIENT_SECRET: Optional[str] = None
+    OPENID_SSO_BUTTON_TEXT: str = "Sign in with SSO"
+
     class Config:
         """Pydantic config."""
 
