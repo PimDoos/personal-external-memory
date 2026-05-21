@@ -17,7 +17,7 @@ The frontend will be available at `http://localhost:8000`, and the Swagger UI at
 #### 1. Install Python Dependencies
 
 ```bash
-cd backend
+cd src
 pip install -e ".[dev]"
 ```
 
@@ -52,7 +52,7 @@ Visit `http://localhost:8000` for the frontend and `http://localhost:8000/api/do
 ## Project Structure
 
 ```
-backend/
+src/
 ├── app/
 │   ├── core/                 # Core configuration & security
 │   │   ├── config.py        # Settings from environment
@@ -185,26 +185,26 @@ Similar CRUD endpoints for:
 ### Running Tests
 
 ```bash
-pytest backend/tests/
+pytest tests/
 ```
 
 With coverage report:
 ```bash
-pytest backend/tests/ --cov=app --cov-report=html
+pytest tests/ --cov=app --cov-report=html
 ```
 
 ### Code Quality
 
 Format code:
 ```bash
-black backend/app
-isort backend/app
+black app
+isort app
 ```
 
 Lint code:
 ```bash
-flake8 backend/app
-mypy backend/app
+flake8 app
+mypy app
 ```
 
 ### Database Migrations
@@ -213,7 +213,7 @@ Migrations are defined in `app/infrastructure/migrations.py` and applied on star
 
 When changing schema-related models:
 ```bash
-cd backend
+cd src
 uvicorn app.main:app --reload
 ```
 
@@ -282,7 +282,7 @@ If you see "database is locked", the SQLite database is being accessed by multip
 
 ### Import Errors
 
-Ensure you're running commands from the `backend/` directory and have installed dependencies:
+Ensure you're running commands from the `src/` directory and have installed dependencies:
 ```bash
 pip install -e ".[dev]"
 ```

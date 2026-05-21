@@ -1,14 +1,14 @@
 services:
-  # Backend API service
-  api:
+  # API service
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pem-api
+    container_name: pem-app
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - ./src:/app
       - pem-data:/app/data
     environment:
       - DEBUG=True

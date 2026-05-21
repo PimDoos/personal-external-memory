@@ -162,7 +162,7 @@ The Python backend groundwork is complete with:
 
 **Status**: Ready for feature development and frontend integration
 
-See [backend/README.md](backend/README.md) for setup instructions and API documentation.
+See [src/README.md](src/README.md) for setup instructions and API documentation.
 
 ### Frontend ✅
 The native frontend is now implemented and served directly by FastAPI.
