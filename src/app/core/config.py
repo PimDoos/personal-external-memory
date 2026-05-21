@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     HOST: str = "127.0.0.1"
     PORT: int = 8000
     RELOAD: bool = False
+    BASE_URI: Optional[str] = None
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./pem.db"

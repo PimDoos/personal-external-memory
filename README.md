@@ -139,8 +139,10 @@ It was inspired by [monica](https://github.com/monicahq/monica).
     - Pop-up based authentication window
     - Account linking/unlinking from user settings
     - Configuration via environment variables (Issuer URL, Client ID, Client Secret)
-    - **Redirect URI**: `http://your-domain/api/auth/openid/callback`
+    - **Redirect URI**: `https://your-domain/api/auth/openid/callback`
         - For local development: `http://localhost:8000/api/auth/openid/callback`
+        - If the client is served over HTTPS (including behind a reverse proxy), use an HTTPS redirect URI.
+        - Set `BASE_URI` in production (for example, `https://your-domain`) to guarantee the correct scheme and host for callbacks.
         - Configure this exact URI in your OpenID provider's application settings
 
 ## Technology Stack

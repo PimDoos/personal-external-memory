@@ -1,11 +1,13 @@
 """Authentication domain - API routes."""
 
 import json
+from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.domains.auth.schemas import (
     OpenIdAuthorizationUrlResponse,
     OpenIdConfigResponse,
@@ -21,6 +23,33 @@ from app.infrastructure.dependencies import CurrentUser
 from app.infrastructure.models import User
 
 router = APIRouter()
+
+
+def _build_openid_callback_url(request: Request) -> str:
+    """Build callback URL honoring BASE_URI and reverse-proxy headers."""
+    settings = get_settings()
+    configured_base_uri = str(settings.BASE_URI or "").strip().rstrip("/")
+    if configured_base_uri:
+        return f"{configured_base_uri}/api/auth/openid/callback"
+
+    callback_url = str(request.url_for("openid_callback"))
+
+    forwarded_proto = str(request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    forwarded_host = str(request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+    forwarded_prefix = str(request.headers.get("x-forwarded-prefix") or "").split(",")[0].strip()
+
+    if forwarded_proto in {"http", "https"} or forwarded_host or forwarded_prefix:
+        parsed = urlparse(callback_url)
+        scheme = forwarded_proto if forwarded_proto in {"http", "https"} else parsed.scheme
+        netloc = forwarded_host or parsed.netloc
+        path = parsed.path
+        if forwarded_prefix:
+            normalized_prefix = f"/{forwarded_prefix.strip('/')}"
+            if not path.startswith(normalized_prefix):
+                path = f"{normalized_prefix}{path}"
+        callback_url = urlunparse(parsed._replace(scheme=scheme, netloc=netloc, path=path))
+
+    return callback_url
 
 
 @router.post("/register", response_model=UserResponse)
@@ -102,7 +131,7 @@ async def openid_login_url(
 ) -> OpenIdAuthorizationUrlResponse:
     """Build OpenID authorization URL for login flow."""
     service = AuthService(db)
-    callback_url = str(request.url_for("openid_callback"))
+    callback_url = _build_openid_callback_url(request)
     url = await service.create_openid_authorization_url("login", callback_url)
     return OpenIdAuthorizationUrlResponse(authorization_url=url)
 
@@ -115,7 +144,7 @@ async def openid_link_url(
 ) -> OpenIdAuthorizationUrlResponse:
     """Build OpenID authorization URL for account-link flow."""
     service = AuthService(db)
-    callback_url = str(request.url_for("openid_callback"))
+    callback_url = _build_openid_callback_url(request)
     url = await service.create_openid_authorization_url(
         "link",
         callback_url,
