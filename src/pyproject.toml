@@ -7,53 +7,53 @@ name = "personal-external-memory-backend"
 version = "0.1.0"
 description = "Personal External Memory (PEM) - People Relationship Management System Backend"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 authors = [{name = "PEM Team"}]
 license = {text = "MIT"}
 keywords = ["pem", "relationship", "management", "people"]
 
 dependencies = [
     # Core web framework
-    "fastapi[standard]==0.115.0",
-    "uvicorn[standard]==0.30.0",
+    "fastapi[standard]>=0.120.0",
+    "uvicorn[standard]>=0.35.0",
     
     # Database
-    "sqlalchemy[asyncio]==2.0.29",
-    "aiosqlite==0.20.0",
+    "sqlalchemy[asyncio]>=2.0.40",
+    "aiosqlite>=0.21.0",
     
     # Data validation
-    "pydantic==2.7.1",
-    "pydantic-settings==2.2.1",
+    "pydantic>=2.12.0",
+    "pydantic-settings>=2.11.0",
     
     # Authentication & security
-    "python-jose[cryptography]==3.3.0",
+    "python-jose[cryptography]>=3.3.0",
     "pwdlib[argon2]>=0.2.0",
     "python-multipart>=0.0.7",
     
     # Environment variables
-    "python-dotenv==1.0.1",
+    "python-dotenv>=1.1.0",
     
     # Utilities
-    "python-dateutil==2.8.2",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [project.optional-dependencies]
 dev = [
     # Testing
-    "pytest==7.4.4",
-    "pytest-asyncio==0.23.3",
-    "pytest-cov==4.1.0",
-    "pytest-xdist==3.6.1",
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=6.2.0",
+    "pytest-xdist>=3.8.0",
     
     # Code quality
-    "black==24.1.1",
-    "isort==5.13.2",
-    "flake8==7.0.0",
-    "mypy==1.8.0",
-    "pylint==3.0.3",
+    "black>=25.9.0",
+    "isort>=6.1.0",
+    "flake8>=7.3.0",
+    "mypy>=1.18.0",
+    "pylint>=4.0.0",
     
     # Development tools
-    "ipython==8.20.1",
+    "ipython>=9.7.0",
     "ipdb==0.13.13",
 ]
 
@@ -62,7 +62,7 @@ packages = ["app"]
 
 [tool.black]
 line-length = 100
-target-version = ["py310", "py311"]
+target-version = ["py314"]
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -87,7 +87,7 @@ multi_line_mode = 3
 include_trailing_comma = true
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
