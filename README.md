@@ -1,6 +1,8 @@
 # Personal External Memory (PEM)
 PEM is a people relationship management system. It allows you to keep track of personal relationships and events.
 
+It was inspired by [monica](https://github.com/monicahq/monica).
+
 **Note**: This project is in early development and might not be stable yet. There may be breaking changes in the API and database schema.
 
 ## Features
