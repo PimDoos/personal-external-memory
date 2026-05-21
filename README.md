@@ -153,7 +153,7 @@ PEM is a people relationship management system. It allows you to keep track of p
 The Python backend groundwork is complete with:
 - **Architecture**: Domain-driven design with clear separation of concerns
 - **Authentication**: JWT-based user authentication with secure password hashing
-- **Database**: SQLAlchemy ORM with Alembic migrations for SQLite (easily switchable to PostgreSQL)
+- **Database**: SQLAlchemy ORM with startup-applied migrations for SQLite (easily switchable to PostgreSQL)
 - **API Structure**: RESTful endpoints for all core entities (People, Events, etc.)
 - **Testing**: pytest setup with fixtures for async database testing
 - **Deployment**: Docker and Docker Compose configuration for local development

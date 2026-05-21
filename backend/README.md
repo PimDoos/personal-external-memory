@@ -35,9 +35,11 @@ Edit `.env` for your local development settings. Key variables:
 #### 3. Initialize the Database
 
 ```bash
-cd backend
-alembic upgrade head
+uvicorn app.main:app --reload
 ```
+
+Database migrations run automatically on application startup via
+`app.infrastructure.migrations.run_migrations()`.
 
 #### 4. Run the Server
 
@@ -72,10 +74,6 @@ backend/
 │   │   ├── index.html       # Application shell
 │   │   └── assets/          # CSS and JavaScript modules
 │   └── main.py              # FastAPI app factory
-├── migrations/              # Alembic database migrations
-│   ├── env.py
-│   ├── alembic.ini
-│   └── versions/
 ├── tests/                   # Test suite
 │   ├── conftest.py         # Pytest fixtures
 │   ├── test_auth.py        # Auth tests
@@ -101,7 +99,7 @@ This structure keeps code organized and scales as features grow.
 
 - **SQLAlchemy ORM** for type-safe database operations
 - **Async SQLite** for single-server deployments
-- **Alembic** for versioned schema migrations
+- **Startup migration runner** for schema migrations (`app/infrastructure/migrations.py`)
 - Supports switching to PostgreSQL/MySQL by changing `DATABASE_URL`
 
 ### Authentication
@@ -211,17 +209,15 @@ mypy backend/app
 
 ### Database Migrations
 
-Create a new migration after changing models:
+Migrations are defined in `app/infrastructure/migrations.py` and applied on startup.
+
+When changing schema-related models:
 ```bash
 cd backend
-alembic revision --autogenerate -m "Add new column"
-alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
-View migration history:
-```bash
-alembic history
-```
+Then add/update a migration step in `run_migrations()` and verify it is idempotent.
 
 ## Configuration
 
