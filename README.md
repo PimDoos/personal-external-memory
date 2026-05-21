@@ -1,6 +1,8 @@
 # Personal External Memory (PEM)
 PEM is a people relationship management system. It allows you to keep track of personal relationships and events.
 
+**Note**: This project is in early development and might not be stable yet. There may be breaking changes in the API and database schema.
+
 ## Features
 
 ### Concepts
@@ -172,13 +174,7 @@ The native frontend is now implemented and served directly by FastAPI.
 
 ### Todo
 
-- Add user preferences
-    - Dark mode: Auto, light or dark
-    - Me: Select person which represents the user
-    - Immich API key: To link people in Immich to people in PEM
-
 - Add profile pictures
-    - People
     - Brands
     - Social Circles
 
@@ -187,6 +183,6 @@ The native frontend is now implemented and served directly by FastAPI.
     - Relationships that were not active at that time are not displayed
     - Filter is optional. If not set, the topology view shows the current relationships.
 
-- Add calendar view
+- Update calendar view
     - Ability to filter events by people, social circles, tags or brands
 
