@@ -1,6 +1,6 @@
 import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
 import { createCombobox } from "../combobox.js";
-import { getAvatarInitials } from "../avatar.js";
+import { createPersonAvatar } from "../avatar.js";
 
 export function createCirclesRenderer({ state, caches, actions, common }) {
     const { filtered, selectedCircle, createEventCard, createListItem, renderSimpleList } = common;
@@ -327,11 +327,8 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                     await actions.removeCircleMember(circle.id, member.id);
                 }));
                 const memberName = `${member.first_name} ${member.last_name || ""}`.trim();
-                const avatar = createNode("span", {
-                    className: "list-avatar",
-                    text: getAvatarInitials(memberName),
-                    attrs: { title: memberName, "aria-label": memberName },
-                });
+                const faceId = caches.personImmichFaceLink.get(member.id)?.identity?.id || null;
+                const avatar = createPersonAvatar(memberName, faceId, actions.resolveImmichFaceImageUrl);
                 const item = createListItem(memberName, "", actionsNode, avatar);
                 bindEntityNavigation(item, "people", member.id, async () => {
                     await actions.openPersonFromContext(member.id);

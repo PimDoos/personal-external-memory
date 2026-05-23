@@ -1,8 +1,8 @@
 import { clearNodeChildren, createButtonNode, createFormDataObject, createNode, createSelectNode, wrapCollapsible } from "../dom.js";
 import { createCombobox } from "../combobox.js";
-import { getAvatarInitials } from "../avatar.js";
+import { createPersonAvatar } from "../avatar.js";
 
-export function createBrandsRenderer({ state, actions, common }) {
+export function createBrandsRenderer({ state, caches, actions, common }) {
     const { filtered, createListItem, renderSimpleList } = common;
 
     function displayLocationLabel(location) {
@@ -78,11 +78,8 @@ export function createBrandsRenderer({ state, actions, common }) {
                 }
 
                 const personName = `${person.first_name} ${person.last_name || ""}`.trim();
-                const avatar = createNode("span", {
-                    className: "list-avatar",
-                    text: getAvatarInitials(personName),
-                    attrs: { title: personName, "aria-label": personName },
-                });
+                const faceId = caches.personImmichFaceLink.get(personId)?.identity?.id || null;
+                const avatar = createPersonAvatar(personName, faceId, actions.resolveImmichFaceImageUrl);
                 const actionsNode = createNode("div", { className: "list-actions" });
                 actionsNode.appendChild(createButtonNode("Edit", "secondary-button", async () => {
                     const newType = prompt("Enter new member type:", member.type || "");
