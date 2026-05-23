@@ -12,6 +12,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 export function createTopologyRenderer({ state, caches, actions }) {
     const positions = new Map();
     const velocities = new Map();
+    const pendingFaceImageLoads = new Map();
     const viewport = { scale: 1, tx: 0, ty: 0 };
     let animationFrameId = null;
     let handlersBound = false;
@@ -57,6 +58,31 @@ export function createTopologyRenderer({ state, caches, actions }) {
             return 22;
         }
         return 16;
+    }
+
+    function getNodeClipPathId(node) {
+        return `topology-avatar-clip-${String(node?.id || "").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+    }
+
+    function scheduleFaceImageLoad(faceIdentityId) {
+        const identityId = Number(faceIdentityId);
+        if (!Number.isInteger(identityId) || identityId <= 0) {
+            return;
+        }
+        if (caches.immichFaceAvatarBlobUrls.get(identityId) || pendingFaceImageLoads.has(identityId) || !actions?.resolveImmichFaceImageUrl) {
+            return;
+        }
+
+        const request = actions.resolveImmichFaceImageUrl(identityId)
+            .catch(() => null)
+            .finally(() => {
+                pendingFaceImageLoads.delete(identityId);
+                if (renderFrameRef) {
+                    renderFrameRef();
+                }
+            });
+
+        pendingFaceImageLoads.set(identityId, request);
     }
 
     function getNodeLabelLines(node) {
@@ -344,6 +370,7 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 id: `person:${person.id}`,
                 entity: "person",
                 entityId: person.id,
+                faceIdentityId: caches.personImmichFaceLink.get(person.id)?.identity?.id || null,
                 label: `${person.first_name} ${person.last_name || ""}`.trim() || `Person #${person.id}`,
                 labelLines: [person.first_name || "", person.last_name || ""].filter(Boolean),
             })),
@@ -718,6 +745,9 @@ export function createTopologyRenderer({ state, caches, actions }) {
             svg.appendChild(viewportGroup);
             viewportGroupRef = viewportGroup;
 
+            const defs = document.createElementNS(SVG_NS, "defs");
+            viewportGroup.appendChild(defs);
+
             graph.edges.forEach((edge) => {
                 const source = positions.get(edge.source);
                 const target = positions.get(edge.target);
@@ -802,13 +832,41 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 circle.setAttribute("stroke-width", isHovered || isAdjacentToHovered ? "3.5" : "2");
                 group.appendChild(circle);
 
-                const initials = document.createElementNS(SVG_NS, "text");
-                initials.textContent = getAvatarInitials(node.label);
-                initials.setAttribute("text-anchor", "middle");
-                initials.setAttribute("dy", "5");
-                initials.setAttribute("font-size", "10");
-                initials.setAttribute("font-weight", "700");
-                group.appendChild(initials);
+                const avatarUrl = node.entity === "person" && node.faceIdentityId
+                    ? caches.immichFaceAvatarBlobUrls.get(Number(node.faceIdentityId))
+                    : null;
+
+                if (avatarUrl) {
+                    const clipPath = document.createElementNS(SVG_NS, "clipPath");
+                    clipPath.setAttribute("id", getNodeClipPathId(node));
+                    const clipCircle = document.createElementNS(SVG_NS, "circle");
+                    clipCircle.setAttribute("r", String(Math.max(0, radius - 2)));
+                    clipPath.appendChild(clipCircle);
+                    defs.appendChild(clipPath);
+
+                    const image = document.createElementNS(SVG_NS, "image");
+                    const imageRadius = Math.max(0, radius - 2);
+                    image.setAttribute("x", String(-imageRadius));
+                    image.setAttribute("y", String(-imageRadius));
+                    image.setAttribute("width", String(imageRadius * 2));
+                    image.setAttribute("height", String(imageRadius * 2));
+                    image.setAttribute("preserveAspectRatio", "xMidYMid slice");
+                    image.setAttribute("clip-path", `url(#${getNodeClipPathId(node)})`);
+                    image.setAttribute("href", avatarUrl);
+                    group.appendChild(image);
+                } else {
+                    if (node.entity === "person" && node.faceIdentityId) {
+                        scheduleFaceImageLoad(node.faceIdentityId);
+                    }
+
+                    const initials = document.createElementNS(SVG_NS, "text");
+                    initials.textContent = getAvatarInitials(node.label);
+                    initials.setAttribute("text-anchor", "middle");
+                    initials.setAttribute("dy", "5");
+                    initials.setAttribute("font-size", "10");
+                    initials.setAttribute("font-weight", "700");
+                    group.appendChild(initials);
+                }
 
                 const label = document.createElementNS(SVG_NS, "text");
                 label.setAttribute("text-anchor", "middle");
