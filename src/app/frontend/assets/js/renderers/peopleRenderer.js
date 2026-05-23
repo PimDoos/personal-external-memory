@@ -1,7 +1,7 @@
 import { createButtonNode, clearNodeChildren, createNode, createEmptyStateNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
 import { calculateAge, calculateAgeAtDate, formatDate } from "../ui.js";
 import { createCombobox } from "../combobox.js";
-import { getAvatarInitials, createPersonAvatar } from "../avatar.js";
+import { createPersonAvatar } from "../avatar.js";
 
 export function createPeopleRenderer({ state, caches, actions, common }) {
     const { filtered, nameOfPerson, selectedPerson, createEventCard, createListItem, renderSimpleList } = common;
@@ -257,41 +257,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
                     createNode("div", {
                         className: "list-item__main",
                         children: [
-                            face.image_url
-                                ? (() => {
-                                    const avatarWrap = createNode("div", { className: "list-avatar-wrap" });
-                                    const imageNode = createNode("img", {
-                                        className: "list-avatar",
-                                        attrs: {
-                                            src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
-                                            alt: title,
-                                            loading: "lazy",
-                                        },
-                                    });
-                                    avatarWrap.appendChild(imageNode);
-                                    actions.resolveImmichFaceImageUrl(face.id).then((resolvedUrl) => {
-                                        if (resolvedUrl) {
-                                            imageNode.src = resolvedUrl;
-                                        } else {
-                                            imageNode.style.display = "none";
-                                            avatarWrap.appendChild(createNode("span", {
-                                                className: "list-avatar",
-                                                text: getAvatarInitials(title),
-                                            }));
-                                        }
-                                    }).catch(() => {
-                                        imageNode.style.display = "none";
-                                        avatarWrap.appendChild(createNode("span", {
-                                            className: "list-avatar",
-                                            text: getAvatarInitials(title),
-                                        }));
-                                    });
-                                    return avatarWrap;
-                                })()
-                                : createNode("span", {
-                                    className: "list-avatar",
-                                    text: getAvatarInitials(title),
-                                }),
+                            createPersonAvatar(title, face.id, actions.resolveImmichFaceImageUrl),
                             createNode("div", {
                                 className: "list-item__text",
                                 children: [
