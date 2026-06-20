@@ -15,7 +15,7 @@ class PersonRelationshipRepository(BaseRepository[PersonRelationship]):
         super().__init__(session, PersonRelationship)
 
     async def list_for_person(
-        self, person_id: int, skip: int = 0, limit: int = 100
+        self, person_id: int, skip: int = 0, limit: int | None = None
     ) -> list[PersonRelationship]:
         """List all relationships for a person (where they are either person_id_1 or person_id_2)."""
         stmt = (
@@ -27,8 +27,9 @@ class PersonRelationshipRepository(BaseRepository[PersonRelationship]):
                 )
             )
             .offset(skip)
-            .limit(limit)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 

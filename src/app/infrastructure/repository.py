@@ -44,7 +44,7 @@ class BaseRepository(Generic[T]):
         
         return record
 
-    async def list_all(self, skip: int = 0, limit: int = 100) -> list[T]:
+    async def list_all(self, skip: int = 0, limit: int | None = None) -> list[T]:
         """List all records with pagination.
         
         Args:
@@ -54,7 +54,9 @@ class BaseRepository(Generic[T]):
         Returns:
             List of records
         """
-        stmt = select(self.model).offset(skip).limit(limit)
+        stmt = select(self.model).offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
