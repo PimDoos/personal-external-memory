@@ -426,6 +426,10 @@ select {
     gap: 10px;
 }
 
+.nav-collapse-toggle {
+    display: none;
+}
+
 .primary-button,
 .danger-button,
 .secondary-button,
@@ -1482,6 +1486,20 @@ img.dashboard-avatar {
 @media (max-width: 720px) {
     .app-shell {
         padding: 16px;
+    }
+
+    .nav-panel {
+        display: grid;
+        gap: 10px;
+    }
+
+    .nav-collapse-toggle {
+        display: inline-flex;
+        justify-content: center;
+    }
+
+    .nav-panel.nav-panel--collapsed .nav-tabs {
+        display: none;
     }
 
     .nav-tabs {

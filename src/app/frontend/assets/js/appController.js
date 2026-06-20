@@ -31,11 +31,13 @@ export function createAppController() {
         openidLoginButton: getNodeById("openid-login-button"),
         contentPanel: getNodeById("content-panel"),
         navigationPanel: getNodeById("navigation-panel"),
+        navCollapseToggle: getNodeById("nav-collapse-toggle"),
         userEmail: getNodeById("user-email"),
         logoutButton: getNodeById("logout-button"),
         toast: getNodeById("toast"),
         apiStatus: getNodeById("api-status"),
     };
+    const collapsibleNavigationMediaQuery = window.matchMedia("(max-width: 720px)");
 
     const caches = {
         personContacts: new Map(),
@@ -204,6 +206,29 @@ export function createAppController() {
         Object.keys(state.sidebar).forEach((section) => {
             state.sidebar[section] = "hidden";
         });
+    }
+
+    function setNavigationCollapsed(collapsed) {
+        if (!refs.navigationPanel || !refs.navCollapseToggle) {
+            return;
+        }
+
+        const shouldCollapse = collapsibleNavigationMediaQuery.matches ? Boolean(collapsed) : false;
+        refs.navigationPanel.classList.toggle("nav-panel--collapsed", shouldCollapse);
+        refs.navCollapseToggle.setAttribute("aria-expanded", String(!shouldCollapse));
+        refs.navCollapseToggle.innerText = shouldCollapse ? "Show navigation" : "Hide navigation";
+    }
+
+    function syncNavigationCollapseForViewport() {
+        if (!collapsibleNavigationMediaQuery.matches) {
+            setNavigationCollapsed(false);
+            return;
+        }
+        if (!refs.navigationPanel.classList.contains("nav-panel--collapsed")) {
+            setNavigationCollapsed(true);
+            return;
+        }
+        setNavigationCollapsed(true);
     }
 
     function applyHashToState() {
@@ -1305,8 +1330,18 @@ export function createAppController() {
                 renderer.setAuthShell();
                 renderer.renderAll();
                 writeHashFromState();
+                if (collapsibleNavigationMediaQuery.matches) {
+                    setNavigationCollapsed(true);
+                }
             });
         });
+
+        if (refs.navCollapseToggle) {
+            refs.navCollapseToggle.addEventListener("click", () => {
+                const isCollapsed = refs.navigationPanel.classList.contains("nav-panel--collapsed");
+                setNavigationCollapsed(!isCollapsed);
+            });
+        }
 
         document.querySelectorAll("[data-new-section]").forEach((button) => {
             button.addEventListener("click", () => {
@@ -2040,6 +2075,8 @@ export function createAppController() {
 
     async function init() {
         bindStaticHandlers();
+        syncNavigationCollapseForViewport();
+        collapsibleNavigationMediaQuery.addEventListener("change", syncNavigationCollapseForViewport);
         setAuthExpiredHandler(() => {
             endAuthenticatedSession("Session expired. Please sign in again.", true);
         });
