@@ -461,10 +461,11 @@ export function createAppController() {
     async function withAction(action, options = {}) {
         const resolvedOptions = {
             render: true,
-            preserveViewport: false,
             ...options,
         };
-        const viewportBeforeAction = resolvedOptions.preserveViewport
+        const activeSidebarState = state.sidebar[state.activeSection];
+        const shouldPreserveViewport = resolvedOptions.preserveViewport ?? activeSidebarState === "detail";
+        const viewportBeforeAction = shouldPreserveViewport
             ? { left: window.scrollX, top: window.scrollY }
             : null;
         try {
