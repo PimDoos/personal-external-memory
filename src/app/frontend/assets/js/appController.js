@@ -61,6 +61,7 @@ export function createAppController() {
         immichImageBlobUrls: new Map(),
         immichImageFailedAssetIds: new Set(),
         immichFaceAvatarBlobUrls: new Map(),
+        immichFaceAvatarFailedIdentityIds: new Set(),
         immichFaces: [],
         personImmichFaceLink: new Map(),
         topology: {
@@ -128,6 +129,7 @@ export function createAppController() {
             }
         });
         caches.immichFaceAvatarBlobUrls.clear();
+        caches.immichFaceAvatarFailedIdentityIds.clear();
 
         caches.personContacts.clear();
         caches.personLocations.clear();
@@ -1020,6 +1022,10 @@ export function createAppController() {
             return null;
         }
 
+        if (caches.immichFaceAvatarFailedIdentityIds.has(identityId)) {
+            return null;
+        }
+
         const cached = caches.immichFaceAvatarBlobUrls.get(identityId);
         if (cached) {
             return cached;
@@ -1029,8 +1035,10 @@ export function createAppController() {
             const blob = await api.externalIdentities.imageBlob(identityId);
             const objectUrl = URL.createObjectURL(blob);
             caches.immichFaceAvatarBlobUrls.set(identityId, objectUrl);
+            caches.immichFaceAvatarFailedIdentityIds.delete(identityId);
             return objectUrl;
         } catch {
+            caches.immichFaceAvatarFailedIdentityIds.add(identityId);
             return null;
         }
     }
