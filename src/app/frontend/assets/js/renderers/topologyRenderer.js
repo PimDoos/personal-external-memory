@@ -25,6 +25,8 @@ export function createTopologyRenderer({ state, caches, actions }) {
     let activeGraphRef = null;
     let simulationBounds = { width: 1200, height: 700 };
     let simulationTickCount = 0;
+    let ringAssignments = new Map();
+    let ringRadii = new Map();
 
     function relationEmoji(relationshipType) {
         const entry = (state.data.typeLists.relationshipTypes || []).find(
@@ -45,6 +47,95 @@ export function createTopologyRenderer({ state, caches, actions }) {
             hash |= 0;
         }
         return Math.abs(hash);
+    }
+
+    function getUserNodeId() {
+        const mePersonId = Number(state.data.userSettings?.me_person_id || 0);
+        return mePersonId > 0 ? `person:${mePersonId}` : null;
+    }
+
+    function computeRingAssignments(nodes, edges) {
+        const userNodeId = getUserNodeId();
+
+        // Build undirected adjacency from all graph edges so any traversed
+        // node/entity counts as one hop in ring distance.
+        const adjacency = new Map();
+        nodes.forEach((node) => {
+            adjacency.set(node.id, []);
+        });
+        edges.forEach((edge) => {
+            const sourceNeighbors = adjacency.get(edge.source);
+            const targetNeighbors = adjacency.get(edge.target);
+            if (!sourceNeighbors || !targetNeighbors) {
+                return;
+            }
+            sourceNeighbors.push(edge.target);
+            targetNeighbors.push(edge.source);
+        });
+
+        const assignments = new Map();
+
+        // BFS from user node to assign ring depths
+        if (userNodeId && adjacency.has(userNodeId)) {
+            const queue = [userNodeId];
+            assignments.set(userNodeId, 0);
+            let head = 0;
+            while (head < queue.length) {
+                const current = queue[head];
+                head += 1;
+                const currentRing = assignments.get(current);
+                (adjacency.get(current) || []).forEach((neighbor) => {
+                    if (!assignments.has(neighbor)) {
+                        assignments.set(neighbor, currentRing + 1);
+                        queue.push(neighbor);
+                    }
+                });
+            }
+        }
+
+        // Find the maximum ring reached by BFS
+        let maxRing = 0;
+        nodes.forEach((node) => {
+            if (assignments.has(node.id)) {
+                maxRing = Math.max(maxRing, assignments.get(node.id));
+            }
+        });
+
+        // Nodes not reachable from user go to the outermost ring + 1
+        nodes.forEach((node) => {
+            if (!assignments.has(node.id)) {
+                assignments.set(node.id, maxRing + 1);
+            }
+        });
+
+        return assignments;
+    }
+
+    // Compute the pixel radius for each ring so nodes fit with ~3 node-widths of
+    // arc spacing between them.  Each ring is at least minRingGap pixels further
+    // out than the previous one.
+    function computeRingRadii(ringGroups) {
+        const nodeArcSpace = 90; // arc length reserved per node (~3 x node diameter)
+        const firstRingArcSpace = 68;
+        const minRingGap = 70;   // minimum radial gap between adjacent rings
+        const firstRingMinRadius = 52;
+
+        const radii = new Map([[0, 0]]);
+        const sortedRings = [...ringGroups.keys()].filter((r) => r > 0).sort((a, b) => a - b);
+
+        let prevRadius = 0;
+        sortedRings.forEach((ring) => {
+            const count = (ringGroups.get(ring) || []).length;
+            const ringArcSpace = ring === 1 ? firstRingArcSpace : nodeArcSpace;
+            const radiusForDensity = count > 0 ? (count * ringArcSpace) / (2 * Math.PI) : 0;
+            const radius = ring === 1
+                ? Math.max(firstRingMinRadius, radiusForDensity)
+                : Math.max(prevRadius + minRingGap, radiusForDensity);
+            radii.set(ring, radius);
+            prevRadius = radius;
+        });
+
+        return radii;
     }
 
     function getNodeRadius(node) {
@@ -534,25 +625,73 @@ export function createTopologyRenderer({ state, caches, actions }) {
     }
 
     function ensurePosition(node, width, height) {
-        if (!positions.has(node.id)) {
-            const seed = hashString(node.id);
-            const angle = ((seed % 360) / 360) * Math.PI * 2;
-            const outwardBias = 1 - (node.normalizedConnectionCount || 0);
-            const innerRadius = node.entity === "circle"
-                ? Math.min(width, height) * 0.14
-                : Math.min(width, height) * 0.1;
-            const outerRadius = node.entity === "circle"
-                ? Math.min(width, height) * 0.34
-                : Math.min(width, height) * 0.42;
-            const radius = innerRadius + ((outerRadius - innerRadius) * outwardBias);
-            const jitterRadius = Math.max(8, radius * 0.08);
-            const jitterAngle = ((((Math.floor(seed / 360)) % 360) / 360) * Math.PI * 2);
-            positions.set(node.id, {
-                x: (width * 0.5) + (Math.cos(angle) * radius) + (Math.cos(jitterAngle) * jitterRadius),
-                y: (height * 0.5) + (Math.sin(angle) * radius) + (Math.sin(jitterAngle) * jitterRadius),
-            });
-            velocities.set(node.id, { x: 0, y: 0 });
+        if (positions.has(node.id)) {
+            return;
         }
+        const userNodeId = getUserNodeId();
+        const cx = width * 0.5;
+        const cy = height * 0.5;
+        const ring = ringAssignments.get(node.id) ?? 1;
+
+        if (node.id === userNodeId || ring === 0) {
+            positions.set(node.id, { x: cx, y: cy });
+            velocities.set(node.id, { x: 0, y: 0 });
+            return;
+        }
+
+        const ringRadius = ringRadii.get(ring) ?? ring * 90;
+        const seed = hashString(node.id);
+        const angle = ((seed % 1000) / 1000) * Math.PI * 2;
+        positions.set(node.id, {
+            x: cx + Math.cos(angle) * ringRadius,
+            y: cy + Math.sin(angle) * ringRadius,
+        });
+        velocities.set(node.id, { x: 0, y: 0 });
+    }
+
+    function seedRingPositions(nodes, width, height) {
+        const cx = width * 0.5;
+        const cy = height * 0.5;
+
+        // Group nodes by ring
+        const ringGroups = new Map();
+        nodes.forEach((node) => {
+            const ring = ringAssignments.get(node.id) ?? 1;
+            if (!ringGroups.has(ring)) {
+                ringGroups.set(ring, []);
+            }
+            ringGroups.get(ring).push(node);
+        });
+
+        // Compute adaptive ring radii based on node density per ring
+        ringRadii = computeRingRadii(ringGroups);
+
+        ringGroups.forEach((ringNodes, ring) => {
+            // Ring 0: user node pinned at center
+            if (ring === 0) {
+                ringNodes.forEach((node) => {
+                    positions.set(node.id, { x: cx, y: cy });
+                    velocities.set(node.id, { x: 0, y: 0 });
+                });
+                return;
+            }
+
+            const ringRadius = ringRadii.get(ring) ?? ring * 90;
+            const count = ringNodes.length;
+            const angleStep = (Math.PI * 2) / Math.max(1, count);
+            const startAngle = ((hashString(`ring-start-${ring}`) % 1000) / 1000) * Math.PI * 2;
+
+            // Sort deterministically within each ring
+            const sortedNodes = [...ringNodes].sort((a, b) => hashString(a.id) - hashString(b.id));
+            sortedNodes.forEach((node, index) => {
+                const angle = startAngle + index * angleStep;
+                positions.set(node.id, {
+                    x: cx + Math.cos(angle) * ringRadius,
+                    y: cy + Math.sin(angle) * ringRadius,
+                });
+                velocities.set(node.id, { x: 0, y: 0 });
+            });
+        });
     }
 
     function stepSimulation(nodes, edges, width, height) {
@@ -617,12 +756,17 @@ export function createTopologyRenderer({ state, caches, actions }) {
             const dy = posB.y - posA.y;
             const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
             let targetDist = 120;
+            let springStrength = spring;
             if (edge.type === "affiliation") {
                 targetDist = 165;
+                springStrength = spring * 0.82;
             } else if (edge.type === "membership") {
                 targetDist = 175;
+                // Membership links should suggest affinity without collapsing the
+                // person ring toward social-circle nodes.
+                springStrength = spring * 0.22;
             }
-            const force = (dist - targetDist) * spring;
+            const force = (dist - targetDist) * springStrength;
             const fx = (dx / dist) * force;
             const fy = (dy / dist) * force;
 
@@ -630,30 +774,10 @@ export function createTopologyRenderer({ state, caches, actions }) {
             velA.y += fy;
             velB.x -= fx;
             velB.y -= fy;
-
-            if (edge.type === "membership") {
-                const sourceNode = nodes.find((node) => node.id === edge.source);
-                const targetNode = nodes.find((node) => node.id === edge.target);
-                const circleNode = sourceNode?.entity === "circle" ? sourceNode : targetNode?.entity === "circle" ? targetNode : null;
-                const personNode = sourceNode?.entity === "person" ? sourceNode : targetNode?.entity === "person" ? targetNode : null;
-                if (circleNode && personNode) {
-                    const circlePos = positions.get(circleNode.id);
-                    const personPos = positions.get(personNode.id);
-                    const personVel = velocities.get(personNode.id);
-                    if (circlePos && personPos && personVel) {
-                        const membershipSeed = hashString(`${circleNode.id}:${personNode.id}`);
-                        const orbitAngle = (membershipSeed % 360) * (Math.PI / 180);
-                        const orbitRadius = 110;
-                        const anchorX = circlePos.x + (Math.cos(orbitAngle) * orbitRadius);
-                        const anchorY = circlePos.y + (Math.sin(orbitAngle) * orbitRadius);
-                        personVel.x += (anchorX - personPos.x) * 0.0025;
-                        personVel.y += (anchorY - personPos.y) * 0.0025;
-                    }
-                }
-            }
         });
 
         let kineticEnergy = 0;
+        const userNodeId = getUserNodeId();
         nodes.forEach((node) => {
             const pos = positions.get(node.id);
             const vel = velocities.get(node.id);
@@ -662,18 +786,42 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 vel.y = 0;
                 return;
             }
-            const connectionBias = node.normalizedConnectionCount || 0;
-            const nodeCenterPull = centerPull * (0.35 + (connectionBias * 1.25));
 
-            vel.x += (width * 0.5 - pos.x) * nodeCenterPull;
-            vel.y += (height * 0.5 - pos.y) * nodeCenterPull;
+            // User node is permanently pinned at the center
+            if (node.id === userNodeId) {
+                pos.x = width * 0.5;
+                pos.y = height * 0.5;
+                vel.x = 0;
+                vel.y = 0;
+                return;
+            }
+
+            // Ring-restoring force: gently pull each node toward its assigned ring radius
+            const ring = ringAssignments.get(node.id);
+            if (ring !== undefined && ring > 0) {
+                const targetRadius = ringRadii.get(ring) ?? ring * 90;
+                const dx = pos.x - width * 0.5;
+                const dy = pos.y - height * 0.5;
+                const currentDist = Math.max(Math.sqrt((dx * dx) + (dy * dy)), 1);
+                const radialError = currentDist - targetRadius;
+                let ringPull = 0.014;
+                if (node.entity === "person") {
+                    ringPull = ring === 1 ? 0.045 : 0.026;
+                }
+                vel.x -= (dx / currentDist) * radialError * ringPull;
+                vel.y -= (dy / currentDist) * radialError * ringPull;
+            } else {
+                // Fallback center pull for nodes without a ring assignment
+                vel.x += (width * 0.5 - pos.x) * centerPull;
+                vel.y += (height * 0.5 - pos.y) * centerPull;
+            }
 
             vel.x *= damping;
             vel.y *= damping;
 
             pos.x = Math.min(width - boundaryPadding, Math.max(boundaryPadding, pos.x + vel.x));
             pos.y = Math.min(height - boundaryPadding, Math.max(boundaryPadding, pos.y + vel.y));
-            
+
             kineticEnergy += vel.x * vel.x + vel.y * vel.y;
         });
 
@@ -733,6 +881,8 @@ export function createTopologyRenderer({ state, caches, actions }) {
             positions.clear();
             velocities.clear();
             lastLayoutSignature = nextLayoutSignature;
+            ringAssignments = computeRingAssignments(graph.nodes, graph.edges);
+            seedRingPositions(graph.nodes, width, height);
         }
 
         const renderFrame = () => {
