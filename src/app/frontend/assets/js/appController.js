@@ -16,6 +16,14 @@ export function createAppController() {
         tags: "tagId",
         locations: "locationId",
     };
+    const DETAIL_PANEL_BY_SECTION = {
+        people: "person-detail-panel",
+        circles: "circle-detail-panel",
+        brands: "brand-detail-panel",
+        events: "event-detail-panel",
+        tags: "tag-detail-panel",
+        locations: "location-detail-panel",
+    };
 
     const refs = {
         authPanel: getNodeById("auth-panel"),
@@ -23,11 +31,13 @@ export function createAppController() {
         openidLoginButton: getNodeById("openid-login-button"),
         contentPanel: getNodeById("content-panel"),
         navigationPanel: getNodeById("navigation-panel"),
+        navCollapseToggle: getNodeById("nav-collapse-toggle"),
         userEmail: getNodeById("user-email"),
         logoutButton: getNodeById("logout-button"),
         toast: getNodeById("toast"),
         apiStatus: getNodeById("api-status"),
     };
+    const collapsibleNavigationMediaQuery = window.matchMedia("(max-width: 720px)");
 
     const caches = {
         personContacts: new Map(),
@@ -64,6 +74,7 @@ export function createAppController() {
 
     let backgroundRefreshTimerId = null;
     let isApplyingLocationState = false;
+    let pendingViewportJumpSection = null;
     const inFlightEntityDetails = {
         circle: new Map(),
         brand: new Map(),
@@ -195,6 +206,29 @@ export function createAppController() {
         Object.keys(state.sidebar).forEach((section) => {
             state.sidebar[section] = "hidden";
         });
+    }
+
+    function setNavigationCollapsed(collapsed) {
+        if (!refs.navigationPanel || !refs.navCollapseToggle) {
+            return;
+        }
+
+        const shouldCollapse = collapsibleNavigationMediaQuery.matches ? Boolean(collapsed) : false;
+        refs.navigationPanel.classList.toggle("nav-panel--collapsed", shouldCollapse);
+        refs.navCollapseToggle.setAttribute("aria-expanded", String(!shouldCollapse));
+        refs.navCollapseToggle.innerText = shouldCollapse ? "Show navigation" : "Hide navigation";
+    }
+
+    function syncNavigationCollapseForViewport() {
+        if (!collapsibleNavigationMediaQuery.matches) {
+            setNavigationCollapsed(false);
+            return;
+        }
+        if (!refs.navigationPanel.classList.contains("nav-panel--collapsed")) {
+            setNavigationCollapsed(true);
+            return;
+        }
+        setNavigationCollapsed(true);
     }
 
     function applyHashToState() {
@@ -388,6 +422,35 @@ export function createAppController() {
         }, 2600);
     }
 
+    function requestViewportJump(section) {
+        pendingViewportJumpSection = section;
+    }
+
+    function flushViewportJump() {
+        const section = pendingViewportJumpSection;
+        pendingViewportJumpSection = null;
+        if (!section || !window.matchMedia("(max-width: 1100px)").matches) {
+            return false;
+        }
+
+        const detailPanelId = DETAIL_PANEL_BY_SECTION[section];
+        if (!detailPanelId) {
+            return false;
+        }
+
+        const detailPanelNode = document.getElementById(detailPanelId);
+        if (!detailPanelNode || detailPanelNode.classList.contains("hidden")) {
+            return false;
+        }
+
+        detailPanelNode.scrollIntoView({
+            behavior: "auto",
+            block: "start",
+            inline: "nearest",
+        });
+        return true;
+    }
+
     function setApiStatus(message, healthy = true) {
         refs.apiStatus.innerText = message;
         refs.apiStatus.style.borderColor = healthy
@@ -395,12 +458,29 @@ export function createAppController() {
             : "var(--status-error-line)";
     }
 
-    async function withAction(action, options = { render: true }) {
+    async function withAction(action, options = {}) {
+        const resolvedOptions = {
+            render: true,
+            ...options,
+        };
+        const activeSidebarState = state.sidebar[state.activeSection];
+        const shouldPreserveViewport = resolvedOptions.preserveViewport ?? activeSidebarState === "detail";
+        const viewportBeforeAction = shouldPreserveViewport
+            ? { left: window.scrollX, top: window.scrollY }
+            : null;
         try {
             await action();
-            if (options.render) {
+            if (resolvedOptions.render) {
                 renderer.renderAll();
                 writeHashFromState();
+                const didJump = flushViewportJump();
+                if (viewportBeforeAction && !didJump) {
+                    window.scrollTo({
+                        left: viewportBeforeAction.left,
+                        top: viewportBeforeAction.top,
+                        behavior: "auto",
+                    });
+                }
             }
         } catch (error) {
             if (error?.code === "AUTH_EXPIRED") {
@@ -1251,8 +1331,18 @@ export function createAppController() {
                 renderer.setAuthShell();
                 renderer.renderAll();
                 writeHashFromState();
+                if (collapsibleNavigationMediaQuery.matches) {
+                    setNavigationCollapsed(true);
+                }
             });
         });
+
+        if (refs.navCollapseToggle) {
+            refs.navCollapseToggle.addEventListener("click", () => {
+                const isCollapsed = refs.navigationPanel.classList.contains("nav-panel--collapsed");
+                setNavigationCollapsed(!isCollapsed);
+            });
+        }
 
         document.querySelectorAll("[data-new-section]").forEach((button) => {
             button.addEventListener("click", () => {
@@ -1494,6 +1584,7 @@ export function createAppController() {
         selectPerson: async (personId) => withAction(async () => {
             state.selected.personId = personId;
             state.sidebar.people = "detail";
+            requestViewportJump("people");
             await loadPersonCaches(personId);
             if (hasImmichIntegrationConfigured()) {
                 await Promise.all([
@@ -1569,7 +1660,7 @@ export function createAppController() {
             await loadPeopleTagSummaries();
             await loadPersonCaches(personId);
             showToast("Person updated.");
-        }),
+        }, { preserveViewport: true }),
         addRelationship: async (payload) => withAction(async () => {
             await api.relationships.create(payload);
                 const personIdsToRefresh = new Set([
@@ -1619,6 +1710,7 @@ export function createAppController() {
         selectCircle: async (circleId) => withAction(async () => {
             state.selected.circleId = circleId;
             state.sidebar.circles = "detail";
+            requestViewportJump("circles");
             await Promise.all([
                 loadCircleMembers(circleId),
                 loadCircleLocations(circleId),
@@ -1681,10 +1773,11 @@ export function createAppController() {
                 await loadPersonCaches(state.selected.personId);
             }
             showToast("Circle updated.");
-        }),
+        }, { preserveViewport: true }),
         selectBrand: async (brandId) => withAction(async () => {
             state.selected.brandId = brandId;
             state.sidebar.brands = "detail";
+            requestViewportJump("brands");
             await Promise.all([
                 loadBrandMembers(brandId),
                 loadBrandLocations(brandId),
@@ -1716,7 +1809,7 @@ export function createAppController() {
                 await loadPersonCaches(state.selected.personId);
             }
             showToast("Brand updated.");
-        }),
+        }, { preserveViewport: true }),
         deleteBrand: async (brandId) => withAction(async () => {
             await api.brands.remove(brandId);
             if (state.selected.brandId === brandId) {
@@ -1751,6 +1844,7 @@ export function createAppController() {
         selectEvent: async (eventId) => withAction(async () => {
             state.selected.eventId = eventId;
             state.sidebar.events = "detail";
+            requestViewportJump("events");
             await Promise.all([
                 loadEventParticipants(eventId),
                 loadEventLocations(eventId),
@@ -1822,7 +1916,7 @@ export function createAppController() {
                 await loadPersonCaches(state.selected.personId);
             }
             showToast("Event updated.");
-        }),
+        }, { preserveViewport: true }),
         associateCircleToEvent: async (circleId, eventId) => withAction(async () => {
             await api.circles.associateEvent({ social_circle_id: circleId, event_id: eventId });
             await loadEventCircles(eventId);
@@ -1836,10 +1930,12 @@ export function createAppController() {
         selectTag: async (tagId) => withAction(async () => {
             state.selected.tagId = tagId;
             state.sidebar.tags = "detail";
+            requestViewportJump("tags");
         }),
         selectLocation: async (locationId) => withAction(async () => {
             state.selected.locationId = locationId;
             state.sidebar.locations = "detail";
+            requestViewportJump("locations");
             await loadLocationAssociations(locationId);
             if (hasImmichIntegrationConfigured()) {
                 await loadImmichGalleryForLocation(locationId);
@@ -1864,7 +1960,7 @@ export function createAppController() {
             await refreshBaseData();
             await refreshSelectedEntityCaches();
             showToast("Location updated.");
-        }),
+        }, { preserveViewport: true }),
         deleteLocation: async (locationId) => withAction(async () => {
             await api.locations.remove(locationId);
             if (state.selected.locationId === locationId) {
@@ -1880,11 +1976,12 @@ export function createAppController() {
             await loadPeopleTagSummaries();
             await refreshSelectedEntityCaches();
             showToast("Tag updated.");
-        }),
+        }, { preserveViewport: true }),
         openPersonFromContext: async (personId) => withAction(async () => {
             state.activeSection = "people";
             state.selected.personId = personId;
             state.sidebar.people = "detail";
+            requestViewportJump("people");
             await loadPersonCaches(personId);
             if (hasImmichIntegrationConfigured()) {
                 await Promise.all([
@@ -1901,11 +1998,13 @@ export function createAppController() {
             state.activeSection = "brands";
             state.selected.brandId = brandId;
             state.sidebar.brands = "detail";
+            requestViewportJump("brands");
         }),
         openEventFromContext: async (eventId) => withAction(async () => {
             state.activeSection = "events";
             state.selected.eventId = eventId;
             state.sidebar.events = "detail";
+            requestViewportJump("events");
             await Promise.all([
                 loadEventParticipants(eventId),
                 loadEventLocations(eventId),
@@ -1921,6 +2020,7 @@ export function createAppController() {
             state.activeSection = "tags";
             state.selected.tagId = tagId;
             state.sidebar.tags = "detail";
+            requestViewportJump("tags");
         }),
         openMapAtCoordinates: async ({ lat, lon, zoom = 16 }) => withAction(async () => {
             const nextLat = Number(lat);
@@ -1976,6 +2076,8 @@ export function createAppController() {
 
     async function init() {
         bindStaticHandlers();
+        syncNavigationCollapseForViewport();
+        collapsibleNavigationMediaQuery.addEventListener("change", syncNavigationCollapseForViewport);
         setAuthExpiredHandler(() => {
             endAuthenticatedSession("Session expired. Please sign in again.", true);
         });

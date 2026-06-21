@@ -426,6 +426,10 @@ select {
     gap: 10px;
 }
 
+.nav-collapse-toggle {
+    display: none;
+}
+
 .primary-button,
 .danger-button,
 .secondary-button,
@@ -1458,9 +1462,12 @@ img.dashboard-avatar {
     .layout,
     .workspace-grid,
     .split-grid,
-    .metric-grid,
-    .nav-tabs {
+    .metric-grid {
         grid-template-columns: 1fr;
+    }
+
+    .nav-tabs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .types-grid {
@@ -1479,6 +1486,24 @@ img.dashboard-avatar {
 @media (max-width: 720px) {
     .app-shell {
         padding: 16px;
+    }
+
+    .nav-panel {
+        display: grid;
+        gap: 10px;
+    }
+
+    .nav-collapse-toggle {
+        display: inline-flex;
+        justify-content: center;
+    }
+
+    .nav-panel.nav-panel--collapsed .nav-tabs {
+        display: none;
+    }
+
+    .nav-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .panel {
