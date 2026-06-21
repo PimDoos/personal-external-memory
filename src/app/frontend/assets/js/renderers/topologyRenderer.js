@@ -69,7 +69,12 @@ export function createTopologyRenderer({ state, caches, actions }) {
         if (!Number.isInteger(identityId) || identityId <= 0) {
             return;
         }
-        if (caches.immichFaceAvatarBlobUrls.get(identityId) || pendingFaceImageLoads.has(identityId) || !actions?.resolveImmichFaceImageUrl) {
+        if (
+            caches.immichFaceAvatarBlobUrls.get(identityId)
+            || caches.immichFaceAvatarFailedIdentityIds?.has(identityId)
+            || pendingFaceImageLoads.has(identityId)
+            || !actions?.resolveImmichFaceImageUrl
+        ) {
             return;
         }
 
