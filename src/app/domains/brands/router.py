@@ -45,7 +45,7 @@ async def get_brand(
 async def list_brands(
     current_user: CurrentUser,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int | None = Query(None, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
 ) -> list[BrandListResponse]:
     """List all brands for current user."""
