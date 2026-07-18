@@ -199,6 +199,50 @@ class EventParticipantService:
         participant.role = role
         await self.session.flush()
         return participant
+
+    async def add_participants_to_event(
+        self, event_id: int, person_ids: list[int], user_id: int, role: str | None = None
+    ) -> list[EventParticipant]:
+        """Add multiple people as participants to an event, skipping duplicates."""
+        role = await self._validate_event_participant_role(role, user_id)
+        # Verify event ownership
+        stmt = select(Event).where((Event.id == event_id) & (Event.user_id == user_id))
+        result = await self.session.execute(stmt)
+        if not result.scalar_one_or_none():
+            raise NotFoundError("Event not found")
+
+        # Get existing participants for this event
+        stmt = select(EventParticipant.person_id).where(
+            EventParticipant.event_id == event_id
+        )
+        result = await self.session.execute(stmt)
+        existing_person_ids = set(row[0] for row in result.fetchall())
+
+        # Verify all people exist and belong to user
+        stmt = select(Person.id).where(
+            (Person.id.in_(person_ids)) & (Person.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        valid_person_ids = set(row[0] for row in result.fetchall())
+
+        if len(valid_person_ids) != len(set(person_ids)):
+            # Some people don't exist or don't belong to user - raise error
+            raise NotFoundError("One or more people not found")
+
+        # Add participants, skipping those already in the event
+        participants = []
+        for person_id in person_ids:
+            if person_id not in existing_person_ids:
+                participant = EventParticipant(
+                    event_id=event_id, person_id=person_id, role=role
+                )
+                self.session.add(participant)
+                participants.append(participant)
+
+        await self.session.flush()
+        return participants
+
+
 class BrandAssociationService:
     """Service for managing brand associations with people."""
 

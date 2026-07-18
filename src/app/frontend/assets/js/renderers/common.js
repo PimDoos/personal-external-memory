@@ -2,7 +2,7 @@ import { clearNodeChildren, createEmptyStateNode, createNode } from "../dom.js";
 import { formatDateTime } from "../ui.js";
 import { createPersonAvatar } from "../avatar.js";
 
-export function createRenderCommon({ state, refs, caches, actions }) {
+export function createRenderCommon({ state, refs, caches, actions, isPersonAliveAtDate }) {
     function filtered(section, items, ...extractors) {
         const needle = (state.filters[section] || "").trim().toLowerCase();
         if (!needle) {
@@ -191,5 +191,6 @@ export function createRenderCommon({ state, refs, caches, actions }) {
         createMetricCard,
         createListItem,
         createEventCard,
+        isPersonAliveAtDate,
     };
 }

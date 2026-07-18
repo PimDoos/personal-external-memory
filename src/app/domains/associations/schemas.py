@@ -43,6 +43,14 @@ class EventParticipantResponse(BaseModel):
         from_attributes = True
 
 
+class BulkEventParticipantRequest(BaseModel):
+    """Bulk add participants to an event."""
+
+    event_id: int
+    person_ids: list[int]
+    role: str | None = None  # host, guest, organizer, etc.
+
+
 class BrandAssociationRequest(BaseModel):
     """Add/remove member from brand."""
 

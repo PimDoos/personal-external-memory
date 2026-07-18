@@ -204,6 +204,7 @@ export const api = {
         update: (id, data) => request(`/api/events/${id}`, { method: "PUT", ...jsonBody(data) }),
         remove: (id) => request(`/api/events/${id}`, { method: "DELETE" }),
         addParticipant: (data) => request("/api/associations/event-participants", { method: "POST", ...jsonBody(data) }),
+        addParticipantsBulk: (data) => request("/api/associations/event-participants/bulk", { method: "POST", ...jsonBody(data) }),
         updateParticipantRole: (eventId, personId, role) => request(`/api/associations/event-participants/${eventId}/${personId}/role?role=${encodeURIComponent(role)}`, { method: "PUT" }),
         removeParticipant: (eventId, personId) => request(`/api/associations/event-participants/${eventId}/${personId}`, { method: "DELETE" }),
     },

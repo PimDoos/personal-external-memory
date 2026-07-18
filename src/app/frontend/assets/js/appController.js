@@ -1177,6 +1177,25 @@ export function createAppController() {
         }
     }
 
+    function isPersonAliveAtDate(person, date) {
+        // Returns true if person was alive at the given date
+        if (!date) return true; // If no date specified, assume alive
+        
+        // Parse event date
+        const eventDate = new Date(date);
+        if (isNaN(eventDate.getTime())) return true; // Invalid date, assume alive
+        
+        // Parse birth and death dates
+        const birthDate = person.birth_date ? new Date(person.birth_date) : null;
+        const deathDate = person.date_of_death ? new Date(person.date_of_death) : null;
+        
+        // If born after event, not alive yet
+        if (birthDate && birthDate > eventDate) return false;
+        // If died on or before event, not alive
+        if (deathDate && deathDate <= eventDate) return false;
+        return true;
+    }
+
     async function loadEventParticipants(eventId) {
         await loadEventDetail(eventId);
     }
@@ -2010,6 +2029,15 @@ export function createAppController() {
             await loadEventLocations(eventId);
             showToast("Participant added.");
         }),
+        addEventParticipantsBulk: async (eventId, personIds, role) => withAction(async () => {
+            await api.events.addParticipantsBulk({ event_id: eventId, person_ids: personIds, role });
+            if (state.selected.personId) {
+                await loadPersonCaches(state.selected.personId);
+            }
+            await refreshTopologyData();
+            await loadEventLocations(eventId);
+            showToast(`${personIds.length} participant${personIds.length !== 1 ? 's' : ''} added.`);
+        }),
         changeEventRole: async (eventId, personId, role) => withAction(async () => {
             await api.events.updateParticipantRole(eventId, personId, role);
             await loadEventLocations(eventId);
@@ -2262,6 +2290,8 @@ export function createAppController() {
         refs,
         caches,
         actions,
+        isPersonAliveAtDate,
+        showToast,
     });
 
     async function init() {

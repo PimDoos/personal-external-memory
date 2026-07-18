@@ -10,6 +10,7 @@ from app.domains.associations.schemas import (
     CircleEventResponse,
     EventParticipantRequest,
     EventParticipantResponse,
+    BulkEventParticipantRequest,
     BrandAssociationRequest,
     BrandAssociationResponse,
 )
@@ -104,6 +105,21 @@ async def update_event_participant_role(
     )
     await db.commit()
     return participant
+
+
+@router.post("/event-participants/bulk", response_model=list[EventParticipantResponse])
+async def add_participants_bulk_to_event(
+    request: BulkEventParticipantRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[EventParticipantResponse]:
+    """Add multiple people as participants to an event."""
+    service = EventParticipantService(db)
+    participants = await service.add_participants_to_event(
+        request.event_id, request.person_ids, current_user.id, request.role
+    )
+    await db.commit()
+    return participants
 
 
 # ===== Brand Associations =====

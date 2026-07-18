@@ -18,9 +18,10 @@ export function createRenderer(ctx) {
         refs,
         caches,
         actions,
+        isPersonAliveAtDate,
     } = ctx;
 
-    const common = createRenderCommon({ state, refs, caches, actions });
+    const common = createRenderCommon({ state, refs, caches, actions, isPersonAliveAtDate });
 
     const { renderDashboard } = createDashboardRenderer({ state, caches, actions, common });
     const { renderPeople } = createPeopleRenderer({ state, caches, actions, common });

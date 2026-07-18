@@ -4,7 +4,7 @@ import { createCombobox } from "../combobox.js";
 import { createPersonAvatar } from "../avatar.js";
 
 export function createEventsRenderer({ state, caches, actions, common }) {
-    const { filtered, nameOfPerson, selectedEvent, createListItem, renderSimpleList } = common;
+    const { filtered, nameOfPerson, selectedEvent, createListItem, renderSimpleList, isPersonAliveAtDate } = common;
 
     function hasImmichIntegrationConfigured() {
         const settings = state.data.userSettings || {};
@@ -527,6 +527,25 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             associatedCircles,
             (circle) => {
                 const actionsNode = createNode("div", { className: "list-actions" });
+                const circleMembers = caches.circleMembers.get(circle.id) || [];
+                // Filter members to only those who were alive at the event time
+                const eventStartTime = event.start_time || event.date;
+                const aliveMembers = circleMembers.filter((personId) => {
+                    const person = state.data.people.find((p) => p.id === personId);
+                    return person && isPersonAliveAtDate(person, eventStartTime);
+                });
+                const addMembersButton = createButtonNode("+ Add members as participant", "secondary-button", async () => {
+                    if (aliveMembers.length > 0) {
+                        await actions.addEventParticipantsBulk(event.id, aliveMembers, undefined);
+                    } else if (circleMembers.length > 0) {
+                        // Some members exist but are not alive at event time
+                        showToast("No members were alive at the event start time.");
+                    } else {
+                        // No members in circle at all
+                        showToast("This circle has no members.");
+                    }
+                });
+                actionsNode.appendChild(addMembersButton);
                 actionsNode.appendChild(createButtonNode("Remove", "danger-button", async () => {
                     await actions.removeCircleFromEvent(circle.id, event.id);
                 }));
