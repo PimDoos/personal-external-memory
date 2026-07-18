@@ -413,11 +413,20 @@ export function createEventsRenderer({ state, caches, actions, common }) {
 
         const options = availablePeople.map((person) => ({ value: person.id, label: nameOfPerson(person.id) }));
 
-        const personSelect = createCombobox(options, "", {
+        // Prefill the combobox with the person representing the current user
+        // if one is configured and that person is not already a participant.
+        const mePersonId = state.data.userSettings?.me_person_id || null;
+        const initialPersonValue = (mePersonId && availablePeople.some((p) => p.id === mePersonId)) ? mePersonId : "";
+        const personSelect = createCombobox(options, initialPersonValue, {
             name: "person_id",
             placeholder: availablePeople.length ? "Search people…" : "No available people",
             disabled: !availablePeople.length,
         });
+        // Ensure form.reset() will return to the initial prefilling value
+        if (initialPersonValue) {
+            const hidden = personSelect.querySelector("input[type=hidden]");
+            if (hidden) hidden.defaultValue = String(initialPersonValue);
+        }
         const roleOptions = [{ value: "", label: "No role" }]
             .concat((state.data.typeLists.eventParticipantRoleTypes || []).map((entry) => ({ value: entry.name, label: entry.name })));
         const roleInput = createSelectNode(roleOptions, "", { name: "role" });
