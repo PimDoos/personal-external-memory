@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import parse_qs, quote_plus, unquote_plus, urlencode, urlparse
 from urllib.error import HTTPError, URLError
@@ -323,8 +323,8 @@ class ImmichService:
         payload = {
             "page": 1,
             "size": max(1, min(limit, 200)),
-            "takenAfter": start.isoformat(),
-            "takenBefore": end.isoformat(),
+            "takenAfter": self._format_iso_datetime(start),
+            "takenBefore": self._format_iso_datetime(end),
             "withArchived": False,
         }
         search_response = await self._request_json(base_url, api_key, "POST", "/api/search/metadata", payload)
@@ -371,8 +371,8 @@ class ImmichService:
             payload = {
                 "page": 1,
                 "size": max(1, min(limit, 200)),
-                "takenAfter": start.isoformat(),
-                "takenBefore": end.isoformat(),
+                "takenAfter": self._format_iso_datetime(start),
+                "takenBefore": self._format_iso_datetime(end),
                 "withExif": True,
                 "withArchived": False,
             }
@@ -407,6 +407,17 @@ class ImmichService:
         if end < start:
             start, end = end, start
         return start, end
+
+    def _format_iso_datetime(self, dt: datetime) -> str:
+        """Return an ISO 8601 string for `dt` with UTC timezone (ending with 'Z')."""
+        if dt is None:
+            return ""
+        # If naive, assume UTC to produce a trailing Z; if tz-aware, convert to UTC.
+        if dt.tzinfo is None:
+            dt_utc = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt_utc = dt.astimezone(timezone.utc)
+        return dt_utc.isoformat().replace("+00:00", "Z")
 
     def _extract_location_coordinates(self, location: Location) -> tuple[float, float] | None:
         lat = location.latitude
