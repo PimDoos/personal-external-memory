@@ -257,15 +257,12 @@ class PersonService:
         }
 
     async def list_people_with_related(
-        self, user_id: int, skip: int = 0, limit: int = 100
+        self, user_id: int, skip: int = 0, limit: int | None = None
     ) -> list[PersonListResponse]:
         """List people with related summary payloads for list rendering."""
-        stmt = (
-            select(Person)
-            .where(Person.user_id == user_id)
-            .offset(skip)
-            .limit(limit)
-        )
+        stmt = select(Person).where(Person.user_id == user_id).offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         people = (await self.session.execute(stmt)).scalars().all()
         person_ids = [person.id for person in people]
         related_maps = await self._build_related_maps(person_ids, user_id)

@@ -117,17 +117,13 @@ class SocialCircleService:
         }
 
     async def list_with_related(
-        self, user_id: int, skip: int = 0, limit: int = 100
+        self, user_id: int, skip: int = 0, limit: int | None = None
     ) -> list[SocialCircleListResponse]:
         """List social circles with summary associations."""
-        circles = (
-            await self.session.execute(
-                select(SocialCircle)
-                .where(SocialCircle.user_id == user_id)
-                .offset(skip)
-                .limit(limit)
-            )
-        ).scalars().all()
+        stmt = select(SocialCircle).where(SocialCircle.user_id == user_id).offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        circles = (await self.session.execute(stmt)).scalars().all()
         circle_ids = [circle.id for circle in circles]
         maps = await self._related_maps(circle_ids)
 

@@ -93,16 +93,12 @@ class BrandService:
 
         return {"members": members, "location_ids": location_ids}
 
-    async def list_with_related(self, user_id: int, skip: int = 0, limit: int = 100) -> list[BrandListResponse]:
+    async def list_with_related(self, user_id: int, skip: int = 0, limit: int | None = None) -> list[BrandListResponse]:
         """List brands with related summaries."""
-        brands = (
-            await self.session.execute(
-                select(Brand)
-                .where(Brand.user_id == user_id)
-                .offset(skip)
-                .limit(limit)
-            )
-        ).scalars().all()
+        stmt = select(Brand).where(Brand.user_id == user_id).offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        brands = (await self.session.execute(stmt)).scalars().all()
         brand_ids = [brand.id for brand in brands]
         maps = await self._related_maps(brand_ids)
 

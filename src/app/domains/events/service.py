@@ -107,16 +107,12 @@ class EventService:
 
         return {"participants": participants, "circle_ids": circle_ids, "location_ids": location_ids}
 
-    async def list_with_related(self, user_id: int, skip: int = 0, limit: int = 100) -> list[EventListResponse]:
+    async def list_with_related(self, user_id: int, skip: int = 0, limit: int | None = None) -> list[EventListResponse]:
         """List events with related summaries."""
-        events = (
-            await self.session.execute(
-                select(Event)
-                .where(Event.user_id == user_id)
-                .offset(skip)
-                .limit(limit)
-            )
-        ).scalars().all()
+        stmt = select(Event).where(Event.user_id == user_id).offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        events = (await self.session.execute(stmt)).scalars().all()
         event_ids = [event.id for event in events]
         maps = await self._related_maps(event_ids)
 
