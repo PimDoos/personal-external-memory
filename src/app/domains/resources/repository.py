@@ -15,7 +15,7 @@ class ResourceRepository(BaseRepository[Resource]):
         super().__init__(session, Resource)
 
     async def list_by_entity(
-        self, entity_type: str, entity_id: int, skip: int = 0, limit: int = 100
+        self, entity_type: str, entity_id: int, skip: int = 0, limit: int | None = None
     ) -> list[Resource]:
         """List all resources for an entity."""
         stmt = (
@@ -25,7 +25,8 @@ class ResourceRepository(BaseRepository[Resource]):
                 & (self.model.entity_id == entity_id)
             )
             .offset(skip)
-            .limit(limit)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()

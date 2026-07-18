@@ -18,7 +18,7 @@ class PersonRepository(BaseRepository[Person]):
         """
         super().__init__(session, Person)
 
-    async def list_by_user(self, user_id: int, skip: int = 0, limit: int = 100) -> list[Person]:
+    async def list_by_user(self, user_id: int, skip: int = 0, limit: int | None = None) -> list[Person]:
         """List all people for a user.
         
         Args:
@@ -29,11 +29,8 @@ class PersonRepository(BaseRepository[Person]):
         Returns:
             List of people
         """
-        stmt = (
-            select(self.model)
-            .where(self.model.user_id == user_id)
-            .offset(skip)
-            .limit(limit)
-        )
+        stmt = select(self.model).where(self.model.user_id == user_id).offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()

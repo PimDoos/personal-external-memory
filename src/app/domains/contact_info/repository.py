@@ -15,15 +15,12 @@ class ContactInfoRepository(BaseRepository[ContactInfo]):
         super().__init__(session, ContactInfo)
 
     async def list_by_person(
-        self, person_id: int, skip: int = 0, limit: int = 100
+        self, person_id: int, skip: int = 0, limit: int | None = None
     ) -> list[ContactInfo]:
         """List all contact info for a person."""
-        stmt = (
-            select(self.model)
-            .where(self.model.person_id == person_id)
-            .offset(skip)
-            .limit(limit)
-        )
+        stmt = select(self.model).where(self.model.person_id == person_id).offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 

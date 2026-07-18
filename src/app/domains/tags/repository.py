@@ -14,14 +14,11 @@ class TagRepository(BaseRepository[Tag]):
         """Initialize tag repository."""
         super().__init__(session, Tag)
 
-    async def list_by_user(self, user_id: int, skip: int = 0, limit: int = 100) -> list[Tag]:
+    async def list_by_user(self, user_id: int, skip: int = 0, limit: int | None = None) -> list[Tag]:
         """List all tags for a user."""
-        stmt = (
-            select(self.model)
-            .where(self.model.user_id == user_id)
-            .offset(skip)
-            .limit(limit)
-        )
+        stmt = select(self.model).where(self.model.user_id == user_id).offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 

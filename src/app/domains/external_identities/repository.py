@@ -15,16 +15,17 @@ class ExternalIdentityRepository(BaseRepository[ExternalIdentity]):
         super().__init__(session, ExternalIdentity)
 
     async def list_by_user(
-        self, user_id: int, skip: int = 0, limit: int = 100
+        self, user_id: int, skip: int = 0, limit: int | None = None
     ) -> list[ExternalIdentity]:
         """List external identities for a user."""
         stmt = (
             select(self.model)
             .where(self.model.user_id == user_id)
             .offset(skip)
-            .limit(limit)
             .order_by(self.model.source.asc(), self.model.display_name.asc())
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
