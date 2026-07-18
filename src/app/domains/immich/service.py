@@ -640,9 +640,25 @@ class ImmichService:
         if not isinstance(assets, dict):
             return []
         items = assets.get("items")
-        if isinstance(items, list):
-            return [item for item in items if isinstance(item, dict)]
-        return []
+        if not isinstance(items, list):
+            return []
+
+        filtered: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+
+            # Exclude all VIDEO assets from gallery results (motion photos and videos).
+            item_type = (item.get("type") or "")
+            try:
+                if str(item_type).upper() == "VIDEO":
+                    continue
+            except Exception:
+                pass
+
+            filtered.append(item)
+
+        return filtered
 
     def _to_asset_response(self, base_url: str, item: dict[str, Any]) -> ImmichAssetResponse:
         raw_asset_id = item.get("id")
