@@ -704,7 +704,8 @@ export function createAppController() {
             openid_linked: Boolean(userSettings?.openid_linked),
         };
 
-        await refreshTopologyData();
+        // Ensure relationships are loaded into the topology cache on initial base data refresh
+        await refreshTopologyData({ reloadRelationships: true });
     }
 
     async function refreshTopologyData(options = {}) {
