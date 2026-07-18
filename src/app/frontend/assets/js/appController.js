@@ -707,10 +707,12 @@ export function createAppController() {
         await refreshTopologyData();
     }
 
-    async function refreshTopologyData() {
-        const [relationships] = await Promise.all([
-            api.relationships.list(),
-        ]);
+    async function refreshTopologyData(options = {}) {
+        const { reloadRelationships = false } = options;
+        const cacheHasRelationships = Array.isArray(caches.topology?.relationships);
+        const relationships = !reloadRelationships && cacheHasRelationships
+            ? caches.topology.relationships
+            : await api.relationships.list();
 
         const circleMembersByCircleId = new Map(
             state.data.circles.map((circle) => [circle.id, circle.member_ids || []])
@@ -1157,6 +1159,12 @@ export function createAppController() {
         }
         const request = (async () => {
             const event = await api.events.get(eventId);
+            const existingEvent = state.data.events.find((entry) => entry.id === eventId);
+            if (existingEvent) {
+                existingEvent.participants = event.participants || [];
+                existingEvent.circle_ids = event.circle_ids || [];
+                existingEvent.location_ids = event.location_ids || [];
+            }
             caches.eventParticipants.set(eventId, event.participants || []);
             caches.eventCircles.set(
                 eventId,
@@ -2025,6 +2033,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await loadEventParticipants(eventId);
             await refreshTopologyData();
             await loadEventLocations(eventId);
             showToast("Participant added.");
@@ -2034,12 +2043,14 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await loadEventParticipants(eventId);
             await refreshTopologyData();
             await loadEventLocations(eventId);
             showToast(`${personIds.length} participant${personIds.length !== 1 ? 's' : ''} added.`);
         }),
         changeEventRole: async (eventId, personId, role) => withAction(async () => {
             await api.events.updateParticipantRole(eventId, personId, role);
+            await loadEventParticipants(eventId);
             await loadEventLocations(eventId);
             showToast("Role updated.");
         }),
@@ -2048,6 +2059,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            await loadEventParticipants(eventId);
             await refreshTopologyData();
             await loadEventLocations(eventId);
             showToast("Participant removed.");
