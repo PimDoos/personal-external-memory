@@ -717,6 +717,10 @@ export function createAppController() {
         const circleMembersByCircleId = new Map(
             state.data.circles.map((circle) => [circle.id, circle.member_ids || []])
         );
+        // Ensure the per-circle members cache is populated from base data so
+        // renderers can rely on `caches.circleMembers` without needing to
+        // fetch each circle's detail individually.
+        caches.circleMembers = new Map(circleMembersByCircleId);
         const brandMembersByBrandId = new Map(
             state.data.brands.map((brand) => [brand.id, brand.members || []])
         );

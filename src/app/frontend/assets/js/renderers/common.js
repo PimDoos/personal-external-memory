@@ -78,6 +78,19 @@ export function createRenderCommon({ state, refs, caches, actions, isPersonAlive
         });
     }
 
+    function showToast(message, isError = false) {
+        if (!refs || !refs.toast) return;
+        refs.toast.innerText = message;
+        refs.toast.style.background = isError
+            ? "var(--toast-error-bg)"
+            : "var(--toast-bg)";
+        refs.toast.classList.add("visible");
+        window.clearTimeout(showToast.timeoutId);
+        showToast.timeoutId = window.setTimeout(() => {
+            refs.toast.classList.remove("visible");
+        }, 2600);
+    }
+
     function renderSimpleList(targetNode, items, renderItem, emptyMessage) {
         clearNodeChildren(targetNode);
 
@@ -187,6 +200,7 @@ export function createRenderCommon({ state, refs, caches, actions, isPersonAlive
         selectedCircle,
         selectedEvent,
         setAuthShell,
+        showToast,
         renderSimpleList,
         createMetricCard,
         createListItem,

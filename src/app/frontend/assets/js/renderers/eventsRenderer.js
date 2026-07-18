@@ -539,10 +539,10 @@ export function createEventsRenderer({ state, caches, actions, common }) {
                         await actions.addEventParticipantsBulk(event.id, aliveMembers, undefined);
                     } else if (circleMembers.length > 0) {
                         // Some members exist but are not alive at event time
-                        showToast("No members were alive at the event start time.");
+                        common.showToast("No members were alive at the event start time.");
                     } else {
                         // No members in circle at all
-                        showToast("This circle has no members.");
+                        common.showToast("This circle has no members.");
                     }
                 });
                 actionsNode.appendChild(addMembersButton);
