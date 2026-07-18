@@ -1704,12 +1704,32 @@ export function createAppController() {
         assignTagToPerson: async (tagId, personId) => withAction(async () => {
             await api.tags.attachToPerson(tagId, personId);
             await loadPersonCaches(personId);
+            // Update the people list entry so tags are reflected immediately in list views
+            try {
+                const personTags = caches.personTags.get(personId) || [];
+                const idx = (state.data.people || []).findIndex((p) => p.id === personId);
+                if (idx >= 0) {
+                    state.data.people[idx].tags = personTags;
+                }
+            } catch (e) {
+                // ignore
+            }
             await loadPeopleTagSummaries();
             showToast("Tag assigned.");
         }),
         removeTagFromPerson: async (tagId, personId) => withAction(async () => {
             await api.tags.detachFromPerson(tagId, personId);
             await loadPersonCaches(personId);
+            // Update the people list entry so tags are reflected immediately in list views
+            try {
+                const personTags = caches.personTags.get(personId) || [];
+                const idx = (state.data.people || []).findIndex((p) => p.id === personId);
+                if (idx >= 0) {
+                    state.data.people[idx].tags = personTags;
+                }
+            } catch (e) {
+                // ignore
+            }
             await loadPeopleTagSummaries();
             showToast("Tag removed.");
         }),
