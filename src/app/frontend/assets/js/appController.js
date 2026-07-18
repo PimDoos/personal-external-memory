@@ -626,7 +626,16 @@ export function createAppController() {
         const linkSuccess = localStorage.getItem("openid_link_success");
         if (linkSuccess) {
             localStorage.removeItem("openid_link_success");
-            await refreshBaseData();
+            // Update only user settings after OpenID link
+            const userSettings = await api.settings.get();
+            state.data.userSettings = {
+                me_person_id: userSettings?.me_person_id || null,
+                immich_api_key: userSettings?.immich_api_key || null,
+                immich_base_url: userSettings?.immich_base_url || null,
+                home_assistant_api_key: userSettings?.home_assistant_api_key || null,
+                home_assistant_base_url: userSettings?.home_assistant_base_url || null,
+                openid_linked: Boolean(userSettings?.openid_linked),
+            };
             await refreshSelectedEntityCaches();
             renderer.renderAll();
             showToast("OpenID account linked.");
@@ -815,7 +824,35 @@ export function createAppController() {
             createError = error;
         }
 
-        await refreshBaseData();
+        // If the create returned the created entity, insert/update it locally
+        if (created && created.id) {
+            const existingIndex = (state.data[collectionKey] || []).findIndex((item) => item.id === created.id);
+            if (existingIndex >= 0) {
+                state.data[collectionKey][existingIndex] = created;
+            } else {
+                state.data[collectionKey] = (state.data[collectionKey] || []).concat([created]);
+            }
+        } else {
+            // Fallback: try to refresh only the affected collection instead of full base data
+            try {
+                const collectionLoaders = {
+                    people: () => api.people.list(),
+                    circles: () => api.circles.list(),
+                    brands: () => api.brands.list(),
+                    events: () => api.events.list(),
+                    tags: () => api.tags.list(),
+                    locations: () => api.locations.list(),
+                };
+                if (collectionLoaders[collectionKey]) {
+                    state.data[collectionKey] = await collectionLoaders[collectionKey]();
+                } else {
+                    // As a last resort, refresh base data
+                    await refreshBaseData();
+                }
+            } catch (e) {
+                // Ignore and allow upstream handling
+            }
+        }
 
         const resolved = resolveCreatedEntity(
             state.data[collectionKey],
@@ -1521,7 +1558,8 @@ export function createAppController() {
         syncImmichFaces: async () => withAction(async () => {
             const result = await api.immich.syncFaces();
             state.data.immich.syncMessage = `Created ${result.created}, updated ${result.updated}, skipped ${result.skipped}, total ${result.total_remote}`;
-            await refreshBaseData();
+            // Refresh only immich/person-face related caches and any selected entity details
+            await preloadAllPersonFaceLinks();
             await refreshSelectedEntityCaches();
             showToast("Immich faces synced.");
         }),
@@ -1610,7 +1648,15 @@ export function createAppController() {
             if (state.selected.personId === personId) {
                 resetSidebar("people");
             }
-            await refreshBaseData();
+            // Remove person locally and clear related caches
+            state.data.people = (state.data.people || []).filter((p) => p.id !== personId);
+            caches.personContacts.delete(personId);
+            caches.personLocations.delete(personId);
+            caches.personTags.delete(personId);
+            caches.personRelationships.delete(personId);
+            caches.personAssociations.delete(personId);
+            await refreshTopologyData();
+            renderer.renderAll();
             showToast("Person removed.");
         }),
         addContact: async (payload) => withAction(async () => {
@@ -1631,8 +1677,13 @@ export function createAppController() {
         createLocationForPerson: async (personId, payload) => withAction(async () => {
             const location = await api.locations.create(payload);
             await api.locations.associate(location.id, "person", personId);
-            await refreshBaseData();
+            // Insert created location into local list and preload its associations
+            state.data.locations = (state.data.locations || []).concat([location]);
+            if (Array.isArray(location.associations)) {
+                caches.locationAssociations.set(location.id, location.associations);
+            }
             await loadPersonCaches(personId);
+            renderer.renderAll();
             showToast("Location added.");
         }),
         associateLocationToPerson: async (locationId, personId) => withAction(async () => {
@@ -1663,10 +1714,18 @@ export function createAppController() {
             showToast("Tag removed.");
         }),
         updatePerson: async (personId, payload) => withAction(async () => {
-            await api.people.update(personId, payload);
-            await refreshBaseData();
+            const updated = await api.people.update(personId, payload);
+            if (updated && updated.id) {
+                const idx = (state.data.people || []).findIndex((p) => p.id === updated.id);
+                if (idx >= 0) {
+                    state.data.people[idx] = updated;
+                } else {
+                    state.data.people = (state.data.people || []).concat([updated]);
+                }
+            }
             await loadPeopleTagSummaries();
             await loadPersonCaches(personId);
+            renderer.renderAll();
             showToast("Person updated.");
         }, { preserveViewport: true }),
         addRelationship: async (payload) => withAction(async () => {
@@ -1728,8 +1787,12 @@ export function createAppController() {
         createLocationForCircle: async (circleId, payload) => withAction(async () => {
             const location = await api.locations.create(payload);
             await api.locations.associate(location.id, "social_circle", circleId);
-            await refreshBaseData();
+            state.data.locations = (state.data.locations || []).concat([location]);
+            if (Array.isArray(location.associations)) {
+                caches.locationAssociations.set(location.id, location.associations);
+            }
             await loadCircleLocations(circleId);
+            renderer.renderAll();
             showToast("Location added.");
         }),
         associateLocationToCircle: async (locationId, circleId) => withAction(async () => {
@@ -1747,7 +1810,9 @@ export function createAppController() {
             if (state.selected.circleId === circleId) {
                 resetSidebar("circles");
             }
-            await refreshBaseData();
+            state.data.circles = (state.data.circles || []).filter((c) => c.id !== circleId);
+            await refreshTopologyData();
+            renderer.renderAll();
             showToast("Circle removed.");
         }),
         addCircleMember: async (circleId, personId) => withAction(async () => {
@@ -1769,8 +1834,15 @@ export function createAppController() {
             showToast("Member removed.");
         }),
         updateCircle: async (circleId, payload) => withAction(async () => {
-            await api.circles.update(circleId, payload);
-            await refreshBaseData();
+            const updated = await api.circles.update(circleId, payload);
+            if (updated && updated.id) {
+                const idx = (state.data.circles || []).findIndex((c) => c.id === updated.id);
+                if (idx >= 0) {
+                    state.data.circles[idx] = updated;
+                } else {
+                    state.data.circles = (state.data.circles || []).concat([updated]);
+                }
+            }
             await loadPeopleTagSummaries();
             await Promise.all([
                 loadCircleMembers(circleId),
@@ -1780,6 +1852,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            renderer.renderAll();
             showToast("Circle updated.");
         }, { preserveViewport: true }),
         selectBrand: async (brandId) => withAction(async () => {
@@ -1794,8 +1867,12 @@ export function createAppController() {
         createLocationForBrand: async (brandId, payload) => withAction(async () => {
             const location = await api.locations.create(payload);
             await api.locations.associate(location.id, "brand", brandId);
-            await refreshBaseData();
+            state.data.locations = (state.data.locations || []).concat([location]);
+            if (Array.isArray(location.associations)) {
+                caches.locationAssociations.set(location.id, location.associations);
+            }
             await loadBrandLocations(brandId);
+            renderer.renderAll();
             showToast("Location added.");
         }),
         associateLocationToBrand: async (locationId, brandId) => withAction(async () => {
@@ -1809,13 +1886,21 @@ export function createAppController() {
             showToast("Location removed.");
         }),
         updateBrand: async (brandId, payload) => withAction(async () => {
-            await api.brands.update(brandId, payload);
-            await refreshBaseData();
+            const updated = await api.brands.update(brandId, payload);
+            if (updated && updated.id) {
+                const idx = (state.data.brands || []).findIndex((b) => b.id === updated.id);
+                if (idx >= 0) {
+                    state.data.brands[idx] = updated;
+                } else {
+                    state.data.brands = (state.data.brands || []).concat([updated]);
+                }
+            }
             await loadPeopleTagSummaries();
             await loadBrandLocations(brandId);
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            renderer.renderAll();
             showToast("Brand updated.");
         }, { preserveViewport: true }),
         deleteBrand: async (brandId) => withAction(async () => {
@@ -1823,7 +1908,9 @@ export function createAppController() {
             if (state.selected.brandId === brandId) {
                 resetSidebar("brands");
             }
-            await refreshBaseData();
+            state.data.brands = (state.data.brands || []).filter((b) => b.id !== brandId);
+            await refreshTopologyData();
+            renderer.renderAll();
             showToast("Brand removed.");
         }),
         addBrandMember: async (brandId, personId, type) => withAction(async () => {
@@ -1866,8 +1953,12 @@ export function createAppController() {
         createLocationForEvent: async (eventId, payload) => withAction(async () => {
             const location = await api.locations.create(payload);
             await api.locations.associate(location.id, "event", eventId);
-            await refreshBaseData();
+            state.data.locations = (state.data.locations || []).concat([location]);
+            if (Array.isArray(location.associations)) {
+                caches.locationAssociations.set(location.id, location.associations);
+            }
             await loadEventLocations(eventId);
+            renderer.renderAll();
             showToast("Location added.");
         }),
         associateLocationToEvent: async (locationId, eventId) => withAction(async () => {
@@ -1885,7 +1976,9 @@ export function createAppController() {
             if (state.selected.eventId === eventId) {
                 resetSidebar("events");
             }
-            await refreshBaseData();
+            state.data.events = (state.data.events || []).filter((e) => e.id !== eventId);
+            await refreshTopologyData();
+            renderer.renderAll();
             showToast("Event removed.");
         }),
         addEventParticipant: async (eventId, personId, role) => withAction(async () => {
@@ -1912,8 +2005,15 @@ export function createAppController() {
             showToast("Participant removed.");
         }),
         updateEvent: async (eventId, payload) => withAction(async () => {
-            await api.events.update(eventId, payload);
-            await refreshBaseData();
+            const updated = await api.events.update(eventId, payload);
+            if (updated && updated.id) {
+                const idx = (state.data.events || []).findIndex((e) => e.id === updated.id);
+                if (idx >= 0) {
+                    state.data.events[idx] = updated;
+                } else {
+                    state.data.events = (state.data.events || []).concat([updated]);
+                }
+            }
             await loadPeopleTagSummaries();
             await Promise.all([
                 loadEventParticipants(eventId),
@@ -1923,6 +2023,7 @@ export function createAppController() {
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            renderer.renderAll();
             showToast("Event updated.");
         }, { preserveViewport: true }),
         associateCircleToEvent: async (circleId, eventId) => withAction(async () => {
@@ -1964,9 +2065,20 @@ export function createAppController() {
             return created;
         }),
         updateLocation: async (locationId, payload) => withAction(async () => {
-            await api.locations.update(locationId, payload);
-            await refreshBaseData();
+            const updated = await api.locations.update(locationId, payload);
+            if (updated && updated.id) {
+                const idx = (state.data.locations || []).findIndex((l) => l.id === updated.id);
+                if (idx >= 0) {
+                    state.data.locations[idx] = updated;
+                } else {
+                    state.data.locations = (state.data.locations || []).concat([updated]);
+                }
+                if (Array.isArray(updated.associations)) {
+                    caches.locationAssociations.set(updated.id, updated.associations);
+                }
+            }
             await refreshSelectedEntityCaches();
+            renderer.renderAll();
             showToast("Location updated.");
         }, { preserveViewport: true }),
         deleteLocation: async (locationId) => withAction(async () => {
@@ -1974,15 +2086,25 @@ export function createAppController() {
             if (state.selected.locationId === locationId) {
                 resetSidebar("locations");
             }
-            await refreshBaseData();
+            state.data.locations = (state.data.locations || []).filter((l) => l.id !== locationId);
+            caches.locationAssociations.delete(locationId);
             await refreshSelectedEntityCaches();
+            renderer.renderAll();
             showToast("Location removed.");
         }),
         updateTag: async (tagId, payload) => withAction(async () => {
-            await api.tags.update(tagId, payload);
-            await refreshBaseData();
+            const updated = await api.tags.update(tagId, payload);
+            if (updated && updated.id) {
+                const idx = (state.data.tags || []).findIndex((t) => t.id === updated.id);
+                if (idx >= 0) {
+                    state.data.tags[idx] = updated;
+                } else {
+                    state.data.tags = (state.data.tags || []).concat([updated]);
+                }
+            }
             await loadPeopleTagSummaries();
             await refreshSelectedEntityCaches();
+            renderer.renderAll();
             showToast("Tag updated.");
         }, { preserveViewport: true }),
         openPersonFromContext: async (personId) => withAction(async () => {
@@ -2050,26 +2172,66 @@ export function createAppController() {
             if (state.selected.tagId === tagId) {
                 resetSidebar("tags");
             }
-            await refreshBaseData();
+            state.data.tags = (state.data.tags || []).filter((t) => t.id !== tagId);
             await loadPeopleTagSummaries();
             if (state.selected.personId) {
                 await loadPersonCaches(state.selected.personId);
             }
+            renderer.renderAll();
             showToast("Tag removed.");
         }),
         createType: async (category, payload) => withAction(async () => {
             await api.types.create(category, payload);
-            await refreshBaseData();
+            const list = await api.types.list(category);
+            const mapping = {
+                "contact-info": "contactInfoTypes",
+                "relationship": "relationshipTypes",
+                "social-circle": "socialCircleTypes",
+                "event": "eventTypes",
+                "event-participant-role": "eventParticipantRoleTypes",
+                "brand-membership": "brandMembershipTypes",
+                "location": "locationTypes",
+            };
+            const key = mapping[category] || category;
+            state.data.typeLists = state.data.typeLists || {};
+            state.data.typeLists[key] = list;
+            renderer.renderAll();
             showToast("Type created.");
         }),
         updateType: async (category, typeId, payload) => withAction(async () => {
             await api.types.update(category, typeId, payload);
-            await refreshBaseData();
+            const list = await api.types.list(category);
+            const mapping = {
+                "contact-info": "contactInfoTypes",
+                "relationship": "relationshipTypes",
+                "social-circle": "socialCircleTypes",
+                "event": "eventTypes",
+                "event-participant-role": "eventParticipantRoleTypes",
+                "brand-membership": "brandMembershipTypes",
+                "location": "locationTypes",
+            };
+            const key = mapping[category] || category;
+            state.data.typeLists = state.data.typeLists || {};
+            state.data.typeLists[key] = list;
+            renderer.renderAll();
             showToast("Type updated.");
         }),
         deleteType: async (category, typeId) => withAction(async () => {
             await api.types.remove(category, typeId);
-            await refreshBaseData();
+            const list = await api.types.list(category);
+            const mapping = {
+                "contact-info": "contactInfoTypes",
+                "relationship": "relationshipTypes",
+                "social-circle": "socialCircleTypes",
+                "event": "eventTypes",
+                "event-participant-role": "eventParticipantRoleTypes",
+                "brand-membership": "brandMembershipTypes",
+                "location": "locationTypes",
+            };
+            const key = mapping[category] || category;
+            state.data.typeLists = state.data.typeLists || {};
+            state.data.typeLists[key] = list;
+            renderer.renderAll();
             showToast("Type removed.");
         }),
         openViewInNewTab,
