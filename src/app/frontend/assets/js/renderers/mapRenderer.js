@@ -42,6 +42,18 @@ function parseCoordinates(rawLocation) {
     return null;
 }
 
+const darkOpenFreeMapStylePromise = fetch(new URL("../map-styles/dark-openfreemap-override.json", import.meta.url))
+    .then((response) => {
+        if (!response.ok) {
+            throw new Error(`Failed to load dark map style: ${response.status}`);
+        }
+        return response.json();
+    })
+    .catch((error) => {
+        console.warn("Unable to load the dark OpenFreeMap style JSON.", error);
+        return null;
+    });
+
 export function createMapRenderer({ state, actions }) {
     let map = null;
     let markersLayer = null;
@@ -102,22 +114,30 @@ export function createMapRenderer({ state, actions }) {
         return Boolean(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
     }
 
-    function getTileConfig(isDark) {
+    async function getTileConfig(isDark) {
         if (isDark) {
+            const style = await darkOpenFreeMapStylePromise;
+            if (style) {
+                return {
+                    style,
+                    attribution: "OpenFreeMap © OpenMapTiles • Data from OpenStreetMap",
+                };
+            }
+
             return {
-                url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                style: "https://tiles.openfreemap.org/styles/dark",
+                attribution: "OpenFreeMap © OpenMapTiles • Data from OpenStreetMap",
             };
         }
 
         return {
-            url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            style: "https://tiles.openfreemap.org/styles/liberty",
+            attribution: "OpenFreeMap © OpenMapTiles • Data from OpenStreetMap",
         };
     }
 
-    function ensureTileLayer() {
-        if (!map || !window.L) {
+    async function ensureTileLayer() {
+        if (!map || !window.L || typeof window.L.maplibreGL !== "function") {
             return;
         }
 
@@ -131,10 +151,10 @@ export function createMapRenderer({ state, actions }) {
             map.removeLayer(tileLayer);
         }
 
-        const config = getTileConfig(isDark);
-        tileLayer = window.L.tileLayer(config.url, {
-            attribution: config.attribution,
-            maxZoom: 19,
+        const config = await getTileConfig(isDark);
+        tileLayer = window.L.maplibreGL({
+            style: config.style,
+            attributionControl: true,
         }).addTo(map);
         tileTheme = nextTheme;
     }
