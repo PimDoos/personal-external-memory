@@ -7,6 +7,7 @@ import json
 import math
 from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from urllib.parse import parse_qs, quote_plus, unquote_plus, urlencode, urlparse
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
@@ -27,7 +28,6 @@ from app.infrastructure.models import (
     ExternalIdentity,
     ExternalIdentityAssociation,
     Location,
-    LocationAssociation,
     UserSettings,
 )
 
@@ -36,6 +36,7 @@ class ImmichService:
     """Service for Immich integration operations."""
 
     LOCATION_GALLERY_RADIUS_METERS = 50.0
+    LOCATION_SEARCH_PAGE_SIZE = 200
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -306,7 +307,9 @@ class ImmichService:
 
         return raw
 
-    async def gallery_for_event(self, user_id: int, event_id: int, limit: int = 24) -> ImmichGalleryResponse:
+    async def gallery_for_event(
+        self, user_id: int, event_id: int, limit: int = 24, timezone_name: str = "UTC"
+    ) -> ImmichGalleryResponse:
         """Fetch Immich gallery items for a PEM event by event date window."""
         base_url, api_key = await self._get_user_immich_credentials(user_id)
 
@@ -323,8 +326,8 @@ class ImmichService:
         payload = {
             "page": 1,
             "size": max(1, min(limit, 200)),
-            "takenAfter": self._format_iso_datetime(start),
-            "takenBefore": self._format_iso_datetime(end),
+            "takenAfter": self._format_iso_datetime(start, timezone_name),
+            "takenBefore": self._format_iso_datetime(end, timezone_name),
             "withArchived": False,
         }
         search_response = await self._request_json(base_url, api_key, "POST", "/api/search/metadata", payload)
@@ -349,51 +352,45 @@ class ImmichService:
             return ImmichGalleryResponse(context="location", items=[])
         location_lat, location_lon = location_coords
 
-        event_ids_stmt = select(LocationAssociation.entity_id).where(
-            (LocationAssociation.location_id == location_id)
-            & (LocationAssociation.entity_type == "event")
-        )
-        event_ids = [int(row[0]) for row in (await self.session.execute(event_ids_stmt)).all() if row[0] is not None]
-        if not event_ids:
-            return ImmichGalleryResponse(context="location", items=[])
-
-        event_stmt = select(Event).where((Event.user_id == user_id) & (Event.id.in_(event_ids)))
-        events = (await self.session.execute(event_stmt)).scalars().all()
-        if not events:
-            return ImmichGalleryResponse(context="location", items=[])
-
-        all_items: list[dict[str, Any]] = []
-        for event in events[:5]:
-            event_window = self._event_time_window(event)
-            if event_window is None:
-                continue
-            start, end = event_window
+        result_limit = max(1, min(limit, 200))
+        dedup: dict[str, dict[str, Any]] = {}
+        page = 1
+        while len(dedup) < result_limit:
             payload = {
-                "page": 1,
-                "size": max(1, min(limit, 200)),
-                "takenAfter": self._format_iso_datetime(start),
-                "takenBefore": self._format_iso_datetime(end),
+                "page": page,
+                "size": self.LOCATION_SEARCH_PAGE_SIZE,
                 "withExif": True,
                 "withArchived": False,
             }
             response = await self._request_json(base_url, api_key, "POST", "/api/search/metadata", payload)
-            all_items.extend(self._extract_assets(response))
+            assets_page = response.get("assets") if isinstance(response, dict) else None
+            raw_items = assets_page.get("items") if isinstance(assets_page, dict) else None
+            if not isinstance(raw_items, list) or not raw_items:
+                break
 
-        # Deduplicate and clamp
-        dedup: dict[str, dict[str, Any]] = {}
-        for item in all_items:
-            item_id = str(item.get("id") or "")
-            if not item_id:
-                continue
-            item_coords = self._extract_asset_coordinates(item)
-            if item_coords is None:
-                continue
+            for item in self._extract_assets(response):
+                item_id = str(item.get("id") or "")
+                if not item_id or item_id in dedup:
+                    continue
+                item_coords = self._extract_asset_coordinates(item)
+                if item_coords is None:
+                    continue
 
-            distance = self._distance_meters(location_lat, location_lon, item_coords[0], item_coords[1])
-            if distance <= self.LOCATION_GALLERY_RADIUS_METERS:
-                dedup[item_id] = item
+                distance = self._distance_meters(location_lat, location_lon, item_coords[0], item_coords[1])
+                if distance <= self.LOCATION_GALLERY_RADIUS_METERS:
+                    dedup[item_id] = item
+                    if len(dedup) >= result_limit:
+                        break
 
-        items = list(dedup.values())[: max(1, min(limit, 200))]
+            next_page = assets_page.get("nextPage")
+            if not next_page:
+                break
+            try:
+                page = int(next_page)
+            except (TypeError, ValueError):
+                page += 1
+
+        items = list(dedup.values())[:result_limit]
         return ImmichGalleryResponse(
             context="location",
             items=[self._to_asset_response(base_url, asset) for asset in items],
@@ -408,13 +405,17 @@ class ImmichService:
             start, end = end, start
         return start, end
 
-    def _format_iso_datetime(self, dt: datetime) -> str:
+    def _format_iso_datetime(self, dt: datetime, timezone_name: str = "UTC") -> str:
         """Return an ISO 8601 string for `dt` with UTC timezone (ending with 'Z')."""
         if dt is None:
             return ""
-        # If naive, assume UTC to produce a trailing Z; if tz-aware, convert to UTC.
+        try:
+            local_timezone = ZoneInfo(timezone_name)
+        except (TypeError, ValueError, ZoneInfoNotFoundError) as exc:
+            raise ValidationError("Invalid timezone") from exc
+
         if dt.tzinfo is None:
-            dt_utc = dt.replace(tzinfo=timezone.utc)
+            dt_utc = dt.replace(tzinfo=local_timezone).astimezone(timezone.utc)
         else:
             dt_utc = dt.astimezone(timezone.utc)
         return dt_utc.isoformat().replace("+00:00", "Z")

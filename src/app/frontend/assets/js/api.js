@@ -231,7 +231,9 @@ export const api = {
         testConnection: () => request("/api/immich/test-connection", { method: "POST" }),
         syncFaces: () => request("/api/immich/sync-faces", { method: "POST" }),
         galleryForPerson: (personId, limit = 24) => request(`/api/immich/gallery/person/${personId}?limit=${Number(limit)}`),
-        galleryForEvent: (eventId, limit = 24) => request(`/api/immich/gallery/event/${eventId}?limit=${Number(limit)}`),
+        galleryForEvent: (eventId, limit = 24, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) => request(
+            `/api/immich/gallery/event/${eventId}?limit=${Number(limit)}&timezone=${encodeURIComponent(timeZone)}`
+        ),
         galleryForLocation: (locationId, limit = 24) => request(`/api/immich/gallery/location/${locationId}?limit=${Number(limit)}`),
         thumbnailBlob: (assetId, size = "preview") => requestBlob(
             `/api/immich/assets/${encodeURIComponent(String(assetId))}/thumbnail?size=${encodeURIComponent(String(size))}`
