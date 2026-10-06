@@ -55,11 +55,12 @@ async def get_immich_gallery_for_event(
     event_id: int,
     current_user: CurrentUser,
     limit: int = Query(24, ge=1, le=200),
+    timezone_name: str = Query("UTC", alias="timezone", min_length=1, max_length=64),
     db: AsyncSession = Depends(get_db),
 ) -> ImmichGalleryResponse:
     """Get Immich photos for an event by event date window."""
     service = ImmichService(db)
-    return await service.gallery_for_event(current_user.id, event_id, limit)
+    return await service.gallery_for_event(current_user.id, event_id, limit, timezone_name)
 
 
 @router.get("/gallery/location/{location_id}", response_model=ImmichGalleryResponse)

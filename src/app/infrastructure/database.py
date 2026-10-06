@@ -281,6 +281,7 @@ async def _apply_sqlite_migrations(connection) -> None:
     await add_column_if_missing("people", "date_of_death", "DATE")
     await add_column_if_missing("locations", "latitude", "FLOAT")
     await add_column_if_missing("locations", "longitude", "FLOAT")
+    await add_column_if_missing("locations", "radius", "FLOAT NOT NULL DEFAULT 50")
     await add_column_if_missing("locations", "geocode_status", "VARCHAR(32)")
     await add_column_if_missing("locations", "geocoded_at", "DATETIME")
     await add_column_if_missing("user_settings", "immich_base_url", "VARCHAR(512)")

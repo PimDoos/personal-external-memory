@@ -200,6 +200,7 @@ class LocationService:
             location_type=data.location_type,
             label=resolved_label,
             location=data.location,
+            radius=data.radius,
         )
         self.session.add(location)
         await self._resolve_geocode_if_needed(location, force_refresh=True)

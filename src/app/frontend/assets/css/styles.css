@@ -518,6 +518,32 @@ select {
     margin: 0;
 }
 
+.immich-gallery__loading {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.immich-gallery__loading-tile {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    background: var(--surface-soft);
+    animation: immich-gallery-loading 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes immich-gallery-loading {
+    from { opacity: 0.4; }
+    to { opacity: 0.8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .immich-gallery__loading-tile {
+        animation: none;
+        opacity: 0.6;
+    }
+}
+
 .immich-face-link-form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -981,6 +1007,48 @@ select {
     background: #7b8490;
 }
 
+.map-popup-location-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.map-popup-location-link:hover,
+.map-popup-location-link:focus-visible {
+    color: var(--accent);
+}
+
+.location-radius--person {
+    fill: #c5483f;
+    stroke: #c5483f;
+}
+
+.location-radius--brand {
+    fill: #3674cf;
+    stroke: #3674cf;
+}
+
+.location-radius--circle {
+    fill: #2f9a6a;
+    stroke: #2f9a6a;
+}
+
+.location-radius--eventOnly {
+    fill: #7a4bcf;
+    stroke: #7a4bcf;
+}
+
+.location-radius--fallback {
+    fill: #7b8490;
+    stroke: #7b8490;
+}
+
 .map-canvas .leaflet-control-zoom a {
     background: var(--surface-strong);
     color: var(--ink);
@@ -1316,6 +1384,32 @@ img.dashboard-avatar {
 
 .detail-grid {
     flex-direction: column;
+}
+
+.location-details-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+}
+
+.location-mini-map {
+    display: none;
+}
+
+@media (min-width: 1200px) and (orientation: landscape) {
+    .location-details-layout {
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+        align-items: stretch;
+    }
+
+    .location-mini-map {
+        display: block;
+        width: 100%;
+        min-height: 320px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-medium);
+        overflow: hidden;
+    }
 }
 
 .pill {

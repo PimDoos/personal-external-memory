@@ -343,10 +343,21 @@ export function createMapRenderer({ state, actions }) {
         return associationsNode;
     }
 
-    function buildPopupBody(title, type, rawLocation, associationsContent) {
+    function buildPopupBody(locationId, title, type, rawLocation, associationsContent) {
+        const locationLink = createNode("button", {
+            className: "map-popup-location-link",
+            text: title,
+            attrs: { type: "button" },
+        });
+        locationLink.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            state.activeSection = "locations";
+            await actions.selectLocation(locationId);
+        });
+
         return createNode("div", {
             children: [
-                createNode("strong", { text: title }),
+                locationLink,
                 createNode("br"),
                 createNode("span", { text: type }),
                 createNode("br"),
@@ -658,9 +669,18 @@ export function createMapRenderer({ state, actions }) {
             const marker = window.L.marker([coords.lat, coords.lon], {
                 icon: buildMarkerIconFromRule(markerRule),
             });
+            window.L.circle([coords.lat, coords.lon], {
+                radius: Number(location.radius) || 50,
+                className: `location-radius location-radius--${markerRule}`,
+                fillOpacity: 0.14,
+                opacity: 0.55,
+                weight: 1,
+                interactive: false,
+            }).addTo(markersLayer);
 
             marker.bindPopup(
                 buildPopupBody(
+                    location.id,
                     title,
                     type,
                     location.location,
@@ -681,6 +701,7 @@ export function createMapRenderer({ state, actions }) {
                  if (preloadedAssociations) {
                     popup.setContent(
                         buildPopupBody(
+                            location.id,
                             title,
                             type,
                             location.location,
@@ -695,6 +716,7 @@ export function createMapRenderer({ state, actions }) {
                     locationAssociationSummaryCache.set(location.id, summarizeAssociationTypes(detail.associations || []));
                     popup.setContent(
                         buildPopupBody(
+                            location.id,
                             title,
                             type,
                             location.location,
@@ -704,6 +726,7 @@ export function createMapRenderer({ state, actions }) {
                 } catch {
                     popup.setContent(
                         buildPopupBody(
+                            location.id,
                             title,
                             type,
                             location.location,
