@@ -2194,6 +2194,7 @@ export function createAppController() {
             state.selected.brandId = brandId;
             state.sidebar.brands = "detail";
             requestViewportJump("brands");
+            await loadBrandDetail(brandId);
         }),
         openEventFromContext: async (eventId) => withAction(async () => {
             state.activeSection = "events";
