@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LocationCreateRequest(BaseModel):
@@ -12,6 +12,7 @@ class LocationCreateRequest(BaseModel):
     location_type: Optional[str] = None
     label: Optional[str] = None
     location: str
+    radius: float = Field(default=50.0, gt=0)
 
 
 class LocationUpdateRequest(BaseModel):
@@ -20,6 +21,7 @@ class LocationUpdateRequest(BaseModel):
     location_type: Optional[str] = None
     label: Optional[str] = None
     location: Optional[str] = None
+    radius: float = Field(default=50.0, gt=0)
 
 
 class LocationResponse(BaseModel):
@@ -31,6 +33,7 @@ class LocationResponse(BaseModel):
     location: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    radius: float = 50.0
     geocode_status: Optional[str] = None
     geocoded_at: Optional[datetime] = None
     created_at: datetime

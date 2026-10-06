@@ -331,6 +331,7 @@ class Location(Base):
     location = Column(String(500), nullable=False)  # Address or coordinates
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    radius = Column(Float, nullable=False, default=50.0, server_default="50")
     geocode_status = Column(String(32), nullable=True)
     geocoded_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

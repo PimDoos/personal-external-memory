@@ -230,6 +230,7 @@
                                 <label><span>Address or Coordinates</span><input name="location" required></label>
                                 <label><span>Type</span><select name="location_type"></select></label>
                                 <label><span>Optional label</span><input name="label" placeholder="Optional label"></label>
+                                <label><span>Radius (m)</span><input name="radius" type="number" min="0.01" step="any" value="50" required></label>
                                 <button class="primary-button" type="submit">Add location</button>
                             </form>
                             <div id="location-detail" class="empty-state hidden">Select a location to view details.</div>

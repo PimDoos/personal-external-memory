@@ -981,6 +981,31 @@ select {
     background: #7b8490;
 }
 
+.location-radius--person {
+    fill: #c5483f;
+    stroke: #c5483f;
+}
+
+.location-radius--brand {
+    fill: #3674cf;
+    stroke: #3674cf;
+}
+
+.location-radius--circle {
+    fill: #2f9a6a;
+    stroke: #2f9a6a;
+}
+
+.location-radius--eventOnly {
+    fill: #7a4bcf;
+    stroke: #7a4bcf;
+}
+
+.location-radius--fallback {
+    fill: #7b8490;
+    stroke: #7b8490;
+}
+
 .map-canvas .leaflet-control-zoom a {
     background: var(--surface-strong);
     color: var(--ink);

@@ -351,6 +351,7 @@ class ImmichService:
         if location_coords is None:
             return ImmichGalleryResponse(context="location", items=[])
         location_lat, location_lon = location_coords
+        location_radius = float(location.radius)
 
         result_limit = max(1, min(limit, 200))
         dedup: dict[str, dict[str, Any]] = {}
@@ -377,7 +378,7 @@ class ImmichService:
                     continue
 
                 distance = self._distance_meters(location_lat, location_lon, item_coords[0], item_coords[1])
-                if distance <= self.LOCATION_GALLERY_RADIUS_METERS:
+                if distance <= location_radius:
                     dedup[item_id] = item
                     if len(dedup) >= result_limit:
                         break

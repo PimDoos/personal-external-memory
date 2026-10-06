@@ -187,6 +187,10 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
             location.location_type || getLocationTypeOptions()[0]?.value || "",
             { name: "location_type", required: true, disabled: !((state.data.typeLists.locationTypes || []).length && getLocationTypeOptions(location.location_type || "").length) }
         );
+        const radiusInput = createNode("input", {
+            value: location.radius ?? 50,
+            attrs: { name: "radius", type: "number", min: "0.01", step: "any", required: true },
+        });
 
         form.appendChild(createNode("label", {
             children: [
@@ -236,6 +240,12 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
                 labelInput,
             ],
         }));
+        form.appendChild(createNode("label", {
+            children: [
+                createNode("span", { text: "Radius (m)" }),
+                radiusInput,
+            ],
+        }));
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -252,7 +262,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         return form;
     }
 
-    function buildImmichGallerySection(items, onRefresh) {
+    function buildImmichGallerySection(items, onRefresh, locationRadius) {
         const section = createNode("section", { className: "subpanel" });
         section.appendChild(createNode("div", {
             className: "panel-heading",
@@ -268,7 +278,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         if (!items.length) {
             grid.appendChild(createNode("p", {
                 className: "muted immich-gallery__empty",
-                text: "No photos found within 50 meters of this location.",
+                text: `No photos found within ${locationRadius} meters of this location.`,
             }));
         } else {
             items.forEach((item) => {
@@ -359,6 +369,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         const associations = caches.locationAssociations.get(location.id) || [];
         const immichGalleryItems = caches.immichLocationGallery.get(location.id) || [];
         const immichConfigured = hasImmichIntegrationConfigured();
+        const locationRadius = location.radius ?? 50;
         const associationsWithIndex = associations.map((association, index) => ({ association, index }));
         associationsWithIndex.sort((left, right) => {
             const leftEntity = resolveAssociatedEntity(left.association);
@@ -440,7 +451,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         if (immichConfigured) {
             container.appendChild(buildImmichGallerySection(immichGalleryItems, async () => {
                 await actions.refreshImmichLocationGallery(location.id);
-            }));
+            }, locationRadius));
         }
     }
 

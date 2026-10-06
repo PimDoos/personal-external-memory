@@ -658,6 +658,14 @@ export function createMapRenderer({ state, actions }) {
             const marker = window.L.marker([coords.lat, coords.lon], {
                 icon: buildMarkerIconFromRule(markerRule),
             });
+            window.L.circle([coords.lat, coords.lon], {
+                radius: Number(location.radius) || 50,
+                className: `location-radius location-radius--${markerRule}`,
+                fillOpacity: 0.14,
+                opacity: 0.55,
+                weight: 1,
+                interactive: false,
+            }).addTo(markersLayer);
 
             marker.bindPopup(
                 buildPopupBody(

@@ -15,7 +15,7 @@ def test_format_iso_datetime_interprets_naive_event_time_in_browser_timezone() -
 
 
 async def test_location_gallery_finds_matching_photo_without_event_date_filter() -> None:
-    location = SimpleNamespace(latitude=10.0, longitude=20.0, location="")
+    location = SimpleNamespace(latitude=10.0, longitude=20.0, location="", radius=100.0)
     session = SimpleNamespace(execute=AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: location)))
     service = ImmichService(session)
     service._get_user_immich_credentials = AsyncMock(return_value=("https://immich.example", "api-key"))
@@ -25,7 +25,7 @@ async def test_location_gallery_finds_matching_photo_without_event_date_filter()
             "id": "older-nearby",
             "type": "IMAGE",
             "fileCreatedAt": "2010-01-01T00:00:00Z",
-            "exifInfo": {"latitude": 10, "longitude": 20},
+            "exifInfo": {"latitude": 10.0006, "longitude": 20},
         }], "nextPage": None}},
     ])
 
