@@ -981,6 +981,23 @@ select {
     background: #7b8490;
 }
 
+.map-popup-location-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.map-popup-location-link:hover,
+.map-popup-location-link:focus-visible {
+    color: var(--accent);
+}
+
 .location-radius--person {
     fill: #c5483f;
     stroke: #c5483f;
