@@ -3,6 +3,74 @@ import { formatDateTime } from "../ui.js";
 
 export function createLocationsRenderer({ state, caches, actions, common }) {
     const { filtered, createEventCard, createListItem, renderSimpleList } = common;
+    const miniMapMedia = window.matchMedia("(min-width: 1200px) and (orientation: landscape)");
+    let locationMiniMap = null;
+
+    function disposeLocationMiniMap() {
+        if (locationMiniMap) {
+            locationMiniMap.remove();
+            locationMiniMap = null;
+        }
+    }
+
+    function buildLocationMiniMap(location, coords) {
+        if (!coords) {
+            return null;
+        }
+
+        const mapNode = createNode("div", {
+            className: "location-mini-map",
+            attrs: { "aria-label": "Map preview of this location" },
+        });
+        if (!miniMapMedia.matches || !window.L || typeof window.L.maplibreGL !== "function") {
+            return mapNode;
+        }
+
+        window.requestAnimationFrame(() => {
+            if (!mapNode.isConnected || !miniMapMedia.matches) {
+                return;
+            }
+
+            const center = [coords.lat, coords.lon];
+            const map = window.L.map(mapNode, {
+                zoomControl: false,
+                scrollWheelZoom: false,
+                dragging: false,
+                doubleClickZoom: false,
+                keyboard: false,
+            }).setView(center, 16);
+            locationMiniMap = map;
+
+            const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            window.L.maplibreGL({
+                style: isDark
+                    ? "https://tiles.openfreemap.org/styles/dark"
+                    : "https://tiles.openfreemap.org/styles/liberty",
+            }).addTo(map);
+
+            const radius = Number(location.radius) || 50;
+            const radiusCircle = window.L.circle(center, {
+                radius,
+                color: "#3674cf",
+                fillColor: "#3674cf",
+                fillOpacity: 0.14,
+                opacity: 0.65,
+                weight: 2,
+                interactive: false,
+            }).addTo(map);
+            window.L.circleMarker(center, {
+                radius: 5,
+                color: "#ffffff",
+                weight: 2,
+                fillColor: "#3674cf",
+                fillOpacity: 1,
+                interactive: false,
+            }).addTo(map);
+            map.fitBounds(radiusCircle.getBounds(), { padding: [24, 24], maxZoom: 17 });
+        });
+
+        return mapNode;
+    }
 
     function hasImmichIntegrationConfigured() {
         const settings = state.data.userSettings || {};
@@ -262,7 +330,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         return form;
     }
 
-    function buildImmichGallerySection(items, onRefresh, locationRadius) {
+    function buildImmichGallerySection(items, onRefresh, locationRadius, isLoading) {
         const section = createNode("section", { className: "subpanel" });
         section.appendChild(createNode("div", {
             className: "panel-heading",
@@ -275,7 +343,17 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         }));
 
         const grid = createNode("div", { className: "immich-gallery" });
-        if (!items.length) {
+        grid.setAttribute("aria-busy", String(isLoading));
+        if (isLoading) {
+            const loadingGrid = createNode("div", {
+                className: "immich-gallery__loading",
+                attrs: { role: "status", "aria-label": "Loading photos" },
+            });
+            for (let index = 0; index < 6; index += 1) {
+                loadingGrid.appendChild(createNode("span", { className: "immich-gallery__loading-tile" }));
+            }
+            grid.appendChild(loadingGrid);
+        } else if (!items.length) {
             grid.appendChild(createNode("p", {
                 className: "muted immich-gallery__empty",
                 text: `No photos found within ${locationRadius} meters of this location.`,
@@ -342,6 +420,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         const form = document.getElementById("location-form");
         const container = document.getElementById("location-detail");
         const mode = state.sidebar.locations;
+        disposeLocationMiniMap();
 
         if (mode === "hidden") {
             panel.classList.add("hidden");
@@ -368,6 +447,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
 
         const associations = caches.locationAssociations.get(location.id) || [];
         const immichGalleryItems = caches.immichLocationGallery.get(location.id) || [];
+        const isImmichGalleryLoading = caches.immichLocationGalleryLoading.has(location.id);
         const immichConfigured = hasImmichIntegrationConfigured();
         const locationRadius = location.radius ?? 50;
         const associationsWithIndex = associations.map((association, index) => ({ association, index }));
@@ -392,6 +472,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         clearNodeChildren(container);
         container.className = "detail-grid";
         const locationEditForm = buildLocationEditForm(location);
+        const locationMiniMapNode = buildLocationMiniMap(location, inferLocationCoordinates(location));
         const saveLocationButton = createButtonNode("Save", "primary-button", () => {
             locationEditForm.requestSubmit();
         }, { type: "button" });
@@ -414,7 +495,10 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
                         }),
                     ],
                 }),
-                locationEditForm,
+                createNode("div", {
+                    className: "location-details-layout",
+                    children: [locationEditForm, locationMiniMapNode],
+                }),
             ],
         }));
 
@@ -451,7 +535,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         if (immichConfigured) {
             container.appendChild(buildImmichGallerySection(immichGalleryItems, async () => {
                 await actions.refreshImmichLocationGallery(location.id);
-            }, locationRadius));
+            }, locationRadius, isImmichGalleryLoading));
         }
     }
 

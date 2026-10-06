@@ -58,6 +58,7 @@ export function createAppController() {
         immichPersonGallery: new Map(),
         immichEventGallery: new Map(),
         immichLocationGallery: new Map(),
+        immichLocationGalleryLoading: new Set(),
         immichImageBlobUrls: new Map(),
         immichImageFailedAssetIds: new Set(),
         immichFaceAvatarBlobUrls: new Map(),
@@ -82,6 +83,7 @@ export function createAppController() {
         event: new Map(),
         location: new Map(),
     };
+    const inFlightImmichLocationGalleries = new Map();
 
     function clearBackgroundRefreshTimer() {
         if (backgroundRefreshTimerId !== null) {
@@ -149,6 +151,7 @@ export function createAppController() {
         caches.immichPersonGallery.clear();
         caches.immichEventGallery.clear();
         caches.immichLocationGallery.clear();
+        caches.immichLocationGalleryLoading.clear();
         caches.immichFaces = [];
         caches.personImmichFaceLink.clear();
         caches.topology = {
@@ -550,9 +553,9 @@ export function createAppController() {
         if (state.selected.locationId) {
             await loadLocationAssociations(state.selected.locationId);
             if (hasImmichIntegrationConfigured()) {
-                await loadImmichGalleryForLocation(state.selected.locationId);
+                void loadImmichGalleryForLocation(state.selected.locationId, { renderLoading: false });
             } else {
-                caches.immichLocationGallery.set(state.selected.locationId, []);
+                caches.immichLocationGallery.delete(state.selected.locationId);
             }
         }
     }
@@ -1016,18 +1019,43 @@ export function createAppController() {
         }
     }
 
-    async function loadImmichGalleryForLocation(locationId) {
+    async function loadImmichGalleryForLocation(locationId, { force = false, renderLoading = true } = {}) {
         if (!hasImmichIntegrationConfigured()) {
-            caches.immichLocationGallery.set(locationId, []);
+            caches.immichLocationGallery.delete(locationId);
+            caches.immichLocationGalleryLoading.delete(locationId);
             return;
         }
 
-        try {
-            const response = await api.immich.galleryForLocation(locationId, 24);
-            caches.immichLocationGallery.set(locationId, response?.items || []);
-        } catch {
-            caches.immichLocationGallery.set(locationId, []);
+        if (!force && caches.immichLocationGallery.has(locationId)) {
+            return;
         }
+
+        const inFlightRequest = inFlightImmichLocationGalleries.get(locationId);
+        if (inFlightRequest) {
+            return inFlightRequest;
+        }
+
+        caches.immichLocationGalleryLoading.add(locationId);
+        if (renderLoading && state.selected.locationId === locationId) {
+            renderer.renderAll();
+        }
+
+        const request = (async () => {
+            try {
+                const response = await api.immich.galleryForLocation(locationId, 24);
+                caches.immichLocationGallery.set(locationId, response?.items || []);
+            } catch {
+                caches.immichLocationGallery.delete(locationId);
+            } finally {
+                caches.immichLocationGalleryLoading.delete(locationId);
+                inFlightImmichLocationGalleries.delete(locationId);
+                if (state.selected.locationId === locationId) {
+                    renderer.renderAll();
+                }
+            }
+        })();
+        inFlightImmichLocationGalleries.set(locationId, request);
+        return request;
     }
 
     async function resolveImmichImageUrl(asset) {
@@ -1292,7 +1320,7 @@ export function createAppController() {
         if (state.selected.locationId) {
             await loadLocationAssociations(state.selected.locationId);
             if (hasImmichIntegrationConfigured()) {
-                await loadImmichGalleryForLocation(state.selected.locationId);
+                void loadImmichGalleryForLocation(state.selected.locationId, { renderLoading: false });
             }
         }
 
@@ -1655,7 +1683,7 @@ export function createAppController() {
             await loadImmichGalleryForEvent(eventId);
         }),
         refreshImmichLocationGallery: async (locationId) => withAction(async () => {
-            await loadImmichGalleryForLocation(locationId);
+            await loadImmichGalleryForLocation(locationId, { force: true });
         }),
         resolveImmichImageUrl,
         resolveImmichFaceImageUrl,
@@ -2112,9 +2140,9 @@ export function createAppController() {
             requestViewportJump("locations");
             await loadLocationAssociations(locationId);
             if (hasImmichIntegrationConfigured()) {
-                await loadImmichGalleryForLocation(locationId);
+                void loadImmichGalleryForLocation(locationId, { renderLoading: false });
             } else {
-                caches.immichLocationGallery.set(locationId, []);
+                caches.immichLocationGallery.delete(locationId);
             }
         }),
         createLocation: async (payload) => withAction(async () => {

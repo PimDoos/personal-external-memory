@@ -8,7 +8,7 @@ import math
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from urllib.parse import parse_qs, quote_plus, unquote_plus, urlencode, urlparse
+from urllib.parse import parse_qs, quote, quote_plus, unquote_plus, urlencode, urlparse
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
@@ -35,8 +35,7 @@ from app.infrastructure.models import (
 class ImmichService:
     """Service for Immich integration operations."""
 
-    LOCATION_GALLERY_RADIUS_METERS = 50.0
-    LOCATION_SEARCH_PAGE_SIZE = 200
+    LOCATION_ASSET_DETAILS_BATCH_SIZE = 32
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -354,44 +353,53 @@ class ImmichService:
         location_radius = float(location.radius)
 
         result_limit = max(1, min(limit, 200))
-        dedup: dict[str, dict[str, Any]] = {}
-        page = 1
-        while len(dedup) < result_limit:
-            payload = {
-                "page": page,
-                "size": self.LOCATION_SEARCH_PAGE_SIZE,
-                "withExif": True,
-                "withArchived": False,
-            }
-            response = await self._request_json(base_url, api_key, "POST", "/api/search/metadata", payload)
-            assets_page = response.get("assets") if isinstance(response, dict) else None
-            raw_items = assets_page.get("items") if isinstance(assets_page, dict) else None
-            if not isinstance(raw_items, list) or not raw_items:
-                break
-
-            for item in self._extract_assets(response):
-                item_id = str(item.get("id") or "")
-                if not item_id or item_id in dedup:
+        markers = await self._request_json(
+            base_url, api_key, "GET", "/api/map/markers?isArchived=false"
+        )
+        nearby_asset_ids: list[str] = []
+        if isinstance(markers, list):
+            for marker in markers:
+                if not isinstance(marker, dict):
                     continue
-                item_coords = self._extract_asset_coordinates(item)
-                if item_coords is None:
+                asset_id = str(marker.get("id") or "").strip()
+                if not asset_id:
+                    continue
+                try:
+                    marker_lat = float(marker.get("lat"))
+                    marker_lon = float(marker.get("lon"))
+                except (TypeError, ValueError):
+                    continue
+                if not self._is_valid_coordinate_pair(marker_lat, marker_lon):
                     continue
 
-                distance = self._distance_meters(location_lat, location_lon, item_coords[0], item_coords[1])
+                distance = self._distance_meters(location_lat, location_lon, marker_lat, marker_lon)
                 if distance <= location_radius:
-                    dedup[item_id] = item
-                    if len(dedup) >= result_limit:
-                        break
+                    nearby_asset_ids.append(asset_id)
 
-            next_page = assets_page.get("nextPage")
-            if not next_page:
+        items: list[dict[str, Any]] = []
+        for batch_start in range(0, len(nearby_asset_ids), self.LOCATION_ASSET_DETAILS_BATCH_SIZE):
+            asset_ids = nearby_asset_ids[
+                batch_start : batch_start + self.LOCATION_ASSET_DETAILS_BATCH_SIZE
+            ]
+            asset_details = await asyncio.gather(*(
+                self._request_json(
+                    base_url,
+                    api_key,
+                    "GET",
+                    f"/api/assets/{quote(asset_id, safe='')}",
+                    allow_404=True,
+                )
+                for asset_id in asset_ids
+            ))
+            for asset in asset_details:
+                if not isinstance(asset, dict) or str(asset.get("type") or "").upper() == "VIDEO":
+                    continue
+                items.append(asset)
+                if len(items) >= result_limit:
+                    break
+            if len(items) >= result_limit:
                 break
-            try:
-                page = int(next_page)
-            except (TypeError, ValueError):
-                page += 1
 
-        items = list(dedup.values())[:result_limit]
         return ImmichGalleryResponse(
             context="location",
             items=[self._to_asset_response(base_url, asset) for asset in items],
