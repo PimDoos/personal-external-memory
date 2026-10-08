@@ -1454,6 +1454,18 @@ export function createAppController() {
             });
         });
 
+        document.addEventListener("click", (event) => {
+            const closeButton = event.target.closest("[data-close-detail]");
+            const section = closeButton?.dataset.closeDetail;
+            if (!section || state.sidebar[section] === undefined) {
+                return;
+            }
+
+            resetSidebar(section);
+            renderer.renderAll();
+            writeHashFromState();
+        });
+
         document.querySelectorAll(".nav-button").forEach((button) => {
             button.addEventListener("click", () => {
                 state.activeSection = button.dataset.section;
