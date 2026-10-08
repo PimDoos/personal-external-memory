@@ -154,6 +154,31 @@ export function createRenderCommon({ state, refs, caches, actions, isPersonAlive
         });
     }
 
+    function createAssociatedPeopleAvatarRow(peopleReferences) {
+        const peopleById = new Map((state.data.people || []).map((person) => [Number(person.id), person]));
+        const personIds = [...new Set((peopleReferences || []).map((reference) => {
+            const rawId = typeof reference === "object"
+                ? reference.person_id ?? reference.personId ?? reference.id
+                : reference;
+            const personId = Number(rawId);
+            return Number.isInteger(personId) && personId > 0 ? personId : null;
+        }).filter(Boolean))];
+        const people = personIds.map((personId) => peopleById.get(personId)).filter(Boolean);
+        if (!people.length) {
+            return null;
+        }
+
+        const row = createNode("div", { className: "entity-avatar-row" });
+        people.forEach((person) => {
+            const name = `${person.first_name || ""} ${person.last_name || ""}`.trim();
+            const faceId = caches.personImmichFaceLink.get(person.id)?.identity?.id || null;
+            const avatar = createPersonAvatar(name, faceId, actions?.resolveImmichFaceImageUrl);
+            avatar.classList.add("entity-avatar-row__avatar");
+            row.appendChild(avatar);
+        });
+        return row;
+    }
+
     function createEventCard(event) {
         const eventParticipants = (caches.topology.eventParticipantsByEventId.get(event.id)
             || caches.eventParticipants.get(event.id)
@@ -204,6 +229,7 @@ export function createRenderCommon({ state, refs, caches, actions, isPersonAlive
         renderSimpleList,
         createMetricCard,
         createListItem,
+        createAssociatedPeopleAvatarRow,
         createEventCard,
         isPersonAliveAtDate,
     };

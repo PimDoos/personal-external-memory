@@ -34,7 +34,7 @@ export function createRenderer(ctx) {
     const { renderSettings } = createSettingsRenderer({ state, actions });
     const { renderTopology } = createTopologyRenderer({ state, caches, actions });
     const { renderCalendar } = createCalendarRenderer({ state, actions });
-    const { renderMap } = createMapRenderer({ state, actions });
+    const { renderMap } = createMapRenderer({ state, caches, actions });
 
     function renderAll() {
         common.setAuthShell();

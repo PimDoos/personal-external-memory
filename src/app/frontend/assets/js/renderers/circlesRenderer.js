@@ -3,7 +3,7 @@ import { createCombobox } from "../combobox.js";
 import { createPersonAvatar } from "../avatar.js";
 
 export function createCirclesRenderer({ state, caches, actions, common }) {
-    const { filtered, selectedCircle, createEventCard, createListItem, renderSimpleList } = common;
+    const { filtered, selectedCircle, createEventCard, createListItem, createAssociatedPeopleAvatarRow, renderSimpleList } = common;
 
     function displayEventLabel(event) {
         return event.title || `Event #${event.id}`;
@@ -391,6 +391,14 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
                     circle.name,
                     circle.circle_type || circle.description || circle.notes || "No description"
                 );
+                const memberIds = caches.topology.circleMembersByCircleId.get(circle.id)
+                    || caches.circleMembers.get(circle.id)
+                    || circle.member_ids
+                    || [];
+                const avatarRow = createAssociatedPeopleAvatarRow(memberIds);
+                if (avatarRow) {
+                    item.appendChild(avatarRow);
+                }
 
                 if (state.selected.circleId === circle.id) {
                     item.classList.add("active");

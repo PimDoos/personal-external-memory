@@ -3,7 +3,7 @@ import { createCombobox } from "../combobox.js";
 import { createPersonAvatar } from "../avatar.js";
 
 export function createBrandsRenderer({ state, caches, actions, common }) {
-    const { filtered, createListItem, renderSimpleList } = common;
+    const { filtered, createListItem, createAssociatedPeopleAvatarRow, renderSimpleList } = common;
 
     function displayLocationLabel(location) {
         return location.label || location.location || "(unnamed location)";
@@ -399,6 +399,14 @@ export function createBrandsRenderer({ state, caches, actions, common }) {
                     brand.name,
                     brand.description || brand.notes || "No description"
                 );
+                const members = caches.topology.brandMembersByBrandId.get(brand.id)
+                    || caches.brandMembers.get(brand.id)
+                    || brand.members
+                    || [];
+                const avatarRow = createAssociatedPeopleAvatarRow(members);
+                if (avatarRow) {
+                    item.appendChild(avatarRow);
+                }
                 if (state.selected.brandId === brand.id) {
                     item.classList.add("active");
                 }
