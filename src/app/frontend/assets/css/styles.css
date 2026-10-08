@@ -1388,10 +1388,15 @@ img.dashboard-avatar {
 }
 
 .age-hint {
+    display: block;
     color: var(--ink-soft);
     font-weight: 400;
     font-size: 0.88rem;
-    margin-left: 6px;
+    white-space: nowrap;
+}
+
+.age-hint:empty {
+    display: none;
 }
 
 .list-actions,
