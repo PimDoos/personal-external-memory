@@ -1351,7 +1351,7 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
         } else {
             people.forEach((person) => {
                 const assignedTags = caches.peopleTagSummaries.get(person.id) || [];
-                const age = calculateAge(person.birth_date);
+                const age = person.date_of_death ? null : calculateAge(person.birth_date);
                 const tagsNode = createNode("div", { className: "tag-cloud" });
 
                 if (!assignedTags.length) {
