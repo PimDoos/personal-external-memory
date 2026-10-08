@@ -493,9 +493,9 @@ export function createMapRenderer({ state, actions }) {
         return window.L.divIcon({
             className: "map-marker-icon-wrapper",
             html: buildMarkerIconHtml(colorClass, colorLabel),
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-            popupAnchor: [0, -10],
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+            popupAnchor: [0, -8],
         });
     }
 
@@ -519,9 +519,9 @@ export function createMapRenderer({ state, actions }) {
         return window.L.divIcon({
             className: "map-marker-icon-wrapper",
             html: buildMarkerIconHtml(colorClass, colorLabel),
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-            popupAnchor: [0, -10],
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+            popupAnchor: [0, -8],
         });
     }
 
