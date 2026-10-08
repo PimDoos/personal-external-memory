@@ -896,6 +896,12 @@ select {
     overflow: hidden;
 }
 
+@media (prefers-color-scheme: dark) {
+    .map-canvas.leaflet-container {
+        background-color: var(--paper);
+    }
+}
+
 .map-unmapped {
     min-height: 1.2rem;
 }
