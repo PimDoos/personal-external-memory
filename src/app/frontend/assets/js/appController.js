@@ -24,6 +24,14 @@ export function createAppController() {
         tags: "tag-detail-panel",
         locations: "location-detail-panel",
     };
+    const LIST_ID_BY_SECTION = {
+        people: "people-list",
+        circles: "circles-list",
+        brands: "brands-list",
+        events: "events-list",
+        tags: "tags-list",
+        locations: "locations-list",
+    };
 
     const refs = {
         authPanel: getNodeById("auth-panel"),
@@ -456,6 +464,22 @@ export function createAppController() {
         return true;
     }
 
+    function keepSelectedEntityVisible(section) {
+        const listNode = document.getElementById(LIST_ID_BY_SECTION[section]);
+        const selectedItem = listNode?.querySelector(".list-item.active");
+        if (!listNode || !selectedItem) {
+            return;
+        }
+
+        const listBounds = listNode.getBoundingClientRect();
+        const itemBounds = selectedItem.getBoundingClientRect();
+        if (itemBounds.top < listBounds.top) {
+            listNode.scrollTop -= listBounds.top - itemBounds.top;
+        } else if (itemBounds.bottom > listBounds.bottom) {
+            listNode.scrollTop += itemBounds.bottom - listBounds.bottom;
+        }
+    }
+
     function setApiStatus(message, healthy = true) {
         refs.apiStatus.innerText = message;
         refs.apiStatus.style.borderColor = healthy
@@ -485,6 +509,9 @@ export function createAppController() {
                         top: viewportBeforeAction.top,
                         behavior: "auto",
                     });
+                }
+                if (state.sidebar[state.activeSection] === "detail") {
+                    keepSelectedEntityVisible(state.activeSection);
                 }
             }
         } catch (error) {

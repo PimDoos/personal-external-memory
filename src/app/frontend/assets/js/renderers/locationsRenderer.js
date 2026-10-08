@@ -560,6 +560,9 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
             (location) => {
                 const subtitle = location.location_type ? `${location.location_type} • ${location.location}` : location.location;
                 const item = createListItem(displayLocationLabel(location), subtitle);
+                if (state.selected.locationId === location.id) {
+                    item.classList.add("active");
+                }
                 bindEntityNavigation(item, "locations", location.id, async () => {
                     await actions.selectLocation(location.id);
                 });

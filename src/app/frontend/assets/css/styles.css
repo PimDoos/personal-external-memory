@@ -644,6 +644,16 @@ select {
     grid-template-columns: minmax(0, 720px);
 }
 
+.workspace-grid:not(:has(> .detail-panel:not(.hidden))) {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace-grid:not(:has(> .detail-panel:not(.hidden))) > article:first-child > .list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    max-height: none;
+    overflow: visible;
+}
+
 .types-header {
     display: flex;
     align-items: flex-end;
@@ -1332,6 +1342,10 @@ textarea {
     align-items: center;
     gap: 12px;
     min-width: 0;
+}
+
+#people-list .list-item__main {
+    align-items: flex-start;
 }
 
 .list-item__text {
