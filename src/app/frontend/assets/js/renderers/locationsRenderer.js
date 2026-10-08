@@ -5,29 +5,46 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
     const { filtered, createEventCard, createListItem, renderSimpleList } = common;
     const miniMapMedia = window.matchMedia("(min-width: 1200px) and (orientation: landscape)");
     let locationMiniMap = null;
+    let locationMiniMapNode = null;
+    let locationMiniMapKey = "";
 
     function disposeLocationMiniMap() {
         if (locationMiniMap) {
             locationMiniMap.remove();
-            locationMiniMap = null;
         }
+        locationMiniMap = null;
+        locationMiniMapNode = null;
+        locationMiniMapKey = "";
     }
 
     function buildLocationMiniMap(location, coords) {
         if (!coords) {
+            disposeLocationMiniMap();
             return null;
         }
 
-        const mapNode = createNode("div", {
-            className: "location-mini-map",
-            attrs: { "aria-label": "Map preview of this location" },
-        });
+        const radius = Number(location.radius) || 50;
+        const mapKey = `${location.id}:${coords.lat}:${coords.lon}:${radius}`;
+        if (locationMiniMapKey !== mapKey || !locationMiniMapNode) {
+            disposeLocationMiniMap();
+            locationMiniMapNode = createNode("div", {
+                className: "location-mini-map",
+                attrs: { "aria-label": "Map preview of this location" },
+            });
+            locationMiniMapKey = mapKey;
+        }
+        const mapNode = locationMiniMapNode;
         if (!miniMapMedia.matches || !window.L || typeof window.L.maplibreGL !== "function") {
             return mapNode;
         }
 
         window.requestAnimationFrame(() => {
-            if (!mapNode.isConnected || !miniMapMedia.matches) {
+            if (!mapNode.isConnected || !miniMapMedia.matches || locationMiniMapNode !== mapNode) {
+                return;
+            }
+
+            if (locationMiniMap) {
+                locationMiniMap.invalidateSize({ pan: false });
                 return;
             }
 
@@ -48,7 +65,6 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
                     : "https://tiles.openfreemap.org/styles/liberty",
             }).addTo(map);
 
-            const radius = Number(location.radius) || 50;
             const radiusCircle = window.L.circle(center, {
                 radius,
                 color: "#3674cf",
@@ -420,9 +436,9 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         const form = document.getElementById("location-form");
         const container = document.getElementById("location-detail");
         const mode = state.sidebar.locations;
-        disposeLocationMiniMap();
 
         if (mode === "hidden") {
+            disposeLocationMiniMap();
             panel.classList.add("hidden");
             form.classList.add("hidden");
             container.classList.add("hidden");
@@ -431,6 +447,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
 
         panel.classList.remove("hidden");
         if (mode === "create") {
+            disposeLocationMiniMap();
             form.classList.remove("hidden");
             container.classList.add("hidden");
             return;
@@ -441,6 +458,7 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
 
         const location = state.data.locations.find((entry) => entry.id === state.selected.locationId);
         if (!location) {
+            disposeLocationMiniMap();
             panel.classList.add("hidden");
             return;
         }

@@ -907,7 +907,8 @@ select {
 }
 
 @media (prefers-color-scheme: dark) {
-    .map-canvas.leaflet-container {
+    .map-canvas.leaflet-container,
+    .location-mini-map.leaflet-container {
         background-color: var(--paper);
     }
 }
