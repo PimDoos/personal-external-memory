@@ -6,6 +6,7 @@ import {
     createSelectNode,
     wrapCollapsible,
 } from "../dom.js";
+import { createPersonAvatar } from "../avatar.js";
 
 export function createTagsRenderer({ state, caches, actions, common }) {
     const { filtered, createListItem, renderSimpleList } = common;
@@ -196,7 +197,10 @@ export function createTagsRenderer({ state, caches, actions, common }) {
                     await actions.removeTagFromPerson(tag.id, person.id);
                 }));
 
-                const item = createListItem(personDisplayName(person), "person", actionsNode);
+                const personName = personDisplayName(person);
+                const faceId = caches.personImmichFaceLink.get(person.id)?.identity?.id || null;
+                const avatar = createPersonAvatar(personName, faceId, actions.resolveImmichFaceImageUrl);
+                const item = createListItem(personName, "person", actionsNode, avatar);
                 item.classList.add("clickable");
                 bindEntityNavigation(item, "people", person.id, async () => {
                     await actions.openPersonFromContext(person.id);
