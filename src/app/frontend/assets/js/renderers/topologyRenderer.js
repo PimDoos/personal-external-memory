@@ -715,6 +715,22 @@ export function createTopologyRenderer({ state, caches, actions }) {
         });
     }
 
+    async function openTopologyEntity(entity, rawEntityId) {
+        const entityId = Number(rawEntityId);
+        if (!Number.isInteger(entityId) || entityId <= 0) {
+            return;
+        }
+
+        if (entity === "person") {
+            await actions.openPersonFromContext(entityId);
+        } else if (entity === "brand") {
+            await actions.openBrandFromContext(entityId);
+        } else if (entity === "circle") {
+            state.activeSection = "circles";
+            await actions.selectCircle(entityId);
+        }
+    }
+
     function drawGraph(graph) {
         const svg = document.getElementById("topology-graph");
         if (!svg) {
@@ -901,6 +917,8 @@ export function createTopologyRenderer({ state, caches, actions }) {
             graphHandlersBound = true;
             let isPanning = false;
             let lastPanPoint = null;
+            let pendingNodePointer = null;
+            let activePointerId = null;
 
             svg.addEventListener("wheel", (event) => {
                 event.preventDefault();
@@ -920,39 +938,30 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 }
             }, { passive: false });
 
-            svg.addEventListener("mousedown", (event) => {
-                if (event.button !== 0) {
+            svg.addEventListener("pointerdown", (event) => {
+                if (event.button !== 0 || !event.isPrimary) {
                     return;
                 }
 
+                activePointerId = event.pointerId;
                 const targetNode = findNodeGroup(event.target);
                 if (targetNode) {
                     const nodeId = targetNode.dataset.nodeId;
-                    const draggedPos = positions.get(nodeId);
-                    if (!nodeId || !draggedPos) {
+                    if (!nodeId || !positions.has(nodeId)) {
                         return;
                     }
                     event.preventDefault();
                     event.stopPropagation();
                     isPanning = false;
-                    draggedNodeId = nodeId;
-                    const worldPoint = getPointerWorldPosition(event, svg);
-                    const boundaryPadding = getSimulationPadding(activeGraphRef?.nodes.length || 1);
-                    draggedPos.x = Math.min(
-                        simulationBounds.width - boundaryPadding,
-                        Math.max(boundaryPadding, worldPoint.x)
-                    );
-                    draggedPos.y = Math.min(
-                        simulationBounds.height - boundaryPadding,
-                        Math.max(boundaryPadding, worldPoint.y)
-                    );
-                    const draggedVelocity = velocities.get(nodeId);
-                    if (draggedVelocity) {
-                        draggedVelocity.x = 0;
-                        draggedVelocity.y = 0;
-                    }
-                    svg.style.cursor = "grabbing";
-                    scheduleSimulation();
+                    pendingNodePointer = {
+                        pointerId: event.pointerId,
+                        nodeId,
+                        entity: targetNode.dataset.entity,
+                        entityId: targetNode.dataset.entityId,
+                        startX: event.clientX,
+                        startY: event.clientY,
+                    };
+                    svg.setPointerCapture?.(event.pointerId);
                     return;
                 }
 
@@ -960,30 +969,6 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 isPanning = true;
                 lastPanPoint = getSvgPoint(event, svg);
                 svg.style.cursor = "grabbing";
-            });
-
-            svg.addEventListener("dblclick", async (event) => {
-                const targetNode = findNodeGroup(event.target);
-                if (!targetNode) {
-                    return;
-                }
-
-                event.preventDefault();
-                event.stopPropagation();
-                const entity = targetNode.dataset.entity;
-                const entityId = Number(targetNode.dataset.entityId);
-                if (!entityId || entity === "circle") {
-                    return;
-                }
-
-                if (entity === "person") {
-                    await actions.openPersonFromContext(entityId);
-                    return;
-                }
-
-                if (entity === "brand") {
-                    await actions.openBrandFromContext(entityId);
-                }
             });
 
             svg.addEventListener("mousemove", (event) => {
@@ -1020,7 +1005,22 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 }
             });
 
-            window.addEventListener("mousemove", (event) => {
+            window.addEventListener("pointermove", (event) => {
+                if (event.pointerId !== activePointerId) {
+                    return;
+                }
+
+                if (pendingNodePointer && !draggedNodeId) {
+                    const deltaX = event.clientX - pendingNodePointer.startX;
+                    const deltaY = event.clientY - pendingNodePointer.startY;
+                    if ((deltaX * deltaX) + (deltaY * deltaY) < 64) {
+                        return;
+                    }
+                    draggedNodeId = pendingNodePointer.nodeId;
+                    svg.style.cursor = "grabbing";
+                    scheduleSimulation();
+                }
+
                 if (draggedNodeId) {
                     const draggedPos = positions.get(draggedNodeId);
                     const draggedVelocity = velocities.get(draggedNodeId);
@@ -1058,24 +1058,38 @@ export function createTopologyRenderer({ state, caches, actions }) {
                 }
             });
 
-            window.addEventListener("mouseup", () => {
-                if (draggedNodeId) {
-                    const releasedVelocity = velocities.get(draggedNodeId);
-                    if (releasedVelocity) {
-                        releasedVelocity.x = 0;
-                        releasedVelocity.y = 0;
-                    }
-                    draggedNodeId = null;
-                    svg.style.cursor = "default";
-                    scheduleSimulation();
-                }
-                if (!isPanning) {
+            const finishPointer = (event, shouldOpenEntity) => {
+                if (event.pointerId !== activePointerId) {
                     return;
                 }
-                isPanning = false;
-                lastPanPoint = null;
+
+                if (pendingNodePointer?.pointerId === event.pointerId) {
+                    const pending = pendingNodePointer;
+                    pendingNodePointer = null;
+                    if (draggedNodeId) {
+                        const releasedVelocity = velocities.get(draggedNodeId);
+                        if (releasedVelocity) {
+                            releasedVelocity.x = 0;
+                            releasedVelocity.y = 0;
+                        }
+                        draggedNodeId = null;
+                        svg.style.cursor = "default";
+                        scheduleSimulation();
+                    } else if (shouldOpenEntity) {
+                        void openTopologyEntity(pending.entity, pending.entityId);
+                    }
+                }
+
+                if (isPanning) {
+                    isPanning = false;
+                    lastPanPoint = null;
+                }
+                activePointerId = null;
                 svg.style.cursor = "default";
-            });
+            };
+
+            window.addEventListener("pointerup", (event) => finishPointer(event, true));
+            window.addEventListener("pointercancel", (event) => finishPointer(event, false));
         }
 
         graph.nodes.forEach((node) => ensurePosition(node, width, height));

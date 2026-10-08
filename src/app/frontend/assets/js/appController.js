@@ -2380,33 +2380,39 @@ export function createAppController() {
     });
 
     async function init() {
-        bindStaticHandlers();
-        syncNavigationCollapseForViewport();
-        collapsibleNavigationMediaQuery.addEventListener("change", syncNavigationCollapseForViewport);
-        setAuthExpiredHandler(() => {
-            endAuthenticatedSession("Session expired. Please sign in again.", true);
-        });
-        await checkApi();
-        await restoreOpenIdCallback();
+        const startupScreen = document.getElementById("startup-screen");
+        try {
+            bindStaticHandlers();
+            syncNavigationCollapseForViewport();
+            collapsibleNavigationMediaQuery.addEventListener("change", syncNavigationCollapseForViewport);
+            setAuthExpiredHandler(() => {
+                endAuthenticatedSession("Session expired. Please sign in again.", true);
+            });
+            await checkApi();
+            await restoreOpenIdCallback();
 
-        window.addEventListener("hashchange", () => {
-            applyLocationStateFromHash();
-        });
-        window.addEventListener("popstate", () => {
-            applyLocationStateFromHash();
-        });
+            window.addEventListener("hashchange", () => {
+                applyLocationStateFromHash();
+            });
+            window.addEventListener("popstate", () => {
+                applyLocationStateFromHash();
+            });
 
-        if (state.token) {
-            try {
-                applyHashToState();
-                await bootstrapAuthenticated();
-                writeHashFromState({ replace: true });
-                scheduleBackgroundRefresh();
-            } catch (error) {
-                endAuthenticatedSession(error.message || "Session restore failed", true);
+            if (state.token) {
+                try {
+                    applyHashToState();
+                    await bootstrapAuthenticated();
+                    writeHashFromState({ replace: true });
+                    scheduleBackgroundRefresh();
+                } catch (error) {
+                    endAuthenticatedSession(error.message || "Session restore failed", true);
+                }
+            } else {
+                renderer.renderAll();
             }
-        } else {
-            renderer.renderAll();
+        } finally {
+            renderer.setAuthShell();
+            startupScreen?.classList.add("hidden");
         }
     }
 

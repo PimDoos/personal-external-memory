@@ -120,6 +120,40 @@ select {
     padding: 24px;
 }
 
+.startup-screen {
+    position: fixed;
+    z-index: 10000;
+    inset: 0;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 14px;
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.startup-screen__spinner {
+    width: 30px;
+    aspect-ratio: 1;
+    border: 3px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: startup-spin 800ms linear infinite;
+}
+
+@keyframes startup-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .startup-screen__spinner {
+        animation: none;
+    }
+}
+
 .topbar {
     display: flex;
     justify-content: space-between;
@@ -1256,6 +1290,7 @@ select {
     height: 540px;
     display: block;
     user-select: none;
+    touch-action: none;
 }
 
 .topology-node-label {

@@ -9,6 +9,10 @@
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" crossorigin="">
 </head>
 <body>
+    <div class="startup-screen" id="startup-screen" role="status" aria-live="polite">
+        <span class="startup-screen__spinner" aria-hidden="true"></span>
+        <span>Loading</span>
+    </div>
     <div class="app-shell">
         <header class="topbar">
             <div>
@@ -46,7 +50,7 @@
         </section>
 
         <main class="layout">
-            <section class="auth-panel panel" id="auth-panel">
+            <section class="auth-panel panel hidden" id="auth-panel">
                     <form id="login-form" class="auth-form" method="post" action="javascript:void(0)">
                         <div class="auth-form-row">
                             <label>

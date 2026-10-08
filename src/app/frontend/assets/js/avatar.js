@@ -39,15 +39,34 @@ export function createPersonAvatar(personName, faceIdentityId, resolveImageUrl, 
             },
         });
 
-        resolveImageUrl(faceIdentityId).then((url) => {
-            if (url) {
-                img.src = url;
-            } else {
-                img.replaceWith(createNode("span", { className, text: getAvatarInitials(personName), attrs }));
+        const loadFace = () => {
+            observer?.disconnect();
+            if (!img.isConnected) {
+                return;
             }
-        }).catch(() => {
-            img.replaceWith(createNode("span", { className, text: getAvatarInitials(personName), attrs }));
-        });
+
+            resolveImageUrl(faceIdentityId).then((url) => {
+                if (url) {
+                    img.src = url;
+                } else {
+                    img.replaceWith(createNode("span", { className, text: getAvatarInitials(personName), attrs }));
+                }
+            }).catch(() => {
+                img.replaceWith(createNode("span", { className, text: getAvatarInitials(personName), attrs }));
+            });
+        };
+
+        let observer = null;
+        if (typeof window.IntersectionObserver === "function") {
+            observer = new IntersectionObserver((entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    loadFace();
+                }
+            });
+            observer.observe(img);
+        } else {
+            loadFace();
+        }
 
         return img;
     }
