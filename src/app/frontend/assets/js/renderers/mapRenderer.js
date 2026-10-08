@@ -49,7 +49,7 @@ function parseCoordinates(rawLocation) {
     return null;
 }
 
-export function createMapRenderer({ state, actions }) {
+export function createMapRenderer({ state, caches, actions }) {
     let map = null;
     let markersLayer = null;
     let tileLayer = null;
@@ -493,7 +493,12 @@ export function createMapRenderer({ state, actions }) {
                 return;
             }
 
-            const preloadedAssociations = Array.isArray(location.associations) ? location.associations : null;
+            const cachedAssociations = caches.locationAssociations.get(location.id);
+            const preloadedAssociations = Array.isArray(location.associations)
+                ? location.associations
+                : Array.isArray(cachedAssociations)
+                    ? cachedAssociations
+                    : null;
             if (preloadedAssociations) {
                 locationAssociationSummaryCache.set(location.id, summarizeLocationAssociations(preloadedAssociations));
             }
