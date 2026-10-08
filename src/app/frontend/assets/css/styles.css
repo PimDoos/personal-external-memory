@@ -731,6 +731,14 @@ select {
     text-align: center;
 }
 
+.calendar-month-grid {
+    display: block;
+}
+
+.calendar-agenda {
+    display: none;
+}
+
 .calendar-nav-btn {
     font-size: 1.3rem;
     line-height: 1;
@@ -1666,6 +1674,87 @@ img.dashboard-avatar {
 
     .types-grid {
         grid-template-columns: 1fr;
+    }
+
+    .calendar-header {
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .calendar-month-label {
+        font-size: 1.15rem;
+        min-width: 0;
+    }
+
+    .calendar-nav-btn,
+    .calendar-today-btn {
+        padding: 8px 10px;
+    }
+
+    .calendar-today-btn {
+        margin-left: 0;
+    }
+
+    .calendar-month-grid {
+        display: none;
+    }
+
+    .calendar-agenda {
+        display: grid;
+        gap: 4px;
+    }
+
+    .calendar-agenda__day {
+        display: grid;
+        grid-template-columns: minmax(86px, 0.32fr) minmax(0, 1fr);
+        align-items: start;
+        gap: 10px;
+        min-width: 0;
+        padding: 8px 4px;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .calendar-agenda__day--today {
+        background: var(--accent-soft);
+        border-radius: var(--radius-small);
+    }
+
+    .calendar-agenda__heading {
+        display: grid;
+        justify-items: start;
+        gap: 6px;
+    }
+
+    .calendar-agenda__date {
+        color: var(--ink-soft);
+        font-size: 0.84rem;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+
+    .calendar-agenda__day--today .calendar-agenda__date {
+        color: var(--accent);
+    }
+
+    .calendar-agenda__add {
+        opacity: 1;
+        pointer-events: auto;
+        font-size: 0.72rem;
+    }
+
+    .calendar-agenda__items {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+    }
+
+    .calendar-agenda .calendar-event-pill,
+    .calendar-agenda .calendar-occasion-pill {
+        white-space: normal;
+        overflow: visible;
+        overflow-wrap: anywhere;
+        text-overflow: clip;
+        text-align: left;
     }
 
     .topology-graph-wrap,

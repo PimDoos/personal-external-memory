@@ -131,6 +131,63 @@ export function createCalendarRenderer({ state, actions }) {
         return `${hours}:${minutes}`;
     }
 
+    function createAddEventButton(dayKey, extraClass = "") {
+        const addButton = createButtonNode("+ Add", "ghost-button", async (event) => {
+            event.stopPropagation();
+            await actions.openEventCreateForDate(dayKey);
+        }, { type: "button" });
+        addButton.classList.add("calendar-day-add");
+        if (extraClass) {
+            addButton.classList.add(extraClass);
+        }
+        addButton.setAttribute("aria-label", `Add event on ${dayKey}`);
+        return addButton;
+    }
+
+    function createOccasionPill(occasion) {
+        const label = occasion.type === "birthday"
+            ? `\u{1F973} ${occasion.name} (${occasion.year})`
+            : `\u{1FAA6} ${occasion.name} (${occasion.year})`;
+        const pill = createNode("div", {
+            className: `calendar-occasion-pill calendar-occasion-pill--${occasion.type}`,
+            text: label,
+            attrs: { title: label, role: "button", tabindex: "0" },
+        });
+        pill.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            await actions.openPersonFromContext(occasion.personId);
+        });
+        pill.addEventListener("keydown", async (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                await actions.openPersonFromContext(occasion.personId);
+            }
+        });
+        return pill;
+    }
+
+    function createEventPill(event) {
+        const title = event.title || `Event #${event.id}`;
+        const time = formatEventTime(event);
+        const label = time ? `${time} ${title}` : title;
+        const pill = createNode("div", {
+            className: "calendar-event-pill",
+            text: label,
+            attrs: { title: label, role: "button", tabindex: "0" },
+        });
+        pill.addEventListener("click", async (clickEvent) => {
+            clickEvent.stopPropagation();
+            await actions.openEventFromContext(event.id);
+        });
+        pill.addEventListener("keydown", async (keyEvent) => {
+            if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                keyEvent.preventDefault();
+                await actions.openEventFromContext(event.id);
+            }
+        });
+        return pill;
+    }
+
     function renderCalendar() {
         const panel = document.getElementById("calendar-panel");
         if (!panel) {
@@ -187,11 +244,12 @@ export function createCalendarRenderer({ state, actions }) {
         panel.appendChild(header);
 
         // --- Day-of-week header row ---
+        const monthGrid = createNode("div", { className: "calendar-month-grid" });
         const dayHeaderRow = createNode("div", { className: "calendar-grid" });
         DAY_NAMES.forEach((name) => {
             dayHeaderRow.appendChild(createNode("div", { className: "calendar-day-header", text: name }));
         });
-        panel.appendChild(dayHeaderRow);
+        monthGrid.appendChild(dayHeaderRow);
 
         // --- Day cells ---
         // getDay(): 0=Sun … 6=Sat. We want Mon=0, so shift by (day+6)%7
@@ -204,6 +262,7 @@ export function createCalendarRenderer({ state, actions }) {
         const occasionsByDay = buildPersonOccasionsByDayMap();
 
         const bodyGrid = createNode("div", { className: "calendar-grid calendar-grid--body" });
+        const agenda = createNode("div", { className: "calendar-agenda" });
 
         // Leading empty cells
         for (let i = 0; i < startOffset; i++) {
@@ -227,61 +286,46 @@ export function createCalendarRenderer({ state, actions }) {
                 text: String(day),
             }));
 
-            const addButton = createButtonNode("+ Add", "ghost-button", async (e) => {
-                e.stopPropagation();
-                await actions.openEventCreateForDate(dayKey);
-            }, { type: "button" });
-            addButton.classList.add("calendar-day-add");
-            addButton.setAttribute("aria-label", `Add event on ${dayKey}`);
+            const addButton = createAddEventButton(dayKey);
             dayMeta.appendChild(addButton);
 
             cell.appendChild(dayMeta);
 
             dayOccasions.forEach((occasion) => {
-                const label = occasion.type === "birthday"
-                    ? `\u{1F973} ${occasion.name} (${occasion.year})`
-                    : `\u{1FAA6} ${occasion.name} (${occasion.year})`;
-                const pill = createNode("div", {
-                    className: `calendar-occasion-pill calendar-occasion-pill--${occasion.type}`,
-                    text: label,
-                    attrs: { title: label, role: "button", tabindex: "0" },
-                });
-                pill.addEventListener("click", async (e) => {
-                    e.stopPropagation();
-                    await actions.openPersonFromContext(occasion.personId);
-                });
-                pill.addEventListener("keydown", async (e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        await actions.openPersonFromContext(occasion.personId);
-                    }
-                });
-                cell.appendChild(pill);
+                cell.appendChild(createOccasionPill(occasion));
             });
 
             dayEvents.forEach((event) => {
-                const title = event.title || `Event #${event.id}`;
-                const time = formatEventTime(event);
-                const label = time ? `${time} ${title}` : title;
-                const pill = createNode("div", {
-                    className: "calendar-event-pill",
-                    text: label,
-                    attrs: { title: label, role: "button", tabindex: "0" },
-                });
-                pill.addEventListener("click", async (e) => {
-                    e.stopPropagation();
-                    await actions.openEventFromContext(event.id);
-                });
-                pill.addEventListener("keydown", async (e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        await actions.openEventFromContext(event.id);
-                    }
-                });
-                cell.appendChild(pill);
+                cell.appendChild(createEventPill(event));
             });
 
             bodyGrid.appendChild(cell);
+
+            const dateLabel = new Intl.DateTimeFormat(undefined, {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+            }).format(new Date(year, month, day));
+            const agendaItems = createNode("div", { className: "calendar-agenda__items" });
+            dayOccasions.forEach((occasion) => agendaItems.appendChild(createOccasionPill(occasion)));
+            dayEvents.forEach((event) => agendaItems.appendChild(createEventPill(event)));
+            agenda.appendChild(createNode("section", {
+                className: `calendar-agenda__day${isToday ? " calendar-agenda__day--today" : ""}`,
+                children: [
+                    createNode("div", {
+                        className: "calendar-agenda__heading",
+                        children: [
+                            createNode("time", {
+                                className: "calendar-agenda__date",
+                                text: dateLabel,
+                                attrs: { datetime: dayKey },
+                            }),
+                            createAddEventButton(dayKey, "calendar-agenda__add"),
+                        ],
+                    }),
+                    agendaItems,
+                ],
+            }));
         }
 
         // Trailing empty cells
@@ -289,7 +333,9 @@ export function createCalendarRenderer({ state, actions }) {
             bodyGrid.appendChild(createNode("div", { className: "calendar-cell calendar-cell--empty" }));
         }
 
-        panel.appendChild(bodyGrid);
+        monthGrid.appendChild(bodyGrid);
+        panel.appendChild(monthGrid);
+        panel.appendChild(agenda);
     }
 
     return { renderCalendar };
