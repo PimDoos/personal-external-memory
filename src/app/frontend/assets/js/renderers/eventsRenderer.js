@@ -4,7 +4,7 @@ import { createCombobox } from "../combobox.js";
 import { createPersonAvatar } from "../avatar.js";
 
 export function createEventsRenderer({ state, caches, actions, common }) {
-    const { filtered, nameOfPerson, selectedEvent, createListItem, renderSimpleList, isPersonAliveAtDate } = common;
+    const { filtered, nameOfPerson, selectedEvent, createListItem, createAssociatedPeopleAvatarRow, renderSimpleList, isPersonAliveAtDate } = common;
 
     function hasImmichIntegrationConfigured() {
         const settings = state.data.userSettings || {};
@@ -588,6 +588,14 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             events,
             (event) => {
                 const item = createListItem(displayEventLabel(event), formatDateTime(event.start_time || event.date));
+                const participants = caches.topology.eventParticipantsByEventId.get(event.id)
+                    || caches.eventParticipants.get(event.id)
+                    || event.participants
+                    || [];
+                const avatarRow = createAssociatedPeopleAvatarRow(participants);
+                if (avatarRow) {
+                    item.appendChild(avatarRow);
+                }
                 if (state.selected.eventId === event.id) {
                     item.classList.add("active");
                 }
