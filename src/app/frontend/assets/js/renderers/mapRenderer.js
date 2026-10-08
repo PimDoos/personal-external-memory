@@ -1,5 +1,12 @@
 import { clearNodeChildren, createNode } from "../dom.js";
 import { api } from "../api.js";
+import {
+    addLocationRadiusLayer,
+    createLocationMarkerIcon,
+    getLocationMarkerRules,
+    getMapStyle,
+    summarizeLocationAssociations,
+} from "../mapUtils.js";
 
 function parseCoordinates(rawLocation) {
     const value = String(rawLocation || "").trim();
@@ -41,18 +48,6 @@ function parseCoordinates(rawLocation) {
 
     return null;
 }
-
-const darkOpenFreeMapStylePromise = fetch(new URL("../map-styles/dark-openfreemap-override.json", import.meta.url))
-    .then((response) => {
-        if (!response.ok) {
-            throw new Error(`Failed to load dark map style: ${response.status}`);
-        }
-        return response.json();
-    })
-    .catch((error) => {
-        console.warn("Unable to load the dark OpenFreeMap style JSON.", error);
-        return null;
-    });
 
 export function createMapRenderer({ state, actions }) {
     let map = null;
@@ -115,23 +110,8 @@ export function createMapRenderer({ state, actions }) {
     }
 
     async function getTileConfig(isDark) {
-        if (isDark) {
-            const style = await darkOpenFreeMapStylePromise;
-            if (style) {
-                return {
-                    style,
-                    attribution: "OpenFreeMap © OpenMapTiles • Data from OpenStreetMap",
-                };
-            }
-
-            return {
-                style: "https://tiles.openfreemap.org/styles/dark",
-                attribution: "OpenFreeMap © OpenMapTiles • Data from OpenStreetMap",
-            };
-        }
-
         return {
-            style: "https://tiles.openfreemap.org/styles/liberty",
+            style: await getMapStyle(isDark),
             attribution: "OpenFreeMap © OpenMapTiles • Data from OpenStreetMap",
         };
     }
@@ -368,16 +348,6 @@ export function createMapRenderer({ state, actions }) {
         });
     }
 
-    function buildMarkerIconHtml(colorClass, colorLabel) {
-        return createNode("span", {
-            className: `map-marker-icon ${colorClass}`,
-            attrs: {
-                title: colorLabel,
-                "aria-label": colorLabel,
-            },
-        }).outerHTML;
-    }
-
     async function getLocationDetail(locationId) {
         if (locationDetailCache.has(locationId)) {
             return locationDetailCache.get(locationId);
@@ -394,135 +364,8 @@ export function createMapRenderer({ state, actions }) {
         return detail;
     }
 
-    function summarizeAssociationTypes(associations) {
-        const summary = {
-            hasPerson: false,
-            hasBrand: false,
-            hasCircle: false,
-            hasEvent: false,
-        };
-
-        (associations || []).forEach((association) => {
-            if (association.entity_type === "person") {
-                summary.hasPerson = true;
-            } else if (association.entity_type === "brand") {
-                summary.hasBrand = true;
-            } else if (association.entity_type === "social_circle") {
-                summary.hasCircle = true;
-            } else if (association.entity_type === "event") {
-                summary.hasEvent = true;
-            }
-        });
-
-        return summary;
-    }
-
-    function getMarkerColorClass(summary) {
-        if (summary?.hasPerson) {
-            return "map-marker--person";
-        }
-        if (summary?.hasBrand) {
-            return "map-marker--brand";
-        }
-        if (summary?.hasCircle) {
-            return "map-marker--circle";
-        }
-        if (summary?.hasEvent) {
-            return "map-marker--event-only";
-        }
-        return "map-marker--fallback";
-    }
-
-    function getMarkerColorLabel(summary) {
-        if (summary?.hasPerson) {
-            return "Has people";
-        }
-        if (summary?.hasBrand) {
-            return "Has brands";
-        }
-        if (summary?.hasCircle) {
-            return "Has circles";
-        }
-        if (summary?.hasEvent) {
-            return "Only events";
-        }
-        return "Unassociated";
-    }
-
-    function getMarkerRuleKey(summary) {
-        if (summary?.hasPerson) {
-            return "person";
-        }
-        if (summary?.hasBrand) {
-            return "brand";
-        }
-        if (summary?.hasCircle) {
-            return "circle";
-        }
-        if (summary?.hasEvent) {
-            return "eventOnly";
-        }
-        return "fallback";
-    }
-
     function selectMarkerRule(summary, filters) {
-        const candidates = [];
-        if (summary?.hasPerson) {
-            candidates.push("person");
-        }
-        if (summary?.hasBrand) {
-            candidates.push("brand");
-        }
-        if (summary?.hasCircle) {
-            candidates.push("circle");
-        }
-        if (summary?.hasEvent) {
-            candidates.push("eventOnly");
-        }
-        if (!candidates.length) {
-            candidates.push("fallback");
-        }
-
-        return candidates.find((key) => Boolean(filters[key])) || null;
-    }
-
-    function buildMarkerIcon(locationId) {
-        const summary = locationAssociationSummaryCache.get(locationId) || summarizeAssociationTypes([]);
-        const colorClass = getMarkerColorClass(summary);
-        const colorLabel = getMarkerColorLabel(summary);
-        return window.L.divIcon({
-            className: "map-marker-icon-wrapper",
-            html: buildMarkerIconHtml(colorClass, colorLabel),
-            iconSize: [16, 16],
-            iconAnchor: [8, 8],
-            popupAnchor: [0, -8],
-        });
-    }
-
-    function buildMarkerIconFromRule(ruleKey) {
-        const colorClassByRule = {
-            person: "map-marker--person",
-            brand: "map-marker--brand",
-            circle: "map-marker--circle",
-            eventOnly: "map-marker--event-only",
-            fallback: "map-marker--fallback",
-        };
-        const colorLabelByRule = {
-            person: "Has people",
-            brand: "Has brands",
-            circle: "Has circles",
-            eventOnly: "Only events",
-            fallback: "Unassociated",
-        };
-        const colorClass = colorClassByRule[ruleKey] || "map-marker--fallback";
-        const colorLabel = colorLabelByRule[ruleKey] || "Unassociated";
-        return window.L.divIcon({
-            className: "map-marker-icon-wrapper",
-            html: buildMarkerIconHtml(colorClass, colorLabel),
-            iconSize: [16, 16],
-            iconAnchor: [8, 8],
-            popupAnchor: [0, -8],
-        });
+        return getLocationMarkerRules(summary).find((key) => Boolean(filters[key])) || null;
     }
 
     function renderLegend(legendNode) {
@@ -650,33 +493,27 @@ export function createMapRenderer({ state, actions }) {
                 return;
             }
 
-            const summary = locationAssociationSummaryCache.get(location.id) || summarizeAssociationTypes([]);
+            const preloadedAssociations = Array.isArray(location.associations) ? location.associations : null;
+            if (preloadedAssociations) {
+                locationAssociationSummaryCache.set(location.id, summarizeLocationAssociations(preloadedAssociations));
+            }
+            const summary = locationAssociationSummaryCache.get(location.id)
+                || summarizeLocationAssociations(preloadedAssociations || []);
             const markerRule = selectMarkerRule(summary, filters);
             if (!markerRule) {
                 return;
             }
 
-            plottable.push({ location, coords, markerRule });
+            plottable.push({ location, coords, markerRule, preloadedAssociations });
         });
 
-        plottable.forEach(({ location, coords, markerRule }) => {
+        plottable.forEach(({ location, coords, markerRule, preloadedAssociations }) => {
             const title = location.label || location.location || `Location #${location.id}`;
             const type = location.location_type || "Unknown";
-            const preloadedAssociations = Array.isArray(location.associations) ? location.associations : null;
-            if (preloadedAssociations) {
-                locationAssociationSummaryCache.set(location.id, summarizeAssociationTypes(preloadedAssociations));
-            }
             const marker = window.L.marker([coords.lat, coords.lon], {
-                icon: buildMarkerIconFromRule(markerRule),
+                icon: createLocationMarkerIcon(window.L, markerRule, title),
             });
-            window.L.circle([coords.lat, coords.lon], {
-                radius: Number(location.radius) || 50,
-                className: `location-radius location-radius--${markerRule}`,
-                fillOpacity: 0.14,
-                opacity: 0.55,
-                weight: 1,
-                interactive: false,
-            }).addTo(markersLayer);
+            addLocationRadiusLayer(window.L, markersLayer, location, coords, markerRule);
 
             marker.bindPopup(
                 buildPopupBody(
@@ -713,7 +550,7 @@ export function createMapRenderer({ state, actions }) {
 
                 try {
                     const detail = await getLocationDetail(location.id);
-                    locationAssociationSummaryCache.set(location.id, summarizeAssociationTypes(detail.associations || []));
+                    locationAssociationSummaryCache.set(location.id, summarizeLocationAssociations(detail.associations || []));
                     popup.setContent(
                         buildPopupBody(
                             location.id,

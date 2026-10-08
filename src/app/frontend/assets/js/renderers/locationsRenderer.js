@@ -1,10 +1,22 @@
 import { clearNodeChildren, createButtonNode, createFormDataObject, createNode, createSelectNode } from "../dom.js";
 import { formatDateTime } from "../ui.js";
+import {
+    addLocationRadiusLayer,
+    createLocationMarkerIcon,
+    getLocationMarkerRule,
+    getMapStyle,
+    summarizeLocationAssociations,
+} from "../mapUtils.js";
 
 export function createLocationsRenderer({ state, caches, actions, common }) {
     const { filtered, createEventCard, createListItem, renderSimpleList } = common;
     const miniMapMedia = window.matchMedia("(min-width: 1200px) and (orientation: landscape)");
+    const miniMapThemeMedia = window.matchMedia("(prefers-color-scheme: dark)");
+    const neighborRadiusMeters = 5000;
+    const earthCircumferenceMeters = 40075016.6856;
     let locationMiniMap = null;
+    let locationMiniMapTileLayer = null;
+    let locationMiniMapTheme = null;
     let locationMiniMapNode = null;
     let locationMiniMapKey = "";
 
@@ -13,8 +25,70 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
             locationMiniMap.remove();
         }
         locationMiniMap = null;
+        locationMiniMapTileLayer = null;
+        locationMiniMapTheme = null;
         locationMiniMapNode = null;
         locationMiniMapKey = "";
+    }
+
+    async function syncLocationMiniMapTheme(map) {
+        const isDark = miniMapThemeMedia.matches;
+        const nextTheme = isDark ? "dark" : "light";
+        if (locationMiniMapTheme === nextTheme && locationMiniMapTileLayer) {
+            return;
+        }
+
+        const style = await getMapStyle(isDark);
+        if (locationMiniMap !== map || miniMapThemeMedia.matches !== isDark || !map.getContainer().isConnected) {
+            return;
+        }
+
+        const previousTileLayer = locationMiniMapTileLayer;
+        locationMiniMapTileLayer = window.L.maplibreGL({ style }).addTo(map);
+        locationMiniMapTheme = nextTheme;
+        if (previousTileLayer) {
+            map.removeLayer(previousTileLayer);
+        }
+    }
+
+    function getLocationMarkerRuleFor(location) {
+        const associations = caches.locationAssociations.get(location.id) || location.associations || [];
+        return getLocationMarkerRule(summarizeLocationAssociations(associations));
+    }
+
+    function distanceBetweenCoordinates(first, second) {
+        const radians = Math.PI / 180;
+        const latitudeDelta = (second.lat - first.lat) * radians;
+        const longitudeDelta = (second.lon - first.lon) * radians;
+        const latitudeOne = first.lat * radians;
+        const latitudeTwo = second.lat * radians;
+        const haversine = Math.sin(latitudeDelta / 2) ** 2
+            + Math.cos(latitudeOne) * Math.cos(latitudeTwo) * Math.sin(longitudeDelta / 2) ** 2;
+        return 6371000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    }
+
+    function getNearbyLocations(location, coords) {
+        return (state.data.locations || [])
+            .filter((otherLocation) => Number(otherLocation.id) !== Number(location.id))
+            .map((otherLocation) => ({
+                location: otherLocation,
+                coords: inferLocationCoordinates(otherLocation),
+            }))
+            .filter((entry) => entry.coords
+                && distanceBetweenCoordinates(coords, entry.coords) <= neighborRadiusMeters)
+            .sort((left, right) => {
+                return distanceBetweenCoordinates(coords, left.coords) - distanceBetweenCoordinates(coords, right.coords);
+            });
+    }
+
+    function getMiniMapZoom(map, latitude, radius) {
+        const desiredWidthMeters = Math.max(1, radius * 4);
+        const latitudeScale = Math.max(0.000001, Math.cos(latitude * Math.PI / 180));
+        const zoom = Math.log2(
+            (earthCircumferenceMeters * latitudeScale * map.getSize().x)
+            / (256 * desiredWidthMeters)
+        );
+        return Math.max(2, zoom);
     }
 
     function buildLocationMiniMap(location, coords) {
@@ -23,8 +97,15 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
             return null;
         }
 
-        const radius = Number(location.radius) || 50;
-        const mapKey = `${location.id}:${coords.lat}:${coords.lon}:${radius}`;
+        const markerLocations = [
+            { location, coords, isCurrent: true },
+            ...getNearbyLocations(location, coords).map((neighbor) => ({ ...neighbor, isCurrent: false })),
+        ];
+        const mapKey = markerLocations
+            .map(({ location: markerLocation, coords: markerCoords, isCurrent }) => {
+                return `${markerLocation.id}:${markerCoords.lat}:${markerCoords.lon}:${Number(markerLocation.radius) || 50}:${getLocationMarkerRuleFor(markerLocation)}:${isCurrent}`;
+            })
+            .join("|");
         if (locationMiniMapKey !== mapKey || !locationMiniMapNode) {
             disposeLocationMiniMap();
             locationMiniMapNode = createNode("div", {
@@ -45,48 +126,65 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
 
             if (locationMiniMap) {
                 locationMiniMap.invalidateSize({ pan: false });
+                locationMiniMap.setView(
+                    [coords.lat, coords.lon],
+                    getMiniMapZoom(locationMiniMap, coords.lat, Number(location.radius) || 50),
+                    { animate: false }
+                );
                 return;
             }
 
-            const center = [coords.lat, coords.lon];
+            const radius = Number(location.radius) || 50;
             const map = window.L.map(mapNode, {
                 zoomControl: false,
                 scrollWheelZoom: false,
                 dragging: false,
                 doubleClickZoom: false,
                 keyboard: false,
-            }).setView(center, 16);
+                minZoom: 2,
+                zoomSnap: 0,
+            }).setView([coords.lat, coords.lon], 14);
             locationMiniMap = map;
 
-            const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-            window.L.maplibreGL({
-                style: isDark
-                    ? "https://tiles.openfreemap.org/styles/dark"
-                    : "https://tiles.openfreemap.org/styles/liberty",
-            }).addTo(map);
+            markerLocations.forEach(({ location: markerLocation, coords: markerCoords, isCurrent }) => {
+                const markerRule = getLocationMarkerRuleFor(markerLocation);
+                const markerCenter = [markerCoords.lat, markerCoords.lon];
+                addLocationRadiusLayer(window.L, map, markerLocation, markerCoords, markerRule);
+                const marker = window.L.marker(markerCenter, {
+                    icon: createLocationMarkerIcon(
+                        window.L,
+                        markerRule,
+                        displayLocationLabel(markerLocation),
+                        isCurrent
+                    ),
+                    title: displayLocationLabel(markerLocation),
+                    interactive: !isCurrent,
+                    keyboard: !isCurrent,
+                    zIndexOffset: isCurrent ? 1000 : 0,
+                }).addTo(map);
+                if (!isCurrent) {
+                    marker.on("click", () => {
+                        void actions.selectLocation(markerLocation.id);
+                    });
+                }
+            });
+            map.setView(
+                [coords.lat, coords.lon],
+                getMiniMapZoom(map, coords.lat, radius),
+                { animate: false }
+            );
 
-            const radiusCircle = window.L.circle(center, {
-                radius,
-                color: "#3674cf",
-                fillColor: "#3674cf",
-                fillOpacity: 0.14,
-                opacity: 0.65,
-                weight: 2,
-                interactive: false,
-            }).addTo(map);
-            window.L.circleMarker(center, {
-                radius: 5,
-                color: "#ffffff",
-                weight: 2,
-                fillColor: "#3674cf",
-                fillOpacity: 1,
-                interactive: false,
-            }).addTo(map);
-            map.fitBounds(radiusCircle.getBounds(), { padding: [24, 24], maxZoom: 17 });
+            void syncLocationMiniMapTheme(map);
         });
 
         return mapNode;
     }
+
+    miniMapThemeMedia.addEventListener("change", () => {
+        if (locationMiniMap) {
+            void syncLocationMiniMapTheme(locationMiniMap);
+        }
+    });
 
     function hasImmichIntegrationConfigured() {
         const settings = state.data.userSettings || {};
@@ -137,8 +235,12 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
     }
 
     function inferLocationCoordinates(location) {
-        const lat = Number(location.latitude);
-        const lon = Number(location.longitude);
+        const lat = location.latitude === null || location.latitude === undefined || location.latitude === ""
+            ? Number.NaN
+            : Number(location.latitude);
+        const lon = location.longitude === null || location.longitude === undefined || location.longitude === ""
+            ? Number.NaN
+            : Number(location.longitude);
         if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
             return { lat, lon };
         }

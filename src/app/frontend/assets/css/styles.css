@@ -1004,6 +1004,10 @@ select {
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 75%, transparent), 0 2px 6px rgba(0, 0, 0, 0.28);
 }
 
+.map-marker-icon--current {
+    box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent), 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
 .map-marker--person {
     background: #c5483f;
 }
