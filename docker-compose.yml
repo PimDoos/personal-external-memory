@@ -1,6 +1,7 @@
 services:
   # API service
   app:
+    restart: always
     build:
       context: .
       dockerfile: Dockerfile
