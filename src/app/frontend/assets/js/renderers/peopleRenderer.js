@@ -195,6 +195,28 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             .trim()
             .replace(/\s+/g, " ");
 
+        const tokenSimilarity = (left, right) => {
+            if (left === right) {
+                return 1;
+            }
+
+            let previousRow = Array.from({ length: right.length + 1 }, (_, index) => index);
+            for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+                const currentRow = [leftIndex];
+                for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+                    const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+                    currentRow[rightIndex] = Math.min(
+                        currentRow[rightIndex - 1] + 1,
+                        previousRow[rightIndex] + 1,
+                        previousRow[rightIndex - 1] + substitutionCost
+                    );
+                }
+                previousRow = currentRow;
+            }
+
+            return 1 - previousRow[right.length] / Math.max(left.length, right.length);
+        };
+
         const findBestMatchingFace = (candidateFaces) => {
             if (!candidateFaces.length) {
                 return null;
@@ -202,35 +224,54 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
             const personFullName = normalizeComparableName(`${person.first_name || ""} ${person.last_name || ""}`);
             const personTokens = personFullName ? personFullName.split(" ") : [];
+            if (!personTokens.length) {
+                return null;
+            }
 
-            let bestFace = candidateFaces[0];
-            let bestScore = Number.NEGATIVE_INFINITY;
+            const minimumTokenSimilarity = 0.8;
+            let bestFace = null;
+            let bestScore = minimumTokenSimilarity;
 
             candidateFaces.forEach((face) => {
                 const faceName = normalizeComparableName(face.display_name || "");
-                const faceTokens = new Set(faceName ? faceName.split(" ") : []);
-                let score = 0;
-
-                if (personFullName && faceName) {
-                    if (faceName === personFullName) {
-                        score += 1000;
-                    }
-                    if (faceName.startsWith(personFullName) || personFullName.startsWith(faceName)) {
-                        score += 400;
-                    }
-
-                    const overlap = personTokens.filter((token) => faceTokens.has(token)).length;
-                    score += overlap * 120;
-
-                    if (personTokens.length && personTokens.every((token) => faceTokens.has(token))) {
-                        score += 250;
-                    }
-
-                    score -= Math.abs(faceName.length - personFullName.length);
-                } else if (faceName) {
-                    score += 10;
+                const faceTokens = faceName ? faceName.split(" ") : [];
+                if (faceTokens.length < personTokens.length) {
+                    return;
                 }
 
+                const findTokenMatchScore = (personTokenIndex, usedFaceTokenIndexes) => {
+                    if (personTokenIndex === personTokens.length) {
+                        return 0;
+                    }
+
+                    let bestRemainingScore = Number.NEGATIVE_INFINITY;
+                    faceTokens.forEach((faceToken, faceTokenIndex) => {
+                        if (usedFaceTokenIndexes.has(faceTokenIndex)) {
+                            return;
+                        }
+
+                        const similarity = tokenSimilarity(personTokens[personTokenIndex], faceToken);
+                        if (similarity < minimumTokenSimilarity) {
+                            return;
+                        }
+
+                        const nextUsedIndexes = new Set(usedFaceTokenIndexes);
+                        nextUsedIndexes.add(faceTokenIndex);
+                        const remainingScore = findTokenMatchScore(personTokenIndex + 1, nextUsedIndexes);
+                        if (Number.isFinite(remainingScore)) {
+                            bestRemainingScore = Math.max(bestRemainingScore, similarity + remainingScore);
+                        }
+                    });
+
+                    return bestRemainingScore;
+                };
+
+                const totalScore = findTokenMatchScore(0, new Set());
+                if (!Number.isFinite(totalScore)) {
+                    return;
+                }
+
+                const score = totalScore / personTokens.length;
                 if (score > bestScore) {
                     bestScore = score;
                     bestFace = face;
@@ -291,10 +332,10 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
             const form = createNode("form", { className: "inline-form immich-face-link-form" });
             const unassignedFaces = faces.filter((face) => !Number(face.linked_person_id));
             const options = unassignedFaces.length
-                ? unassignedFaces.map((face) => ({
+                ? [{ value: "", label: "Select an Immich face" }, ...unassignedFaces.map((face) => ({
                     value: String(face.id),
                     label: `${face.display_name || `Face #${face.external_id}`} (${face.external_id})`,
-                }))
+                }))]
                 : [{ value: "", label: "No unassigned faces" }];
 
             const suggestedFace = findBestMatchingFace(unassignedFaces);
