@@ -58,6 +58,7 @@ class UserSettingsService:
             "me_person_id",
             "immich_api_key",
             "immich_base_url",
+            "immich_birthdate_sync_enabled",
             "home_assistant_api_key",
             "home_assistant_base_url",
         ):

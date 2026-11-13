@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from urllib.parse import parse_qs, quote, quote_plus, unquote_plus, urlencode, urlparse
@@ -28,6 +28,7 @@ from app.infrastructure.models import (
     ExternalIdentity,
     ExternalIdentityAssociation,
     Location,
+    Person,
     UserSettings,
 )
 
@@ -76,6 +77,10 @@ class ImmichService:
         created = 0
         updated = 0
         skipped = 0
+        sync_birthdates_stmt = select(UserSettings.immich_birthdate_sync_enabled).where(
+            UserSettings.user_id == user_id
+        )
+        sync_birthdates = bool((await self.session.execute(sync_birthdates_stmt)).scalar_one_or_none())
 
         for person in people_list:
             person_id = self._coerce_person_id(person)
@@ -118,6 +123,27 @@ class ImmichService:
                 existing.is_read_only = True
                 updated += 1
 
+            if sync_birthdates and existing is not None:
+                linked_birthdate_stmt = (
+                    select(Person.birth_date)
+                    .join(
+                        ExternalIdentityAssociation,
+                        ExternalIdentityAssociation.entity_id == Person.id,
+                    )
+                    .where(
+                        (Person.user_id == user_id)
+                        & (ExternalIdentityAssociation.entity_type == "person")
+                        & (ExternalIdentityAssociation.external_identity_id == existing.id)
+                    )
+                )
+                linked_birthdate = (
+                    await self.session.execute(linked_birthdate_stmt)
+                ).scalar_one_or_none()
+                if linked_birthdate is not None:
+                    await self._write_birthdate_if_missing(
+                        base_url, api_key, person_id, linked_birthdate
+                    )
+
         await self.session.flush()
 
         return ImmichSyncFacesResponse(
@@ -126,6 +152,120 @@ class ImmichService:
             skipped=skipped,
             total_remote=len(people_list),
         )
+
+    async def update_linked_birthdate_if_unchanged(
+        self,
+        user_id: int,
+        person_id: int,
+        previous_birthdate: date | None,
+        new_birthdate: date | None,
+    ) -> bool:
+        """Update Immich only when its birthday still matches PEM's previous value."""
+        settings_stmt = select(UserSettings).where(UserSettings.user_id == user_id)
+        settings = (await self.session.execute(settings_stmt)).scalar_one_or_none()
+        if settings is None or not settings.immich_birthdate_sync_enabled:
+            return False
+
+        linked_identity_stmt = (
+            select(ExternalIdentity.external_id)
+            .join(
+                ExternalIdentityAssociation,
+                ExternalIdentityAssociation.external_identity_id == ExternalIdentity.id,
+            )
+            .where(
+                (ExternalIdentity.user_id == user_id)
+                & (ExternalIdentity.source == "immich")
+                & (ExternalIdentity.entity_type == "person")
+                & (ExternalIdentityAssociation.entity_type == "person")
+                & (ExternalIdentityAssociation.entity_id == person_id)
+            )
+        )
+        immich_person_id = (
+            await self.session.execute(linked_identity_stmt)
+        ).scalar_one_or_none()
+        if not immich_person_id:
+            return False
+
+        base_url, api_key = await self._get_user_immich_credentials(user_id)
+        current_birthdate = await self._get_remote_birthdate(
+            base_url, api_key, str(immich_person_id)
+        )
+        if current_birthdate != previous_birthdate:
+            return False
+
+        await self._write_birthdate(
+            base_url, api_key, str(immich_person_id), new_birthdate
+        )
+        return True
+
+    async def _write_birthdate_if_missing(
+        self,
+        base_url: str,
+        api_key: str,
+        immich_person_id: str,
+        birthdate: date,
+    ) -> bool:
+        current_birthdate = await self._get_remote_birthdate(
+            base_url, api_key, immich_person_id
+        )
+        if current_birthdate is not None:
+            return False
+
+        await self._write_birthdate(base_url, api_key, immich_person_id, birthdate)
+        return True
+
+    async def _get_remote_birthdate(
+        self, base_url: str, api_key: str, immich_person_id: str
+    ) -> date | str | None:
+        payload = await self._request_json(
+            base_url, api_key, "GET", f"/api/people/{immich_person_id}"
+        )
+        if not isinstance(payload, dict):
+            raise ValidationError("Unexpected Immich person response while reading birthdate")
+
+        person_payload = payload.get("person")
+        if isinstance(person_payload, dict):
+            payload = person_payload
+        value = payload.get("birthDate")
+        if value is None or not str(value).strip():
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        try:
+            return date.fromisoformat(str(value).strip()[:10])
+        except ValueError:
+            return str(value).strip()
+
+    async def _write_birthdate(
+        self,
+        base_url: str,
+        api_key: str,
+        immich_person_id: str,
+        birthdate: date | None,
+    ) -> None:
+        try:
+            await self._request_json(
+                base_url,
+                api_key,
+                "PUT",
+                f"/api/people/{immich_person_id}",
+                {"birthDate": birthdate.isoformat() if birthdate else None},
+            )
+        except ValidationError as exc:
+            detail = str(exc)
+            if "(403)" in detail or "permission" in detail.lower():
+                guidance = (
+                    "This is likely a permissions issue; ensure the Immich API key can update people."
+                )
+            elif "(401)" in detail:
+                guidance = "Immich rejected the API key; verify the key and its permissions."
+            else:
+                guidance = "This does not appear to be a permissions issue."
+            raise ValidationError(
+                f"Failed to write a birthdate to Immich. {guidance} Details: {detail}"
+            ) from exc
 
     def _extract_people(self, payload: Any) -> list[dict[str, Any]]:
         """Extract people from GET /people response schema."""

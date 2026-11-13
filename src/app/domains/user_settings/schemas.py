@@ -9,6 +9,7 @@ class UserSettingsUpdateRequest(BaseModel):
     me_person_id: int | None = None
     immich_api_key: str | None = None
     immich_base_url: str | None = None
+    immich_birthdate_sync_enabled: bool = False
     home_assistant_api_key: str | None = None
     home_assistant_base_url: str | None = None
 
@@ -19,6 +20,7 @@ class UserSettingsResponse(BaseModel):
     me_person_id: int | None = None
     immich_api_key: str | None = None
     immich_base_url: str | None = None
+    immich_birthdate_sync_enabled: bool = False
     home_assistant_api_key: str | None = None
     home_assistant_base_url: str | None = None
     openid_linked: bool = False
