@@ -41,6 +41,7 @@ def test_user_settings_roundtrip() -> None:
         "me_person_id": None,
         "immich_api_key": None,
         "immich_base_url": None,
+        "immich_birthdate_sync_enabled": False,
         "home_assistant_api_key": None,
         "home_assistant_base_url": None,
     }
@@ -59,6 +60,7 @@ def test_user_settings_roundtrip() -> None:
             "me_person_id": person_id,
             "immich_api_key": "immich-secret",
             "immich_base_url": "https://immich.local",
+            "immich_birthdate_sync_enabled": True,
             "home_assistant_api_key": "ha-secret",
             "home_assistant_base_url": "https://ha.local",
         },
@@ -73,6 +75,7 @@ def test_user_settings_roundtrip() -> None:
         "me_person_id": person_id,
         "immich_api_key": "immich-secret",
         "immich_base_url": "https://immich.local",
+        "immich_birthdate_sync_enabled": True,
         "home_assistant_api_key": "ha-secret",
         "home_assistant_base_url": "https://ha.local",
     }

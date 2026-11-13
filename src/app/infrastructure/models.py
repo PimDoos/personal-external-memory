@@ -64,6 +64,7 @@ class UserSettings(Base):
     me_person_id = Column(Integer, nullable=True, index=True)
     immich_api_key = Column(String(512), nullable=True)
     immich_base_url = Column(String(512), nullable=True)
+    immich_birthdate_sync_enabled = Column(Boolean, nullable=False, default=False, server_default="0")
     home_assistant_api_key = Column(String(512), nullable=True)
     home_assistant_base_url = Column(String(512), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

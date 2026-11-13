@@ -68,6 +68,35 @@ export function createNode(tagName, options = {}) {
     return node;
 }
 
+export async function withButtonLoading(button, action) {
+    if (!button) {
+        return action();
+    }
+    if (button.disabled || button.dataset.loading === "true") {
+        return;
+    }
+
+    const wasDisabled = button.disabled;
+    const previousBusy = button.getAttribute("aria-busy");
+    button.disabled = true;
+    button.dataset.loading = "true";
+    button.classList.add("button-is-loading");
+    button.setAttribute("aria-busy", "true");
+
+    try {
+        return await action();
+    } finally {
+        button.disabled = wasDisabled;
+        delete button.dataset.loading;
+        button.classList.remove("button-is-loading");
+        if (previousBusy === null) {
+            button.removeAttribute("aria-busy");
+        } else {
+            button.setAttribute("aria-busy", previousBusy);
+        }
+    }
+}
+
 export function createButtonNode(text, className, onClick, options = {}) {
     const node = createNode("button", {
         className,
@@ -79,7 +108,7 @@ export function createButtonNode(text, className, onClick, options = {}) {
     if (onClick) {
         node.addEventListener("click", (event) => {
             event.stopPropagation();
-            onClick(event);
+            void withButtonLoading(node, () => onClick(event));
         });
     }
 

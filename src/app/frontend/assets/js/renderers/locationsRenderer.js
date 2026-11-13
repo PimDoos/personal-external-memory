@@ -1,4 +1,4 @@
-import { clearNodeChildren, createButtonNode, createFormDataObject, createNode, createSelectNode } from "../dom.js";
+import { clearNodeChildren, createButtonNode, createFormDataObject, createNode, createSelectNode, withButtonLoading } from "../dom.js";
 import { formatDateTime } from "../ui.js";
 import {
     addLocationRadiusLayer,
@@ -355,7 +355,10 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
     }
 
     function buildLocationEditForm(location) {
-        const form = createNode("form", { className: "form-grid compact-form" });
+        const form = createNode("form", {
+            className: "form-grid compact-form",
+            attrs: { id: `location-edit-${location.id}` },
+        });
         const inferredCoordinates = inferLocationCoordinates(location);
 
         const labelInput = createNode("input", {
@@ -435,14 +438,16 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
-            const payload = createFormDataObject(form);
-            if (payload.label === "") {
-                payload.label = null;
-            }
-            if (payload.location_type === "") {
-                payload.location_type = null;
-            }
-            await actions.updateLocation(location.id, payload);
+            await withButtonLoading(event.submitter, async () => {
+                const payload = createFormDataObject(form);
+                if (payload.label === "") {
+                    payload.label = null;
+                }
+                if (payload.location_type === "") {
+                    payload.location_type = null;
+                }
+                await actions.updateLocation(location.id, payload);
+            });
         });
 
         return form;
@@ -593,9 +598,10 @@ export function createLocationsRenderer({ state, caches, actions, common }) {
         container.className = "detail-grid";
         const locationEditForm = buildLocationEditForm(location);
         const locationMiniMapNode = buildLocationMiniMap(location, inferLocationCoordinates(location));
-        const saveLocationButton = createButtonNode("Save", "primary-button", () => {
-            locationEditForm.requestSubmit();
-        }, { type: "button" });
+        const saveLocationButton = createButtonNode("Save", "primary-button", null, {
+            type: "submit",
+            attrs: { form: locationEditForm.id },
+        });
 
         container.appendChild(createNode("article", {
             className: "subpanel",

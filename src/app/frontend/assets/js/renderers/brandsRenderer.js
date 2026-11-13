@@ -1,4 +1,4 @@
-import { clearNodeChildren, createButtonNode, createFormDataObject, createNode, createSelectNode, wrapCollapsible } from "../dom.js";
+import { clearNodeChildren, createButtonNode, createFormDataObject, createNode, createSelectNode, withButtonLoading, wrapCollapsible } from "../dom.js";
 import { createCombobox } from "../combobox.js";
 import { createPersonAvatar } from "../avatar.js";
 
@@ -165,7 +165,10 @@ export function createBrandsRenderer({ state, caches, actions, common }) {
     }
 
     function buildBrandEditForm(brand) {
-        const form = createNode("form", { className: "form-grid compact-form" });
+        const form = createNode("form", {
+            className: "form-grid compact-form",
+            attrs: { id: `brand-edit-${brand.id}` },
+        });
         const nameInput = createNode("input", {
             value: brand.name || "",
             attrs: { name: "name", required: true },
@@ -185,14 +188,16 @@ export function createBrandsRenderer({ state, caches, actions, common }) {
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
-            const payload = createFormDataObject(form);
-            if (payload.description === "") {
-                payload.description = null;
-            }
-            if (payload.notes === "") {
-                payload.notes = null;
-            }
-            await actions.updateBrand(brand.id, payload);
+            await withButtonLoading(event.submitter, async () => {
+                const payload = createFormDataObject(form);
+                if (payload.description === "") {
+                    payload.description = null;
+                }
+                if (payload.notes === "") {
+                    payload.notes = null;
+                }
+                await actions.updateBrand(brand.id, payload);
+            });
         });
 
         return form;
@@ -350,9 +355,10 @@ export function createBrandsRenderer({ state, caches, actions, common }) {
         clearNodeChildren(container);
         container.className = "detail-grid";
         const brandEditForm = buildBrandEditForm(brand);
-        const saveBrandButton = createButtonNode("Save", "primary-button", () => {
-            brandEditForm.requestSubmit();
-        }, { type: "button" });
+        const saveBrandButton = createButtonNode("Save", "primary-button", null, {
+            type: "submit",
+            attrs: { form: brandEditForm.id },
+        });
 
         container.appendChild(createNode("article", {
             className: "subpanel",
