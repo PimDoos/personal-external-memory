@@ -332,10 +332,18 @@ class PersonService:
         person = await self.get_person(person_id, user_id)
         
         update_data = data.model_dump(exclude_unset=True)
+        previous_birthdate = person.birth_date
         for key, value in update_data.items():
             setattr(person, key, value)
         
         await self.session.flush()
+        new_birthdate = person.birth_date
+        if "birth_date" in update_data and new_birthdate != previous_birthdate:
+            from app.domains.immich.service import ImmichService
+
+            await ImmichService(self.session).update_linked_birthdate_if_unchanged(
+                user_id, person_id, previous_birthdate, new_birthdate
+            )
         await self.session.refresh(person)
         return person
 

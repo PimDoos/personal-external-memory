@@ -1,4 +1,4 @@
-import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
+import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, withButtonLoading, wrapCollapsible } from "../dom.js";
 import { createCombobox } from "../combobox.js";
 import { createPersonAvatar } from "../avatar.js";
 
@@ -58,7 +58,10 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
     }
 
     function buildCircleEditForm(circle) {
-        const form = createNode("form", { className: "form-grid compact-form" });
+        const form = createNode("form", {
+            className: "form-grid compact-form",
+            attrs: { id: `circle-edit-${circle.id}` },
+        });
         const nameInput = createNode("input", {
             value: circle.name || "",
             attrs: { name: "name", required: true },
@@ -85,17 +88,19 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
-            const payload = createFormDataObject(form);
-            if (payload.circle_type === "") {
-                payload.circle_type = null;
-            }
-            if (payload.description === "") {
-                payload.description = null;
-            }
-            if (payload.notes === "") {
-                payload.notes = null;
-            }
-            await actions.updateCircle(circle.id, payload);
+            await withButtonLoading(event.submitter, async () => {
+                const payload = createFormDataObject(form);
+                if (payload.circle_type === "") {
+                    payload.circle_type = null;
+                }
+                if (payload.description === "") {
+                    payload.description = null;
+                }
+                if (payload.notes === "") {
+                    payload.notes = null;
+                }
+                await actions.updateCircle(circle.id, payload);
+            });
         });
 
         return form;
@@ -260,9 +265,10 @@ export function createCirclesRenderer({ state, caches, actions, common }) {
             .sort(comparePeopleByFirstName);
 
         const circleEditForm = buildCircleEditForm(circle);
-        const saveCircleButton = createButtonNode("Save", "primary-button", () => {
-            circleEditForm.requestSubmit();
-        }, { type: "button" });
+        const saveCircleButton = createButtonNode("Save", "primary-button", null, {
+            type: "submit",
+            attrs: { form: circleEditForm.id },
+        });
 
         container.appendChild(createNode("article", {
             className: "subpanel",

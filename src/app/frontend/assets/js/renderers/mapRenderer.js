@@ -1,4 +1,4 @@
-import { clearNodeChildren, createNode } from "../dom.js";
+import { clearNodeChildren, createNode, withButtonLoading } from "../dom.js";
 import { api } from "../api.js";
 import {
     addLocationRadiusLayer,
@@ -303,7 +303,7 @@ export function createMapRenderer({ state, caches, actions }) {
                 buttonNode.addEventListener("click", async (event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    await onAssociationClick(entityType, entityId);
+                    await withButtonLoading(buttonNode, () => onAssociationClick(entityType, entityId));
                 });
 
                 listNode.appendChild(createNode("li", { children: [buttonNode] }));
@@ -332,7 +332,7 @@ export function createMapRenderer({ state, caches, actions }) {
         locationLink.addEventListener("click", async (event) => {
             event.stopPropagation();
             state.activeSection = "locations";
-            await actions.selectLocation(locationId);
+            await withButtonLoading(locationLink, () => actions.selectLocation(locationId));
         });
 
         return createNode("div", {
@@ -439,7 +439,7 @@ export function createMapRenderer({ state, caches, actions }) {
                 });
                 button.addEventListener("click", async () => {
                     state.activeSection = "locations";
-                    await actions.selectLocation(location.id);
+                    await withButtonLoading(button, () => actions.selectLocation(location.id));
                 });
 
                 const listItem = createNode("li", {

@@ -19,9 +19,10 @@ export function createSettingsRenderer({ state, actions }) {
         const mePersonField = document.getElementById("settings-me-person-field");
         const immichInput = formNode.querySelector("input[name='immich_api_key']");
         const immichBaseUrlInput = formNode.querySelector("input[name='immich_base_url']");
+        const immichBirthdateSyncInput = formNode.querySelector("input[name='immich_birthdate_sync_enabled']");
         const homeAssistantInput = formNode.querySelector("input[name='home_assistant_api_key']");
         const homeAssistantBaseUrlInput = formNode.querySelector("input[name='home_assistant_base_url']");
-        if (!mePersonField || !immichInput || !immichBaseUrlInput || !homeAssistantInput || !homeAssistantBaseUrlInput) {
+        if (!mePersonField || !immichInput || !immichBaseUrlInput || !immichBirthdateSyncInput || !homeAssistantInput || !homeAssistantBaseUrlInput) {
             return;
         }
 
@@ -42,6 +43,7 @@ export function createSettingsRenderer({ state, actions }) {
 
         immichInput.value = state.data.userSettings?.immich_api_key || "";
         immichBaseUrlInput.value = state.data.userSettings?.immich_base_url || "";
+        immichBirthdateSyncInput.checked = Boolean(state.data.userSettings?.immich_birthdate_sync_enabled);
         homeAssistantInput.value = state.data.userSettings?.home_assistant_api_key || "";
         homeAssistantBaseUrlInput.value = state.data.userSettings?.home_assistant_base_url || "";
 
@@ -77,21 +79,11 @@ export function createSettingsRenderer({ state, actions }) {
         }
 
         clearNodeChildren(integrationNode);
-        const testButton = createNode("button", {
-            className: "secondary-button",
-            text: "Test Immich Connection",
-            attrs: { type: "button" },
-        });
-        testButton.addEventListener("click", async () => {
+        const testButton = createButtonNode("Test Immich Connection", "secondary-button", async () => {
             await actions.testImmichConnection();
         });
 
-        const syncButton = createNode("button", {
-            className: "secondary-button",
-            text: "Sync Immich Faces",
-            attrs: { type: "button" },
-        });
-        syncButton.addEventListener("click", async () => {
+        const syncButton = createButtonNode("Sync Immich Faces", "secondary-button", async () => {
             await actions.syncImmichFaces();
         });
 

@@ -517,6 +517,29 @@ select {
     transform: translateY(-1px);
 }
 
+.button-is-loading {
+    cursor: wait;
+}
+
+.button-is-loading::before {
+    content: "";
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    margin-right: 0.45em;
+    vertical-align: -0.08em;
+    border: 0.12em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: button-loading-spin 700ms linear infinite;
+}
+
+@keyframes button-loading-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .settings-integration-tools {
     display: grid;
     gap: 10px;
@@ -532,6 +555,19 @@ select {
 }
 
 .settings-subsection h3 {
+    margin: 0;
+}
+
+.form-grid .settings-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-checkbox input {
+    width: 1em;
+    height: 1em;
+    flex: 0 0 auto;
     margin: 0;
 }
 

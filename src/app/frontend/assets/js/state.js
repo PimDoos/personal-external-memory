@@ -73,6 +73,7 @@ export const state = {
             me_person_id: null,
             immich_api_key: null,
             immich_base_url: null,
+            immich_birthdate_sync_enabled: false,
             home_assistant_api_key: null,
             home_assistant_base_url: null,
             openid_linked: false,

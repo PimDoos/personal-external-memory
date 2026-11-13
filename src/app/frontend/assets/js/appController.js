@@ -1,5 +1,5 @@
 import { api, refreshAccessToken, setAuthExpiredHandler } from "./api.js";
-import { createFormDataObject, getNodeById } from "./dom.js";
+import { createFormDataObject, getNodeById, withButtonLoading } from "./dom.js";
 import { createRenderer } from "./render.js";
 import { clearSession, saveSession, state } from "./state.js";
 import { toIsoDateTime } from "./ui.js";
@@ -7,6 +7,7 @@ import { toIsoDateTime } from "./ui.js";
 export function createAppController() {
     const TOKEN_REFRESH_EARLY_MS = 60 * 1000;
     const TOKEN_REFRESH_FALLBACK_MS = 5 * 60 * 1000;
+    let pendingFormSubmitter = null;
     const NAV_SECTIONS = new Set(["dashboard", "people", "circles", "brands", "events", "tags", "locations", "types", "settings", "topology", "calendar", "map"]);
     const ENTITY_KEY_BY_SECTION = {
         people: "personId",
@@ -494,11 +495,13 @@ export function createAppController() {
         };
         const activeSidebarState = state.sidebar[state.activeSection];
         const shouldPreserveViewport = resolvedOptions.preserveViewport ?? activeSidebarState === "detail";
+        const submitter = pendingFormSubmitter;
+        pendingFormSubmitter = null;
         const viewportBeforeAction = shouldPreserveViewport
             ? { left: window.scrollX, top: window.scrollY }
             : null;
         try {
-            await action();
+            await (submitter ? withButtonLoading(submitter, action) : action());
             if (resolvedOptions.render) {
                 renderer.renderAll();
                 writeHashFromState();
@@ -662,6 +665,7 @@ export function createAppController() {
                 me_person_id: userSettings?.me_person_id || null,
                 immich_api_key: userSettings?.immich_api_key || null,
                 immich_base_url: userSettings?.immich_base_url || null,
+                immich_birthdate_sync_enabled: Boolean(userSettings?.immich_birthdate_sync_enabled),
                 home_assistant_api_key: userSettings?.home_assistant_api_key || null,
                 home_assistant_base_url: userSettings?.home_assistant_base_url || null,
                 openid_linked: Boolean(userSettings?.openid_linked),
@@ -729,6 +733,7 @@ export function createAppController() {
             me_person_id: userSettings?.me_person_id || null,
             immich_api_key: userSettings?.immich_api_key || null,
             immich_base_url: userSettings?.immich_base_url || null,
+            immich_birthdate_sync_enabled: Boolean(userSettings?.immich_birthdate_sync_enabled),
             home_assistant_api_key: userSettings?.home_assistant_api_key || null,
             home_assistant_base_url: userSettings?.home_assistant_base_url || null,
             openid_linked: Boolean(userSettings?.openid_linked),
@@ -830,6 +835,20 @@ export function createAppController() {
             })
         );
         caches.peopleTagSummaries = peopleTagSummaries;
+    }
+
+    function mergeUpdatedEntity(collectionKey, updated) {
+        if (!updated?.id) {
+            return;
+        }
+
+        const collection = state.data[collectionKey] || [];
+        const index = collection.findIndex((item) => item.id === updated.id);
+        if (index >= 0) {
+            collection[index] = { ...collection[index], ...updated };
+        } else {
+            state.data[collectionKey] = collection.concat([updated]);
+        }
     }
 
     function resolveCreatedEntity(items, previousIds, createdId, matcher) {
@@ -1360,33 +1379,35 @@ export function createAppController() {
         const form = event.currentTarget;
         const payload = createFormDataObject(form);
 
-        try {
-            if (mode === "register") {
-                await api.auth.register(payload);
-                setAuthMessage("Account created. Sign in with the same credentials.");
-                form.reset();
-                const loginForm = getNodeById("login-form");
-                const registerForm = getNodeById("register-form");
-                registerForm.classList.add("hidden");
-                loginForm.classList.remove("hidden");
-            } else {
-                if (!payload.password) {
-                    setAuthMessage("Password is required");
-                    return;
+        await withButtonLoading(event.submitter, async () => {
+            try {
+                if (mode === "register") {
+                    await api.auth.register(payload);
+                    setAuthMessage("Account created. Sign in with the same credentials.");
+                    form.reset();
+                    const loginForm = getNodeById("login-form");
+                    const registerForm = getNodeById("register-form");
+                    registerForm.classList.add("hidden");
+                    loginForm.classList.remove("hidden");
+                } else {
+                    if (!payload.password) {
+                        setAuthMessage("Password is required");
+                        return;
+                    }
+                    const tokens = await api.auth.login(payload);
+                    saveSession(tokens.access_token, payload.email, tokens.refresh_token);
+                    setAuthMessage("Signed in.");
+                    applyHashToState();
+                    await bootstrapAuthenticated();
+                    writeHashFromState({ replace: true });
+                    scheduleBackgroundRefresh();
+                    showToast("Logged in.");
                 }
-                const tokens = await api.auth.login(payload);
-                saveSession(tokens.access_token, payload.email, tokens.refresh_token);
-                setAuthMessage("Signed in.");
-                applyHashToState();
-                await bootstrapAuthenticated();
-                writeHashFromState({ replace: true });
-                scheduleBackgroundRefresh();
-                showToast("Logged in.");
+            } catch (error) {
+                showToast(error.message || "Authentication failed", true);
+                setAuthMessage(error.message || "Authentication failed");
             }
-        } catch (error) {
-            showToast(error.message || "Authentication failed", true);
-            setAuthMessage(error.message || "Authentication failed");
-        }
+        });
     }
 
     function bindAuthTabs() {
@@ -1417,6 +1438,14 @@ export function createAppController() {
 
     function bindStaticHandlers() {
         bindAuthTabs();
+        document.addEventListener("submit", (event) => {
+            pendingFormSubmitter = event.submitter || null;
+            queueMicrotask(() => {
+                if (pendingFormSubmitter === event.submitter) {
+                    pendingFormSubmitter = null;
+                }
+            });
+        }, true);
 
         getNodeById("login-form").addEventListener("submit", (event) => {
             handleAuthSubmit("login", event);
@@ -1429,7 +1458,7 @@ export function createAppController() {
         if (refs.openidLoginButton) {
             refs.openidLoginButton.addEventListener("click", async () => {
                 try {
-                    await startOpenIdLogin();
+                    await withButtonLoading(refs.openidLoginButton, () => startOpenIdLogin());
                 } catch (error) {
                     const message = error.message || "OpenID authentication failed";
                     setAuthMessage(message);
@@ -1627,6 +1656,7 @@ export function createAppController() {
             await withAction(async () => {
                 const payload = createFormDataObject(formNode);
                 payload.me_person_id = payload.me_person_id ? Number(payload.me_person_id) : null;
+                payload.immich_birthdate_sync_enabled = formNode.querySelector("input[name='immich_birthdate_sync_enabled']").checked;
                 payload.immich_api_key = payload.immich_api_key?.trim() || null;
                 payload.immich_base_url = payload.immich_base_url?.trim() || null;
                 payload.home_assistant_api_key = payload.home_assistant_api_key?.trim() || null;
@@ -1636,6 +1666,7 @@ export function createAppController() {
                     me_person_id: savedSettings?.me_person_id || null,
                     immich_api_key: savedSettings?.immich_api_key || null,
                     immich_base_url: savedSettings?.immich_base_url || null,
+                    immich_birthdate_sync_enabled: Boolean(savedSettings?.immich_birthdate_sync_enabled),
                     home_assistant_api_key: savedSettings?.home_assistant_api_key || null,
                     home_assistant_base_url: savedSettings?.home_assistant_base_url || null,
                     openid_linked: Boolean(savedSettings?.openid_linked),
@@ -1834,14 +1865,7 @@ export function createAppController() {
         }),
         updatePerson: async (personId, payload) => withAction(async () => {
             const updated = await api.people.update(personId, payload);
-            if (updated && updated.id) {
-                const idx = (state.data.people || []).findIndex((p) => p.id === updated.id);
-                if (idx >= 0) {
-                    state.data.people[idx] = updated;
-                } else {
-                    state.data.people = (state.data.people || []).concat([updated]);
-                }
-            }
+            mergeUpdatedEntity("people", updated);
             await loadPeopleTagSummaries();
             await loadPersonCaches(personId);
             renderer.renderAll();
@@ -1954,14 +1978,7 @@ export function createAppController() {
         }),
         updateCircle: async (circleId, payload) => withAction(async () => {
             const updated = await api.circles.update(circleId, payload);
-            if (updated && updated.id) {
-                const idx = (state.data.circles || []).findIndex((c) => c.id === updated.id);
-                if (idx >= 0) {
-                    state.data.circles[idx] = updated;
-                } else {
-                    state.data.circles = (state.data.circles || []).concat([updated]);
-                }
-            }
+            mergeUpdatedEntity("circles", updated);
             await loadPeopleTagSummaries();
             await Promise.all([
                 loadCircleMembers(circleId),
@@ -2006,14 +2023,7 @@ export function createAppController() {
         }),
         updateBrand: async (brandId, payload) => withAction(async () => {
             const updated = await api.brands.update(brandId, payload);
-            if (updated && updated.id) {
-                const idx = (state.data.brands || []).findIndex((b) => b.id === updated.id);
-                if (idx >= 0) {
-                    state.data.brands[idx] = updated;
-                } else {
-                    state.data.brands = (state.data.brands || []).concat([updated]);
-                }
-            }
+            mergeUpdatedEntity("brands", updated);
             await loadPeopleTagSummaries();
             await loadBrandLocations(brandId);
             if (state.selected.personId) {
@@ -2138,14 +2148,7 @@ export function createAppController() {
         }),
         updateEvent: async (eventId, payload) => withAction(async () => {
             const updated = await api.events.update(eventId, payload);
-            if (updated && updated.id) {
-                const idx = (state.data.events || []).findIndex((e) => e.id === updated.id);
-                if (idx >= 0) {
-                    state.data.events[idx] = updated;
-                } else {
-                    state.data.events = (state.data.events || []).concat([updated]);
-                }
-            }
+            mergeUpdatedEntity("events", updated);
             await loadPeopleTagSummaries();
             await Promise.all([
                 loadEventParticipants(eventId),
@@ -2199,12 +2202,7 @@ export function createAppController() {
         updateLocation: async (locationId, payload) => withAction(async () => {
             const updated = await api.locations.update(locationId, payload);
             if (updated && updated.id) {
-                const idx = (state.data.locations || []).findIndex((l) => l.id === updated.id);
-                if (idx >= 0) {
-                    state.data.locations[idx] = updated;
-                } else {
-                    state.data.locations = (state.data.locations || []).concat([updated]);
-                }
+                mergeUpdatedEntity("locations", updated);
                 if (Array.isArray(updated.associations)) {
                     caches.locationAssociations.set(updated.id, updated.associations);
                 }
@@ -2226,14 +2224,7 @@ export function createAppController() {
         }),
         updateTag: async (tagId, payload) => withAction(async () => {
             const updated = await api.tags.update(tagId, payload);
-            if (updated && updated.id) {
-                const idx = (state.data.tags || []).findIndex((t) => t.id === updated.id);
-                if (idx >= 0) {
-                    state.data.tags[idx] = updated;
-                } else {
-                    state.data.tags = (state.data.tags || []).concat([updated]);
-                }
-            }
+            mergeUpdatedEntity("tags", updated);
             await loadPeopleTagSummaries();
             await refreshSelectedEntityCaches();
             renderer.renderAll();

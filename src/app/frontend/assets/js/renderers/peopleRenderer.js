@@ -1,4 +1,4 @@
-import { createButtonNode, clearNodeChildren, createNode, createEmptyStateNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
+import { createButtonNode, clearNodeChildren, createNode, createEmptyStateNode, createSelectNode, createFormDataObject, withButtonLoading, wrapCollapsible } from "../dom.js";
 import { calculateAge, calculateAgeAtDate, formatDate } from "../ui.js";
 import { createCombobox } from "../combobox.js";
 import { createPersonAvatar } from "../avatar.js";
@@ -743,7 +743,10 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
     }
 
     function buildPersonEditForm(person) {
-        const form = createNode("form", { className: "form-grid compact-form" });
+        const form = createNode("form", {
+            className: "form-grid compact-form",
+            attrs: { id: `person-edit-${person.id}` },
+        });
         const firstNameInput = createNode("input", {
             value: person.first_name || "",
             attrs: { name: "first_name", required: true },
@@ -788,20 +791,22 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
-            const payload = createFormDataObject(form);
-            if (!payload.birth_date) {
-                payload.birth_date = null;
-            }
-            if (!payload.date_of_death) {
-                payload.date_of_death = null;
-            }
-            if (payload.last_name === "") {
-                payload.last_name = null;
-            }
-            if (payload.notes === "") {
-                payload.notes = null;
-            }
-            await actions.updatePerson(person.id, payload);
+            await withButtonLoading(event.submitter, async () => {
+                const payload = createFormDataObject(form);
+                if (!payload.birth_date) {
+                    payload.birth_date = null;
+                }
+                if (!payload.date_of_death) {
+                    payload.date_of_death = null;
+                }
+                if (payload.last_name === "") {
+                    payload.last_name = null;
+                }
+                if (payload.notes === "") {
+                    payload.notes = null;
+                }
+                await actions.updatePerson(person.id, payload);
+            });
         });
 
         return form;
@@ -855,9 +860,10 @@ export function createPeopleRenderer({ state, caches, actions, common }) {
 
         const personEditForm = buildPersonEditForm(person);
         personEditForm.classList.add("person-form", "person-form--detail");
-        const savePersonButton = createButtonNode("Save", "primary-button", () => {
-            personEditForm.requestSubmit();
-        }, { type: "button" });
+        const savePersonButton = createButtonNode("Save", "primary-button", null, {
+            type: "submit",
+            attrs: { form: personEditForm.id },
+        });
 
         const overview = createNode("article", {
             className: `subpanel${person.date_of_death ? " person-card--deceased" : ""}`,

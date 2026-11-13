@@ -4,6 +4,7 @@ import {
     createFormDataObject,
     createNode,
     createSelectNode,
+    withButtonLoading,
     wrapCollapsible,
 } from "../dom.js";
 import { createPersonAvatar } from "../avatar.js";
@@ -77,7 +78,10 @@ export function createTagsRenderer({ state, caches, actions, common }) {
     }
 
     function buildTagEditForm(tag) {
-        const form = createNode("form", { className: "form-grid compact-form" });
+        const form = createNode("form", {
+            className: "form-grid compact-form",
+            attrs: { id: `tag-edit-${tag.id}` },
+        });
         const nameInput = createNode("input", {
             value: tag.name || "",
             attrs: { name: "name", required: true },
@@ -97,11 +101,13 @@ export function createTagsRenderer({ state, caches, actions, common }) {
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
-            const payload = createFormDataObject(form);
-            if (payload.description === "") {
-                payload.description = null;
-            }
-            await actions.updateTag(tag.id, payload);
+            await withButtonLoading(event.submitter, async () => {
+                const payload = createFormDataObject(form);
+                if (payload.description === "") {
+                    payload.description = null;
+                }
+                await actions.updateTag(tag.id, payload);
+            });
         });
 
         return form;
@@ -143,9 +149,10 @@ export function createTagsRenderer({ state, caches, actions, common }) {
             .sort((left, right) => personDisplayName(left).localeCompare(personDisplayName(right), undefined, { sensitivity: "base" }));
 
         const tagEditForm = buildTagEditForm(tag);
-        const saveTagButton = createButtonNode("Save", "primary-button", () => {
-            tagEditForm.requestSubmit();
-        }, { type: "button" });
+        const saveTagButton = createButtonNode("Save", "primary-button", null, {
+            type: "submit",
+            attrs: { form: tagEditForm.id },
+        });
 
         container.appendChild(createNode("article", {
             className: "subpanel",

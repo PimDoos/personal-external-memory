@@ -1,4 +1,4 @@
-import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, wrapCollapsible } from "../dom.js";
+import { createButtonNode, clearNodeChildren, createNode, createSelectNode, createFormDataObject, withButtonLoading, wrapCollapsible } from "../dom.js";
 import { formatDateTime, toLocalDateTimeInputValue, toIsoDateTime } from "../ui.js";
 import { createCombobox } from "../combobox.js";
 import { createPersonAvatar } from "../avatar.js";
@@ -65,7 +65,10 @@ export function createEventsRenderer({ state, caches, actions, common }) {
     }
 
     function buildEventEditForm(event) {
-        const form = createNode("form", { className: "form-grid compact-form event-form--detail" });
+        const form = createNode("form", {
+            className: "form-grid compact-form event-form--detail",
+            attrs: { id: `event-edit-${event.id}` },
+        });
         const titleInput = createNode("input", {
             value: event.title || "",
             attrs: { name: "title", placeholder: "Birthday dinner, launch party" },
@@ -112,28 +115,30 @@ export function createEventsRenderer({ state, caches, actions, common }) {
 
         form.addEventListener("submit", async (eventObj) => {
             eventObj.preventDefault();
-            const payload = createFormDataObject(form);
-            if (payload.start_time) {
-                payload.start_time = toIsoDateTime(payload.start_time);
-            } else {
-                payload.start_time = null;
-            }
-            if (payload.end_time) {
-                payload.end_time = toIsoDateTime(payload.end_time);
-            } else {
-                payload.end_time = null;
-            }
-            if (payload.title === "") {
-                payload.title = null;
-            }
-            if (payload.event_type === "") {
-                payload.event_type = null;
-            }
-            if (payload.notes === "") {
-                payload.notes = null;
-            }
-            payload.date = payload.start_time || payload.end_time || event.date;
-            await actions.updateEvent(event.id, payload);
+            await withButtonLoading(eventObj.submitter, async () => {
+                const payload = createFormDataObject(form);
+                if (payload.start_time) {
+                    payload.start_time = toIsoDateTime(payload.start_time);
+                } else {
+                    payload.start_time = null;
+                }
+                if (payload.end_time) {
+                    payload.end_time = toIsoDateTime(payload.end_time);
+                } else {
+                    payload.end_time = null;
+                }
+                if (payload.title === "") {
+                    payload.title = null;
+                }
+                if (payload.event_type === "") {
+                    payload.event_type = null;
+                }
+                if (payload.notes === "") {
+                    payload.notes = null;
+                }
+                payload.date = payload.start_time || payload.end_time || event.date;
+                await actions.updateEvent(event.id, payload);
+            });
         });
 
         return form;
@@ -375,9 +380,10 @@ export function createEventsRenderer({ state, caches, actions, common }) {
             .sort(comparePeopleByFirstName);
 
         const eventEditForm = buildEventEditForm(event);
-        const saveEventButton = createButtonNode("Save", "primary-button", () => {
-            eventEditForm.requestSubmit();
-        }, { type: "button" });
+        const saveEventButton = createButtonNode("Save", "primary-button", null, {
+            type: "submit",
+            attrs: { form: eventEditForm.id },
+        });
 
         container.appendChild(createNode("article", {
             className: "subpanel",
